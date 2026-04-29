@@ -1,0 +1,21 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function tripDoc(tripId) {
+      return firestore.get(/databases/(default)/documents/trips/$(tripId));
+    }
+
+    function isTripMember(tripId) {
+      return signedIn() && request.auth.uid in tripDoc(tripId).data.memberIds;
+    }
+
+    match /receipts/{tripId}/{allPaths=**} {
+      allow read, write: if isTripMember(tripId);
+    }
+  }
+}
