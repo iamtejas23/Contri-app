@@ -24,6 +24,7 @@ Contri-app is a Firebase-powered React app for planning shared trips, tracking e
    - Google provider
 3. Create a Firestore database.
 4. Create a Firebase Storage bucket.
+   - Cloud Storage for Firebase on web requires the project to be on the Blaze plan.
 5. Copy the Firebase web app credentials into a local `.env` file based on `.env.example`.
 6. Deploy the included security rules:
    - `firestore.rules`
@@ -50,9 +51,10 @@ Create `.env` in the project root:
 VITE_FIREBASE_API_KEY=your_key
 VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 ```
 
 ## Install and run

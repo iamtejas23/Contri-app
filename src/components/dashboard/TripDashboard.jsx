@@ -61,7 +61,7 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-dusk/60">
@@ -107,8 +107,8 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
           <h3 className="mt-2 font-display text-2xl font-bold text-ink">
             Where the money went
           </h3>
-          <div className="mt-4 h-72">
-            <ResponsiveContainer width="100%">
+          <div className="mt-4 h-72 min-w-0">
+            <ResponsiveContainer height="100%" minWidth={0} width="100%">
               <PieChart>
                 <Pie
                   data={metrics.categoryData}
@@ -146,15 +146,15 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <Card>
+        <Card className="min-w-0">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-dusk/60">
             Daily spending timeline
           </p>
           <h3 className="mt-2 font-display text-2xl font-bold text-ink">
             Peaks across the trip
           </h3>
-          <div className="mt-4 h-80">
-            <ResponsiveContainer width="100%">
+          <div className="mt-4 h-80 min-w-0">
+            <ResponsiveContainer height="100%" minWidth={0} width="100%">
               <BarChart data={metrics.dailyData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#d5d7d1" vertical={false} />
                 <XAxis dataKey="label" tickLine={false} axisLine={false} />
@@ -166,15 +166,15 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
           </div>
         </Card>
 
-        <Card>
+        <Card className="min-w-0">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-dusk/60">
             Member contribution
           </p>
           <h3 className="mt-2 font-display text-2xl font-bold text-ink">
             Who paid the most upfront
           </h3>
-          <div className="mt-4 h-80">
-            <ResponsiveContainer width="100%">
+          <div className="mt-4 h-80 min-w-0">
+            <ResponsiveContainer height="100%" minWidth={0} width="100%">
               <BarChart data={metrics.contributionsData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#d5d7d1" vertical={false} />
                 <XAxis dataKey="name" tickLine={false} axisLine={false} />

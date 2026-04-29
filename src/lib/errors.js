@@ -13,6 +13,13 @@ const ERROR_MESSAGES = {
   'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
   'auth/unauthorized-domain':
     'This domain is not authorized for Firebase Authentication. Add localhost or your deployed domain in Firebase Console > Authentication > Settings.',
+  'storage/canceled': 'The file upload was canceled before it finished.',
+  'storage/retry-limit-exceeded':
+    'The receipt upload kept failing. Check your network and Firebase Storage setup, then try again.',
+  'storage/unauthenticated':
+    'You need to be signed in before uploading a receipt.',
+  'storage/unknown':
+    'Cloud Storage upload failed. Confirm that Firebase Storage is created, storage rules are deployed, and the project is on the Blaze plan for web uploads.',
   'storage/unauthorized': 'You do not have permission to upload that receipt.',
   'permission-denied':
     'Firestore denied this action. Make sure Firestore exists, deploy the included security rules, and confirm the signed-in user is allowed by those rules.',
