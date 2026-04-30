@@ -4,46 +4,19 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore'
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 
-import { db, storage } from '../firebase/config'
+import { db } from '../firebase/config'
 import { ACTIVITY_TYPES, createActivityPayload } from '../lib/activity'
 import { notifyFirebaseError } from '../lib/errors'
 import { roundCurrency, toNumber } from '../lib/utils'
-import { buildReceiptPath } from './trips'
-
-const uploadReceiptIfNeeded = async ({ tripId, expenseId, receiptFile }) => {
-  if (!receiptFile) {
-    return null
-  }
-
-  const receiptRef = ref(
-    storage,
-    buildReceiptPath({
-      tripId,
-      expenseId,
-      fileName: receiptFile.name,
-    }),
-  )
-
-  await uploadBytes(receiptRef, receiptFile)
-  return getDownloadURL(receiptRef)
-}
 
 const buildExpensePayload = async ({
-  tripId,
-  expenseId,
   values,
   existingExpense,
 }) => {
-  const receiptURL =
-    values.receiptFile instanceof File
-      ? await uploadReceiptIfNeeded({
-          tripId,
-          expenseId,
-          receiptFile: values.receiptFile,
-        })
-      : values.receiptURL || existingExpense?.receiptURL || ''
+  const receiptURL = Object.hasOwn(values, 'receiptURL')
+    ? values.receiptURL.trim()
+    : existingExpense?.receiptURL || ''
 
   return {
     title: values.title.trim(),
@@ -64,8 +37,6 @@ export const createExpense = async ({ tripId, values, actor }) => {
     const expenseRef = doc(collection(db, 'trips', tripId, 'expenses'))
     const activityRef = doc(collection(db, 'trips', tripId, 'activity'))
     const payload = await buildExpensePayload({
-      tripId,
-      expenseId: expenseRef.id,
       values,
     })
 
@@ -98,8 +69,6 @@ export const createExpense = async ({ tripId, values, actor }) => {
 export const updateExpense = async ({ tripId, expenseId, values, actor, existingExpense }) => {
   try {
     const payload = await buildExpensePayload({
-      tripId,
-      expenseId,
       values,
       existingExpense,
     })

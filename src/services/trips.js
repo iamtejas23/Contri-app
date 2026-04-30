@@ -13,7 +13,7 @@ import {
 
 import { db } from '../firebase/config'
 import { notifyFirebaseError } from '../lib/errors'
-import { buildMemberFromIdentity, sanitizeFileName } from '../lib/utils'
+import { buildMemberFromIdentity } from '../lib/utils'
 
 const deleteCollectionDocs = async (collectionRef) => {
   const snapshot = await getDocs(collectionRef)
@@ -127,6 +127,3 @@ export const joinTripByLink = async ({ tripId, member }) => {
     throw error
   }
 }
-
-export const buildReceiptPath = ({ tripId, expenseId, fileName }) =>
-  `receipts/${tripId}/${expenseId}-${Date.now()}-${sanitizeFileName(fileName)}`

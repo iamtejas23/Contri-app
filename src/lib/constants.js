@@ -67,6 +67,5 @@ export const DEFAULT_EXPENSE_FORM = {
   date: defaultDate,
   note: '',
   splitMode: 'equal',
-  receiptFile: null,
   receiptURL: '',
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import { ImageUp } from 'lucide-react'
+import { Link2 } from 'lucide-react'
 
 import {
   DEFAULT_EXPENSE_FORM,
@@ -16,7 +16,7 @@ import {
   resolveSplitAmounts,
   validateSplitConfig,
 } from '../../lib/splits'
-import { getDisplayName } from '../../lib/utils'
+import { getDisplayName, isValidUrl } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Modal } from '../ui/Modal'
@@ -29,7 +29,6 @@ const buildInitialForm = (members, initialExpense, trip) => ({
   paidBy: initialExpense?.paidBy || members[0]?.uid || '',
   amount: initialExpense?.amount ? String(initialExpense.amount) : '',
   date: initialExpense?.date || trip?.startDate || DEFAULT_EXPENSE_FORM.date,
-  receiptFile: null,
   receiptURL: initialExpense?.receiptURL || '',
 })
 
@@ -98,6 +97,11 @@ export const ExpenseFormModal = ({
       })
     ) {
       toast.error('Expense date must fall within the trip dates.')
+      return
+    }
+
+    if (!isValidUrl(form.receiptURL)) {
+      toast.error('Add a valid receipt link that starts with http:// or https://.')
       return
     }
 
@@ -266,29 +270,26 @@ export const ExpenseFormModal = ({
 
         <div className="rounded-[1.75rem] border border-dashed border-ink/10 bg-sand/70 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-dusk">
-            <ImageUp className="h-4 w-4" />
-            Optional receipt
+            <Link2 className="h-4 w-4" />
+            Receipt link
           </div>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <input
-              accept="image/*"
-              className="block w-full text-sm text-dusk/70 file:mr-4 file:rounded-full file:border-0 file:bg-ink file:px-4 file:py-2 file:text-sm file:font-medium file:text-white"
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  receiptFile: event.target.files?.[0] || null,
-                }))
-              }
-              type="file"
+          <div className="mt-3 grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
+            <Input
+              hint="Upload the image to Google Drive, share it with the trip, then paste the link here."
+              name="receiptURL"
+              onChange={handleChange}
+              placeholder="https://drive.google.com/file/d/..."
+              type="url"
+              value={form.receiptURL}
             />
             {form.receiptURL ? (
               <a
-                className="text-sm font-medium text-teal underline"
+                className="inline-flex h-11 items-center justify-center rounded-full bg-white/80 px-5 text-sm font-medium text-ink ring-1 ring-ink/10 transition hover:bg-white"
                 href={form.receiptURL}
                 rel="noreferrer"
                 target="_blank"
               >
-                View current receipt
+                Open receipt
               </a>
             ) : null}
           </div>

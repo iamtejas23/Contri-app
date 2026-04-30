@@ -47,6 +47,19 @@ export const buildMemberFromIdentity = (identity, role = 'member') => ({
 export const sanitizeFileName = (name = 'receipt') =>
   name.replace(/[^\w.-]+/g, '-').toLowerCase()
 
+export const isValidUrl = (value) => {
+  if (!value) {
+    return true
+  }
+
+  try {
+    const parsed = new URL(value)
+    return ['http:', 'https:'].includes(parsed.protocol)
+  } catch {
+    return false
+  }
+}
+
 export const uniqueBy = (items, selector) => {
   const seen = new Set()
 
