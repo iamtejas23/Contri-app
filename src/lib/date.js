@@ -30,6 +30,15 @@ export const formatShortDate = (value) => formatDate(value, 'dd MMM')
 
 export const formatTimelineDate = (value) => formatDate(value, 'dd MMM')
 
+export const isDateBefore = (value, comparison) =>
+  Boolean(value && comparison && value < comparison)
+
+export const isDateAfter = (value, comparison) =>
+  Boolean(value && comparison && value > comparison)
+
+export const isDateOutsideRange = (value, { min, max } = {}) =>
+  isDateBefore(value, min) || isDateAfter(value, max)
+
 export const timeAgo = (value) => {
   const date = toDateValue(value)
 

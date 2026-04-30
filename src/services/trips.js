@@ -85,6 +85,26 @@ export const inviteMemberToTrip = async ({ tripId, member }) => {
   }
 }
 
+export const updateTripMemberRole = async ({ tripId, members, memberId, role }) => {
+  try {
+    const nextMembers = members.map((member) =>
+      member.uid === memberId ? { ...member, role } : member,
+    )
+    const nextAdminIds = nextMembers
+      .filter((member) => member.role === 'admin')
+      .map((member) => member.uid)
+
+    await updateDoc(doc(db, 'trips', tripId), {
+      members: nextMembers,
+      adminIds: nextAdminIds,
+      updatedAt: serverTimestamp(),
+    })
+  } catch (error) {
+    notifyFirebaseError(error, 'We could not update that member role.')
+    throw error
+  }
+}
+
 export const joinTripByLink = async ({ tripId, member }) => {
   try {
     try {

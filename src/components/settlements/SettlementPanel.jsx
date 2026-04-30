@@ -2,21 +2,21 @@ import { useMemo, useState } from 'react'
 
 import { SETTLEMENT_METHODS } from '../../lib/constants'
 import { formatCurrency } from '../../lib/currency'
-import { formatDate } from '../../lib/date'
+import { formatDate, isDateOutsideRange } from '../../lib/date'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 
-const initialForm = {
+const buildInitialForm = (trip) => ({
   from: '',
   to: '',
   amount: '',
   method: 'upi',
-  settledAt: new Date().toISOString().slice(0, 10),
+  settledAt: trip?.endDate || trip?.startDate || new Date().toISOString().slice(0, 10),
   note: '',
-}
+})
 
 export const SettlementPanel = ({
   trip,
@@ -26,8 +26,9 @@ export const SettlementPanel = ({
   membersMap,
   members,
   onSubmit,
+  canManage = false,
 }) => {
-  const [form, setForm] = useState(initialForm)
+  const [form, setForm] = useState(() => buildInitialForm(trip))
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(false)
 
@@ -41,11 +42,21 @@ export const SettlementPanel = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+
+    if (
+      isDateOutsideRange(form.settledAt, {
+        min: trip?.startDate,
+        max: trip?.endDate,
+      })
+    ) {
+      return
+    }
+
     setLoading(true)
 
     try {
       await onSubmit(form)
-      setForm(initialForm)
+      setForm(buildInitialForm(trip))
     } catch {
       // Parent/service layer already shows a toast for Firebase failures.
     } finally {
@@ -101,7 +112,8 @@ export const SettlementPanel = ({
               {suggestions.slice(0, 4).map((suggestion) => (
                 <button
                   key={`${suggestion.from}-${suggestion.to}`}
-                  className="w-full rounded-[1.5rem] border border-ink/10 bg-white/70 px-4 py-3 text-left transition hover:bg-white"
+                  className="w-full rounded-[1.5rem] border border-ink/10 bg-white/70 px-4 py-3 text-left transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={!canManage}
                   onClick={() =>
                     setForm((current) => ({
                       ...current,
@@ -127,72 +139,86 @@ export const SettlementPanel = ({
             </p>
           )}
 
-          <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Select
-                label="From"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, from: event.target.value }))
-                }
-                options={[
-                  { value: '', label: 'Select payer' },
-                  ...members.map((member) => ({ value: member.uid, label: member.name })),
-                ]}
-                value={form.from}
-              />
-              <Select
-                label="To"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, to: event.target.value }))
-                }
-                options={[
-                  { value: '', label: 'Select receiver' },
-                  ...members.map((member) => ({ value: member.uid, label: member.name })),
-                ]}
-                value={form.to}
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-3">
+          {canManage ? (
+            <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Select
+                  label="From"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, from: event.target.value }))
+                  }
+                  options={[
+                    { value: '', label: 'Select payer' },
+                    ...members.map((member) => ({ value: member.uid, label: member.name })),
+                  ]}
+                  value={form.from}
+                />
+                <Select
+                  label="To"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, to: event.target.value }))
+                  }
+                  options={[
+                    { value: '', label: 'Select receiver' },
+                    ...members.map((member) => ({ value: member.uid, label: member.name })),
+                  ]}
+                  value={form.to}
+                />
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Input
+                  label="Amount"
+                  min="0"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, amount: event.target.value }))
+                  }
+                  required
+                  step="0.01"
+                  type="number"
+                  value={form.amount}
+                />
+                <Select
+                  label="Method"
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, method: event.target.value }))
+                  }
+                  options={SETTLEMENT_METHODS}
+                  value={form.method}
+                />
+                <Input
+                  hint={
+                    trip?.startDate && trip?.endDate
+                      ? `${formatDate(trip.startDate)} to ${formatDate(trip.endDate)}`
+                      : undefined
+                  }
+                  label="Date"
+                  max={trip?.endDate || undefined}
+                  min={trip?.startDate || undefined}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, settledAt: event.target.value }))
+                  }
+                  required
+                  type="date"
+                  value={form.settledAt}
+                />
+              </div>
               <Input
-                label="Amount"
-                min="0"
+                label="Note"
                 onChange={(event) =>
-                  setForm((current) => ({ ...current, amount: event.target.value }))
+                  setForm((current) => ({ ...current, note: event.target.value }))
                 }
-                required
-                step="0.01"
-                type="number"
-                value={form.amount}
+                placeholder="UPI transfer reference, cash handoff, etc."
+                value={form.note}
               />
-              <Select
-                label="Method"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, method: event.target.value }))
-                }
-                options={SETTLEMENT_METHODS}
-                value={form.method}
-              />
-              <Input
-                label="Date"
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, settledAt: event.target.value }))
-                }
-                type="date"
-                value={form.settledAt}
-              />
-            </div>
-            <Input
-              label="Note"
-              onChange={(event) =>
-                setForm((current) => ({ ...current, note: event.target.value }))
-              }
-              placeholder="UPI transfer reference, cash handoff, etc."
-              value={form.note}
-            />
-            <Button loading={loading} type="submit">
-              Record settlement
-            </Button>
-          </form>
+              <Button loading={loading} type="submit">
+                Record settlement
+              </Button>
+            </form>
+          ) : (
+            <p className="mt-5 rounded-[1.5rem] bg-sand/70 px-4 py-3 text-sm text-dusk/70">
+              Only trip admins can record settlements.
+            </p>
+          )}
         </Card>
       </div>
 

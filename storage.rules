@@ -14,8 +14,13 @@ service firebase.storage {
       return signedIn() && request.auth.uid in tripDoc(tripId).data.memberIds;
     }
 
+    function isTripAdmin(tripId) {
+      return signedIn() && request.auth.uid in tripDoc(tripId).data.adminIds;
+    }
+
     match /receipts/{tripId}/{allPaths=**} {
-      allow read, write: if isTripMember(tripId);
+      allow read: if isTripMember(tripId);
+      allow write: if isTripAdmin(tripId);
     }
   }
 }

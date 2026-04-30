@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import toast from 'react-hot-toast'
 
 import { CURRENCIES, DEFAULT_TRIP_FORM, TRIP_EMOJIS } from '../../lib/constants'
+import { isDateAfter, isDateBefore } from '../../lib/date'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Modal } from '../ui/Modal'
@@ -30,11 +32,27 @@ export const TripFormModal = ({
 
   const handleChange = (event) => {
     const { name, value } = event.target
-    setForm((current) => ({ ...current, [name]: value }))
+    setForm((current) => {
+      if (name === 'startDate') {
+        return {
+          ...current,
+          startDate: value,
+          endDate: current.endDate && isDateBefore(current.endDate, value) ? value : current.endDate,
+        }
+      }
+
+      return { ...current, [name]: value }
+    })
   }
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+
+    if (isDateAfter(form.startDate, form.endDate)) {
+      toast.error('End date must be the same day or after the start date.')
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -78,6 +96,7 @@ export const TripFormModal = ({
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
+            hint="Changing this updates the earliest allowed end date."
             label="Start date"
             name="startDate"
             onChange={handleChange}
@@ -86,7 +105,9 @@ export const TripFormModal = ({
             value={form.startDate}
           />
           <Input
+            hint="End date cannot be before the start date."
             label="End date"
+            min={form.startDate || undefined}
             name="endDate"
             onChange={handleChange}
             required

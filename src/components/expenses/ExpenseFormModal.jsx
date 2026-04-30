@@ -8,6 +8,7 @@ import {
   SPLIT_MODES,
 } from '../../lib/constants'
 import { formatCurrency } from '../../lib/currency'
+import { formatDate, isDateOutsideRange } from '../../lib/date'
 import {
   buildSplitAmongPayload,
   getSelectedMemberIds,
@@ -22,11 +23,12 @@ import { Modal } from '../ui/Modal'
 import { Select } from '../ui/Select'
 import { Textarea } from '../ui/Textarea'
 
-const buildInitialForm = (members, initialExpense) => ({
+const buildInitialForm = (members, initialExpense, trip) => ({
   ...DEFAULT_EXPENSE_FORM,
   ...initialExpense,
   paidBy: initialExpense?.paidBy || members[0]?.uid || '',
   amount: initialExpense?.amount ? String(initialExpense.amount) : '',
+  date: initialExpense?.date || trip?.startDate || DEFAULT_EXPENSE_FORM.date,
   receiptFile: null,
   receiptURL: initialExpense?.receiptURL || '',
 })
@@ -38,8 +40,9 @@ export const ExpenseFormModal = ({
   members = [],
   currency,
   initialExpense,
+  trip,
 }) => {
-  const [form, setForm] = useState(() => buildInitialForm(members, initialExpense))
+  const [form, setForm] = useState(() => buildInitialForm(members, initialExpense, trip))
   const [selectedMemberIds, setSelectedMemberIds] = useState(() =>
     getSelectedMemberIds(members, initialExpense?.splitAmong || []),
   )
@@ -85,6 +88,16 @@ export const ExpenseFormModal = ({
 
     if (!validation.valid) {
       toast.error(validation.message)
+      return
+    }
+
+    if (
+      isDateOutsideRange(form.date, {
+        min: trip?.startDate,
+        max: trip?.endDate,
+      })
+    ) {
+      toast.error('Expense date must fall within the trip dates.')
       return
     }
 
@@ -156,7 +169,14 @@ export const ExpenseFormModal = ({
             value={form.paidBy}
           />
           <Input
+            hint={
+              trip?.startDate && trip?.endDate
+                ? `${formatDate(trip.startDate)} to ${formatDate(trip.endDate)}`
+                : undefined
+            }
             label="Date"
+            max={trip?.endDate || undefined}
+            min={trip?.startDate || undefined}
             name="date"
             onChange={handleChange}
             required

@@ -57,12 +57,14 @@ export const DEFAULT_TRIP_FORM = {
   currency: 'INR',
 }
 
+const defaultDate = new Date().toISOString().slice(0, 10)
+
 export const DEFAULT_EXPENSE_FORM = {
   title: '',
   amount: '',
   category: 'Food',
   paidBy: '',
-  date: new Date().toISOString().slice(0, 10),
+  date: defaultDate,
   note: '',
   splitMode: 'equal',
   receiptFile: null,

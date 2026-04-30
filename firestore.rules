@@ -51,17 +51,17 @@ service cloud.firestore {
 
       match /expenses/{expenseId} {
         allow read: if isTripMember(tripId);
-        allow create, update, delete: if isTripMember(tripId);
+        allow create, update, delete: if isTripAdmin(tripId);
       }
 
       match /settlements/{settlementId} {
         allow read: if isTripMember(tripId);
-        allow create, update, delete: if isTripMember(tripId);
+        allow create, update, delete: if isTripAdmin(tripId);
       }
 
       match /activity/{activityId} {
         allow read: if isTripMember(tripId);
-        allow create: if isTripMember(tripId) && request.resource.data.actorUid == request.auth.uid;
+        allow create: if isTripAdmin(tripId) && request.resource.data.actorUid == request.auth.uid;
         allow update, delete: if false;
       }
     }

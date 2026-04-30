@@ -14,13 +14,14 @@ export const ExpenseList = ({
   onEdit,
   onDelete,
   onCreate,
+  canManage = false,
 }) => {
   if (!expenses.length) {
     return (
       <EmptyState
-        actionLabel="Add first expense"
+        actionLabel={canManage ? 'Add first expense' : undefined}
         description="Add the first bill and the dashboard will start calculating balances in real time."
-        onAction={onCreate}
+        onAction={canManage ? onCreate : undefined}
         title="No expenses yet"
       />
     )
@@ -81,14 +82,18 @@ export const ExpenseList = ({
                       Receipt
                     </a>
                   ) : null}
-                  <Button onClick={() => onEdit(expense)} type="button" variant="secondary">
-                    <PencilLine className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button onClick={() => onDelete(expense)} type="button" variant="danger">
-                    <Trash2 className="h-4 w-4" />
-                    Delete
-                  </Button>
+                  {canManage ? (
+                    <>
+                      <Button onClick={() => onEdit(expense)} type="button" variant="secondary">
+                        <PencilLine className="h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button onClick={() => onDelete(expense)} type="button" variant="danger">
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>

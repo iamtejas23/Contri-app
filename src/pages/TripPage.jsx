@@ -5,6 +5,7 @@ import {
   MailPlus,
   PencilLine,
   Plus,
+  ShieldCheck,
   Trash2,
 } from 'lucide-react'
 import { Suspense, lazy, useMemo, useState } from 'react'
@@ -25,12 +26,13 @@ import { Input } from '../components/ui/Input'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useAuth } from '../context/useAuth'
 import { buildDashboardMetrics, buildMembersMap } from '../lib/balances'
+import { isDateOutsideRange } from '../lib/date'
 import { copyToClipboard, getDisplayName } from '../lib/utils'
 import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
-import { deleteTrip, inviteMemberToTrip, updateTrip } from '../services/trips'
+import { deleteTrip, inviteMemberToTrip, updateTrip, updateTripMemberRole } from '../services/trips'
 
 const TripDashboard = lazy(() =>
   import('../components/dashboard/TripDashboard').then((module) => ({
@@ -78,6 +80,7 @@ export const TripPage = () => {
     [expenses, settlements, trip, user?.uid],
   )
   const isAdmin = trip?.adminIds?.includes(user?.uid)
+  const canManageTrip = Boolean(isAdmin)
   const inviteLink = trip ? `${window.location.origin}/join?tripId=${trip.id}` : ''
 
   const handlePdfExport = async () => {
@@ -105,6 +108,11 @@ export const TripPage = () => {
   const handleInviteMember = async (event) => {
     event.preventDefault()
 
+    if (!canManageTrip) {
+      toast.error('Only trip admins can invite members.')
+      return
+    }
+
     const invitedUser = await findUserByEmail(inviteEmail)
 
     if (!invitedUser) {
@@ -127,11 +135,21 @@ export const TripPage = () => {
   }
 
   const handleTripUpdate = async (values) => {
+    if (!canManageTrip) {
+      toast.error('Only trip admins can edit trip details.')
+      return
+    }
+
     await updateTrip(trip.id, values)
     toast.success('Trip updated.')
   }
 
   const handleTripDelete = async () => {
+    if (!canManageTrip) {
+      toast.error('Only trip admins can delete this trip.')
+      return
+    }
+
     if (!window.confirm('Delete this trip and all of its expenses, settlements, and activity?')) {
       return
     }
@@ -142,6 +160,11 @@ export const TripPage = () => {
   }
 
   const handleExpenseSubmit = async (values) => {
+    if (!canManageTrip) {
+      toast.error('Only trip admins can manage expenses.')
+      return
+    }
+
     if (editingExpense) {
       await updateExpense({
         tripId: trip.id,
@@ -164,6 +187,11 @@ export const TripPage = () => {
   }
 
   const handleExpenseDelete = async (expense) => {
+    if (!canManageTrip) {
+      toast.error('Only trip admins can delete expenses.')
+      return
+    }
+
     if (!window.confirm(`Delete "${expense.title}"?`)) {
       return
     }
@@ -177,8 +205,23 @@ export const TripPage = () => {
   }
 
   const handleSettlementSubmit = async (values) => {
+    if (!canManageTrip) {
+      toast.error('Only trip admins can record settlements.')
+      return
+    }
+
     if (!values.from || !values.to || values.from === values.to || Number(values.amount) <= 0) {
       toast.error('Enter a valid settlement with different payer and receiver.')
+      return
+    }
+
+    if (
+      isDateOutsideRange(values.settledAt, {
+        min: trip.startDate,
+        max: trip.endDate,
+      })
+    ) {
+      toast.error('Settlement date must fall within the trip dates.')
       return
     }
 
@@ -188,6 +231,28 @@ export const TripPage = () => {
       actor,
     })
     toast.success('Settlement recorded.')
+  }
+
+  const handleRoleChange = async (member, role) => {
+    if (!canManageTrip) {
+      toast.error('Only trip admins can manage roles.')
+      return
+    }
+
+    const adminCount = trip.adminIds?.length || 0
+
+    if (member.role === 'admin' && role !== 'admin' && adminCount <= 1) {
+      toast.error('A trip needs at least one admin.')
+      return
+    }
+
+    await updateTripMemberRole({
+      tripId: trip.id,
+      members,
+      memberId: member.uid,
+      role,
+    })
+    toast.success(`${member.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.`)
   }
 
   if (loading) {
@@ -251,14 +316,18 @@ export const TripPage = () => {
           </div>
 
           <div className="flex flex-wrap gap-2 lg:justify-end">
-            <Button onClick={() => setShowExpenseModal(true)} type="button">
-              <Plus className="h-4 w-4" />
-              Add expense
-            </Button>
-            <Button onClick={handleCopyInvite} type="button" variant="secondary">
-              <Link2 className="h-4 w-4" />
-              Invite link
-            </Button>
+            {canManageTrip ? (
+              <Button onClick={() => setShowExpenseModal(true)} type="button">
+                <Plus className="h-4 w-4" />
+                Add expense
+              </Button>
+            ) : null}
+            {canManageTrip ? (
+              <Button onClick={handleCopyInvite} type="button" variant="secondary">
+                <Link2 className="h-4 w-4" />
+                Invite link
+              </Button>
+            ) : null}
             <Button
               onClick={handlePdfExport}
               type="button"
@@ -275,7 +344,7 @@ export const TripPage = () => {
               <FileSpreadsheet className="h-4 w-4" />
               CSV
             </Button>
-            {isAdmin ? (
+            {canManageTrip ? (
               <Button onClick={() => setShowTripModal(true)} type="button" variant="secondary">
                 <PencilLine className="h-4 w-4" />
                 Edit trip
@@ -304,7 +373,7 @@ export const TripPage = () => {
         <Suspense fallback={<Skeleton className="h-[540px] rounded-[2rem]" />}>
           <TripDashboard
             metrics={metrics}
-            onAddExpense={() => setShowExpenseModal(true)}
+            onAddExpense={canManageTrip ? () => setShowExpenseModal(true) : undefined}
             trip={trip}
           />
         </Suspense>
@@ -315,12 +384,13 @@ export const TripPage = () => {
           currency={trip.currency}
           expenses={expenses}
           membersMap={membersMap}
-          onCreate={() => setShowExpenseModal(true)}
+          onCreate={canManageTrip ? () => setShowExpenseModal(true) : undefined}
           onDelete={handleExpenseDelete}
           onEdit={(expense) => {
             setEditingExpense(expense)
             setShowExpenseModal(true)
           }}
+          canManage={canManageTrip}
         />
       ) : null}
 
@@ -330,6 +400,7 @@ export const TripPage = () => {
           members={members}
           membersMap={membersMap}
           onSubmit={handleSettlementSubmit}
+          canManage={canManageTrip}
           settlements={settlements}
           suggestions={metrics.suggestions}
           trip={trip}
@@ -361,7 +432,30 @@ export const TripPage = () => {
                       <p className="text-sm text-dusk/65">{member.email}</p>
                     </div>
                   </div>
-                  <Badge>{member.role}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge>{member.role}</Badge>
+                    {canManageTrip ? (
+                      member.role === 'admin' ? (
+                        <Button
+                          disabled={(trip.adminIds?.length || 0) <= 1}
+                          onClick={() => handleRoleChange(member, 'member')}
+                          type="button"
+                          variant="secondary"
+                        >
+                          Member
+                        </Button>
+                      ) : (
+                        <Button
+                          onClick={() => handleRoleChange(member, 'admin')}
+                          type="button"
+                          variant="secondary"
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                          Admin
+                        </Button>
+                      )
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
@@ -373,7 +467,7 @@ export const TripPage = () => {
               Invite members and control the trip
             </h2>
 
-            {isAdmin ? (
+            {canManageTrip ? (
               <>
                 <form className="mt-6 space-y-4" onSubmit={handleInviteMember}>
                   <Input
@@ -427,6 +521,7 @@ export const TripPage = () => {
           }}
           onSubmit={handleExpenseSubmit}
           open={showExpenseModal}
+          trip={trip}
         />
       ) : null}
 
