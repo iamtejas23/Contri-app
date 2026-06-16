@@ -1,10 +1,25 @@
-import { ArrowRight, Globe } from 'lucide-react'
+import { ArrowRight, CheckCircle2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../context/useAuth'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
+
+const GoogleIcon = () => (
+  <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+  </svg>
+)
+
+const features = [
+  'Real-time expense tracking across the whole group',
+  'Flexible splits: equal, exact, shares, or percentages',
+  'Smart settlement suggestions + PDF & CSV export',
+]
 
 export const AuthPage = () => {
   const navigate = useNavigate()
@@ -13,32 +28,23 @@ export const AuthPage = () => {
   const redirectTo = location.state?.from || '/'
   const { login, register, loginWithGoogle } = useAuth()
 
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    password: '',
-  })
+  const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [loading, setLoading] = useState(false)
 
-  const handleChange = (event) => {
-    const { name, value } = event.target
-    setForm((current) => ({ ...current, [name]: value }))
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setForm((c) => ({ ...c, [name]: value }))
   }
 
-  const handleSubmit = async (event) => {
-    event.preventDefault()
+  const handleSubmit = async (e) => {
+    e.preventDefault()
     setLoading(true)
-
     try {
-      if (isRegister) {
-        await register(form)
-      } else {
-        await login(form)
-      }
-
+      if (isRegister) await register(form)
+      else await login(form)
       navigate(redirectTo, { replace: true })
     } catch {
-      // Service layer already shows a toast for Firebase failures.
+      /* service layer shows toast */
     } finally {
       setLoading(false)
     }
@@ -46,125 +52,139 @@ export const AuthPage = () => {
 
   const handleGoogle = async () => {
     setLoading(true)
-
     try {
       await loginWithGoogle()
       navigate(redirectTo, { replace: true })
     } catch {
-      // Service layer already shows a toast for Firebase failures.
+      /* service layer shows toast */
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-mesh px-4 py-8 text-ink sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.1fr,0.9fr]">
-        <section className="relative overflow-hidden rounded-[2.5rem] border border-white/70 bg-gradient-to-br from-ink via-dusk to-teal p-8 text-white shadow-float">
-          <div className="absolute -right-16 top-10 h-40 w-40 rounded-full bg-coral/35 blur-3xl" />
-          <div className="absolute -left-12 bottom-6 h-36 w-36 rounded-full bg-mint/35 blur-3xl" />
-          <p className="text-sm uppercase tracking-[0.22em] text-white/65">Contri-app</p>
-          <h1 className="mt-5 max-w-xl font-display text-5xl font-bold leading-tight">
-            Split trips, not friendships.
-          </h1>
-          <p className="mt-5 max-w-xl text-base text-white/75">
-            Plan the trip, log bills in real time, simplify what everyone owes, and
-            keep the group on the same page without a backend to babysit.
-          </p>
+    <div className="min-h-screen bg-sand">
+      <div className="mx-auto flex min-h-screen max-w-6xl flex-col lg:flex-row">
 
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            {[
-              'Real-time trip expense tracking',
-              'Flexible splits by equal, exact, shares, or percentages',
-              'Settlement suggestions plus PDF and CSV export',
-            ].map((item) => (
-              <div key={item} className="rounded-[1.75rem] bg-white/10 p-4 backdrop-blur">
-                <p className="text-sm leading-6 text-white/85">{item}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-[2.5rem] border border-white/70 bg-white/78 p-6 shadow-float backdrop-blur sm:p-8">
-          <p className="text-sm uppercase tracking-[0.18em] text-dusk/55">
-            {isRegister ? 'Create your account' : 'Welcome back'}
-          </p>
-          <h2 className="mt-3 font-display text-4xl font-bold text-ink">
-            {isRegister ? 'Start your first shared trip.' : 'Step back into the group ledger.'}
-          </h2>
-          <p className="mt-3 text-sm text-dusk/70">
-            {isRegister
-              ? 'Register with email or jump in with Google.'
-              : 'Sign in to keep expenses, balances, and settlements moving.'}
-          </p>
-
-          <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-            {isRegister ? (
-              <Input
-                label="Name"
-                name="name"
-                onChange={handleChange}
-                placeholder="Tejas"
-                required
-                value={form.name}
-              />
-            ) : null}
-            <Input
-              autoComplete="email"
-              label="Email"
-              name="email"
-              onChange={handleChange}
-              placeholder="you@example.com"
-              required
-              type="email"
-              value={form.email}
-            />
-            <Input
-              autoComplete={isRegister ? 'new-password' : 'current-password'}
-              label="Password"
-              minLength={6}
-              name="password"
-              onChange={handleChange}
-              placeholder="At least 6 characters"
-              required
-              type="password"
-              value={form.password}
-            />
-
-            <Button className="w-full" loading={loading} size="lg" type="submit">
-              {isRegister ? 'Create account' : 'Sign in'}
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </form>
-
-          <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-[0.18em] text-dusk/45">
-            <span className="h-px flex-1 bg-ink/10" />
-            or
-            <span className="h-px flex-1 bg-ink/10" />
+        {/* Left panel — brand */}
+        <div className="relative flex flex-col justify-between bg-teal p-8 lg:w-[45%] lg:p-12">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-sm font-bold text-white">C</div>
+            <span className="font-display text-lg font-semibold text-white">Contri-app</span>
           </div>
 
-          <Button
-            className="w-full"
-            loading={loading}
-            onClick={handleGoogle}
-            size="lg"
-            type="button"
-            variant="secondary"
-          >
-            <Globe className="h-4 w-4" />
-            Continue with Google
-          </Button>
+          {/* Hero text */}
+          <div className="py-12 lg:py-0">
+            <h1 className="font-display text-4xl font-bold leading-tight text-white lg:text-5xl">
+              Split trips,<br />not friendships.
+            </h1>
+            <p className="mt-4 text-base text-white/70">
+              Log bills in real time, see exactly who owes what, and settle
+              up without the awkward group-chat math.
+            </p>
+            <div className="mt-8 space-y-3">
+              {features.map((f) => (
+                <div key={f} className="flex items-start gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-white/70" />
+                  <p className="text-sm text-white/80">{f}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
-          <p className="mt-6 text-sm text-dusk/70">
-            {isRegister ? 'Already have an account?' : 'Need an account?'}{' '}
-            <Link
-              className="font-semibold text-teal underline underline-offset-4"
-              to={isRegister ? '/login' : '/register'}
+          {/* Footer quote */}
+          <p className="text-xs text-white/40">
+            Trusted for weekend getaways, road trips &amp; destination weddings.
+          </p>
+
+          {/* Decorative blobs */}
+          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/5" />
+          <div className="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-white/5" />
+        </div>
+
+        {/* Right panel — form */}
+        <div className="flex flex-1 items-center justify-center p-8 lg:p-12">
+          <div className="w-full max-w-sm">
+            <h2 className="font-display text-2xl font-bold text-ink">
+              {isRegister ? 'Create your account' : 'Welcome back'}
+            </h2>
+            <p className="mt-1.5 text-sm text-dusk">
+              {isRegister
+                ? 'Start tracking shared expenses in minutes.'
+                : 'Sign in to continue where you left off.'}
+            </p>
+
+            {/* Google button */}
+            <Button
+              className="mt-6 w-full"
+              loading={loading}
+              onClick={handleGoogle}
+              size="lg"
+              type="button"
+              variant="secondary"
             >
-              {isRegister ? 'Sign in here' : 'Create one'}
-            </Link>
-          </p>
-        </section>
+              <GoogleIcon />
+              Continue with Google
+            </Button>
+
+            <div className="my-5 flex items-center gap-3">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-xs text-slate-400">or with email</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            {/* Email form */}
+            <form className="space-y-4" onSubmit={handleSubmit}>
+              {isRegister ? (
+                <Input
+                  label="Full name"
+                  name="name"
+                  onChange={handleChange}
+                  placeholder="Tejas Mane"
+                  required
+                  value={form.name}
+                />
+              ) : null}
+              <Input
+                autoComplete="email"
+                label="Email address"
+                name="email"
+                onChange={handleChange}
+                placeholder="you@example.com"
+                required
+                type="email"
+                value={form.email}
+              />
+              <Input
+                autoComplete={isRegister ? 'new-password' : 'current-password'}
+                label="Password"
+                minLength={6}
+                name="password"
+                onChange={handleChange}
+                placeholder="Min. 6 characters"
+                required
+                type="password"
+                value={form.password}
+              />
+
+              <Button className="w-full" loading={loading} size="lg" type="submit">
+                {isRegister ? 'Create account' : 'Sign in'}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </form>
+
+            <p className="mt-6 text-center text-sm text-dusk">
+              {isRegister ? 'Already have an account? ' : 'Need an account? '}
+              <Link
+                className="font-semibold text-teal hover:underline"
+                to={isRegister ? '/login' : '/register'}
+              >
+                {isRegister ? 'Sign in' : 'Sign up free'}
+              </Link>
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )

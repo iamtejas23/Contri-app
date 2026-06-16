@@ -1,40 +1,63 @@
-import { CalendarDays, Users } from 'lucide-react'
+import { ArrowRight, CalendarDays, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { formatDate } from '../../lib/date'
-import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 
-export const TripCard = ({ trip }) => (
-  <Card className="group h-full transition hover:-translate-y-1">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <span className="text-4xl">{trip.emoji || '🏝️'}</span>
-        <h3 className="mt-4 font-display text-2xl font-bold text-ink">{trip.name}</h3>
+const getTripStatus = (startDate, endDate) => {
+  const today = new Date().toISOString().slice(0, 10)
+  if (!startDate || !endDate) return null
+  if (today < startDate) return { label: 'Upcoming', tone: 'blue' }
+  if (today > endDate)   return { label: 'Ended',    tone: 'default' }
+  return { label: 'Active', tone: 'green' }
+}
+
+export const TripCard = ({ trip }) => {
+  const status = getTripStatus(trip.startDate, trip.endDate)
+
+  return (
+    <Link className="group block h-full" to={`/trips/${trip.id}`}>
+      <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card transition-all duration-200 group-hover:-translate-y-1 group-hover:shadow-elevated">
+        {/* Header strip */}
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{trip.emoji || '🏝️'}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {status ? <Badge tone={status.tone}>{status.label}</Badge> : null}
+              <Badge>{trip.currency}</Badge>
+            </div>
+          </div>
+          <ArrowRight className="h-4 w-4 flex-shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-teal" />
+        </div>
+
+        {/* Body */}
+        <div className="flex flex-1 flex-col p-5">
+          <h3 className="font-display text-lg font-semibold text-ink line-clamp-1">{trip.name}</h3>
+          <p className="mt-1.5 line-clamp-2 text-sm text-dusk">
+            {trip.description || 'A shared trip board for plans, bills, and settlements.'}
+          </p>
+
+          {/* Meta */}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-dusk">
+              <Users className="h-3.5 w-3.5" />
+              {trip.members?.length || 0}{' '}
+              {trip.members?.length === 1 ? 'member' : 'members'}
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-dusk">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {formatDate(trip.startDate, 'dd MMM')} – {formatDate(trip.endDate, 'dd MMM yy')}
+            </span>
+          </div>
+        </div>
+
+        {/* Footer CTA */}
+        <div className="border-t border-slate-100 px-5 py-3">
+          <span className="text-sm font-semibold text-teal group-hover:underline">
+            View trip →
+          </span>
+        </div>
       </div>
-      <Badge>{trip.currency}</Badge>
-    </div>
-
-    <p className="mt-3 line-clamp-2 text-sm text-dusk/70">
-      {trip.description || 'A shared trip board for plans, bills, and settlements.'}
-    </p>
-
-    <div className="mt-5 flex flex-wrap gap-3 text-sm text-dusk/75">
-      <span className="inline-flex items-center gap-2 rounded-full bg-sand px-3 py-2">
-        <Users className="h-4 w-4" />
-        {trip.members?.length || 0} members
-      </span>
-      <span className="inline-flex items-center gap-2 rounded-full bg-sand px-3 py-2">
-        <CalendarDays className="h-4 w-4" />
-        {formatDate(trip.startDate)} - {formatDate(trip.endDate)}
-      </span>
-    </div>
-
-    <Link
-      className="mt-6 inline-flex items-center rounded-full bg-ink px-5 py-3 text-sm font-medium text-white transition group-hover:bg-dusk"
-      to={`/trips/${trip.id}`}
-    >
-      Open trip
     </Link>
-  </Card>
-)
+  )
+}

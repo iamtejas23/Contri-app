@@ -1,14 +1,7 @@
+import { ArrowUpDown, DollarSign, Receipt, TrendingUp, Users } from 'lucide-react'
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
+  Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts'
 
 import { formatCurrency } from '../../lib/currency'
@@ -17,127 +10,100 @@ import { StatCard } from '../ui/StatCard'
 import { Card } from '../ui/Card'
 import { Badge } from '../ui/Badge'
 
-const chartColors = ['#ee6c4d', '#2a9d8f', '#f4a261', '#264653', '#8ecae6', '#95d5b2']
+const COLORS = ['#0D9488', '#F97316', '#3B82F6', '#8B5CF6', '#F59E0B', '#10B981']
+
+const chartStyle = {
+  contentStyle: {
+    borderRadius: '12px',
+    border: '1px solid #E2E8F0',
+    boxShadow: '0 4px 6px -1px rgb(0 0 0/0.06)',
+    fontSize: '13px',
+  },
+}
 
 export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
   if (!metrics.totalSpent) {
     return (
       <EmptyState
         actionLabel="Add first expense"
-        description="Once a bill lands here, Contri-app will start tracking totals, daily spend, and who is owed what."
+        description="Once a bill lands here, the dashboard will start tracking totals, daily spend, and who is owed what."
+        icon={Receipt}
         onAction={onAddExpense}
-        title="The dashboard wakes up after the first expense"
+        title="No expenses yet"
       />
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          helper="The full trip spend so far."
-          label="Total spent"
-          tone="coral"
+    <div className="space-y-5">
+      {/* KPI row */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard icon={DollarSign} label="Total spent" tone="coral"
           value={formatCurrency(metrics.totalSpent, trip.currency)}
-        />
-        <StatCard
-          helper="Average expense share per traveler."
-          label="Per-person average"
-          tone="teal"
+          helper="Full trip spend so far" />
+        <StatCard icon={Users} label="Per-person avg" tone="teal"
           value={formatCurrency(metrics.averagePerPerson, trip.currency)}
-        />
-        <StatCard
-          helper="Your allocated share from all recorded expenses."
-          label="Your share"
-          tone="mint"
+          helper="Average share per traveler" />
+        <StatCard icon={TrendingUp} label="Your share" tone="mint"
           value={formatCurrency(metrics.yourShare, trip.currency)}
-        />
-        <StatCard
-          helper="Positive means you should receive money back."
-          label="Your net"
-          tone="teal"
+          helper="Your allocated portion" />
+        <StatCard icon={ArrowUpDown} label="Your net" tone="blue"
           value={formatCurrency(metrics.yourNet, trip.currency)}
-        />
+          helper="Positive = you're owed money" />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="min-w-0">
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* Highlights */}
+        <Card>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-dusk/60">
-                Trip highlights
-              </p>
-              <h3 className="mt-2 font-display text-2xl font-bold text-ink">
-                Who is leading the ledger?
-              </h3>
+              <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Highlights</p>
+              <h3 className="mt-1 font-display text-lg font-semibold text-ink">Who led the ledger?</h3>
             </div>
             <Badge>{trip.currency}</Badge>
           </div>
-
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-[1.5rem] bg-sand/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dusk/60">
-                Top spender
-              </p>
-              <p className="mt-3 font-display text-xl font-bold text-ink">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-orange-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-orange-500">Top spender</p>
+              <p className="mt-2 font-display text-lg font-bold text-ink">
                 {metrics.topSpender?.name || '—'}
               </p>
-              <p className="mt-1 text-sm text-dusk/70">
+              <p className="mt-0.5 text-sm font-semibold text-coral">
                 {formatCurrency(metrics.topSpender?.amount || 0, trip.currency)}
               </p>
             </div>
-            <div className="rounded-[1.5rem] bg-sand/75 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dusk/60">
-                Most owed
-              </p>
-              <p className="mt-3 font-display text-xl font-bold text-ink">
+            <div className="rounded-xl bg-teal-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-teal">Most owed</p>
+              <p className="mt-2 font-display text-lg font-bold text-ink">
                 {metrics.mostOwed?.name || '—'}
               </p>
-              <p className="mt-1 text-sm text-dusk/70">
+              <p className="mt-0.5 text-sm font-semibold text-teal">
                 {formatCurrency(metrics.mostOwed?.net || 0, trip.currency)}
               </p>
             </div>
           </div>
         </Card>
 
+        {/* Category pie */}
         <Card>
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-dusk/60">
-            Category breakdown
-          </p>
-          <h3 className="mt-2 font-display text-2xl font-bold text-ink">
-            Where the money went
-          </h3>
-          <div className="mt-4 h-72 min-w-0">
-            <ResponsiveContainer height="100%" minWidth={0} width="100%">
+          <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Category breakdown</p>
+          <h3 className="mt-1 font-display text-lg font-semibold text-ink">Where the money went</h3>
+          <div className="mt-4 h-56">
+            <ResponsiveContainer height="100%" width="100%">
               <PieChart>
-                <Pie
-                  data={metrics.categoryData}
-                  dataKey="value"
-                  innerRadius={60}
-                  outerRadius={95}
-                  paddingAngle={3}
-                >
-                  {metrics.categoryData.map((entry, index) => (
-                    <Cell
-                      key={entry.name}
-                      fill={chartColors[index % chartColors.length]}
-                    />
+                <Pie data={metrics.categoryData} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={3}>
+                  {metrics.categoryData.map((entry, i) => (
+                    <Cell key={entry.name} fill={COLORS[i % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => formatCurrency(value, trip.currency)} />
+                <Tooltip formatter={(v) => formatCurrency(v, trip.currency)} {...chartStyle} />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {metrics.categoryData.map((entry, index) => (
-              <span
-                key={entry.name}
-                className="inline-flex items-center gap-2 rounded-full bg-ink/5 px-3 py-2 text-sm text-dusk"
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: chartColors[index % chartColors.length] }}
-                />
+          <div className="flex flex-wrap gap-2">
+            {metrics.categoryData.map((entry, i) => (
+              <span key={entry.name} className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-dusk">
+                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                 {entry.name}
               </span>
             ))}
@@ -145,42 +111,36 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Card className="min-w-0">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-dusk/60">
-            Daily spending timeline
-          </p>
-          <h3 className="mt-2 font-display text-2xl font-bold text-ink">
-            Peaks across the trip
-          </h3>
-          <div className="mt-4 h-80 min-w-0">
-            <ResponsiveContainer height="100%" minWidth={0} width="100%">
+      <div className="grid gap-5 xl:grid-cols-2">
+        {/* Daily timeline */}
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Daily spend</p>
+          <h3 className="mt-1 font-display text-lg font-semibold text-ink">Peaks across the trip</h3>
+          <div className="mt-4 h-64">
+            <ResponsiveContainer height="100%" width="100%">
               <BarChart data={metrics.dailyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#d5d7d1" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} />
-                <YAxis tickFormatter={(value) => `${value}`} tickLine={false} axisLine={false} />
-                <Tooltip formatter={(value) => formatCurrency(value, trip.currency)} />
-                <Bar dataKey="value" fill="#2a9d8f" radius={[12, 12, 4, 4]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                <Tooltip formatter={(v) => formatCurrency(v, trip.currency)} {...chartStyle} />
+                <Bar dataKey="value" fill="#0D9488" radius={[6, 6, 2, 2]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
 
-        <Card className="min-w-0">
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-dusk/60">
-            Member contribution
-          </p>
-          <h3 className="mt-2 font-display text-2xl font-bold text-ink">
-            Who paid the most upfront
-          </h3>
-          <div className="mt-4 h-80 min-w-0">
-            <ResponsiveContainer height="100%" minWidth={0} width="100%">
+        {/* Member contributions */}
+        <Card>
+          <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Contributions</p>
+          <h3 className="mt-1 font-display text-lg font-semibold text-ink">Who paid the most upfront</h3>
+          <div className="mt-4 h-64">
+            <ResponsiveContainer height="100%" width="100%">
               <BarChart data={metrics.contributionsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#d5d7d1" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} />
-                <YAxis tickLine={false} axisLine={false} />
-                <Tooltip formatter={(value) => formatCurrency(value, trip.currency)} />
-                <Bar dataKey="amount" fill="#ee6c4d" radius={[12, 12, 4, 4]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                <Tooltip formatter={(v) => formatCurrency(v, trip.currency)} {...chartStyle} />
+                <Bar dataKey="amount" fill="#F97316" radius={[6, 6, 2, 2]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

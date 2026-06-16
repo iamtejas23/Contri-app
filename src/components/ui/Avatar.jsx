@@ -1,17 +1,24 @@
+import { useState } from 'react'
+
 import { getInitials } from '../../lib/utils'
 
-export const Avatar = ({ name, src, size = 'md' }) => {
-  const sizes = {
-    sm: 'h-9 w-9 text-xs',
-    md: 'h-12 w-12 text-sm',
-    lg: 'h-16 w-16 text-lg',
-  }
+const sizes = {
+  sm: 'h-9 w-9 text-xs',
+  md: 'h-10 w-10 text-sm',
+  lg: 'h-14 w-14 text-base',
+}
 
-  if (src) {
+export const Avatar = ({ name, src, size = 'md' }) => {
+  const [imgError, setImgError] = useState(false)
+  const s = sizes[size] ?? sizes.md
+
+  if (src && !imgError) {
     return (
       <img
         alt={name}
-        className={`${sizes[size]} rounded-2xl object-cover shadow-md shadow-ink/10`}
+        className={`${s} flex-shrink-0 rounded-xl object-cover ring-2 ring-white`}
+        onError={() => setImgError(true)}
+        referrerPolicy="no-referrer"
         src={src}
       />
     )
@@ -19,7 +26,7 @@ export const Avatar = ({ name, src, size = 'md' }) => {
 
   return (
     <div
-      className={`${sizes[size]} flex items-center justify-center rounded-2xl bg-gradient-to-br from-coral to-teal font-display font-bold text-white shadow-md shadow-ink/10`}
+      className={`${s} flex flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal to-teal/70 font-display font-bold text-white ring-2 ring-white`}
     >
       {getInitials(name)}
     </div>

@@ -3,19 +3,17 @@ import { LoaderCircle } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 const variants = {
-  primary:
-    'bg-ink text-white shadow-lg shadow-ink/15 hover:-translate-y-0.5 hover:bg-dusk',
-  secondary:
-    'bg-white/80 text-ink ring-1 ring-ink/10 hover:-translate-y-0.5 hover:bg-white',
-  ghost: 'bg-transparent text-ink hover:bg-white/70',
-  danger:
-    'bg-coral text-white shadow-lg shadow-coral/20 hover:-translate-y-0.5 hover:bg-coral/90',
+  primary:   'bg-teal text-white shadow-sm hover:bg-teal/90 active:scale-[0.98]',
+  secondary: 'bg-white text-ink border border-slate-200 shadow-sm hover:bg-sand active:bg-slate-100',
+  ghost:     'text-dusk hover:bg-slate-100 hover:text-ink',
+  danger:    'bg-red-500 text-white shadow-sm hover:bg-red-600 active:scale-[0.98]',
+  white:     'bg-white text-ink shadow-sm hover:bg-slate-50 border border-slate-100',
 }
 
 const sizes = {
-  sm: 'h-10 px-4 text-sm',
-  md: 'h-11 px-5 text-sm',
-  lg: 'h-12 px-6 text-base',
+  sm: 'h-9 px-3.5 text-sm gap-1.5',
+  md: 'h-10 px-4 text-sm gap-2',
+  lg: 'h-11 px-5 text-base gap-2',
 }
 
 export const Button = ({
@@ -29,7 +27,7 @@ export const Button = ({
 }) => (
   <button
     className={cn(
-      'inline-flex items-center justify-center gap-2 rounded-full font-medium transition duration-200 disabled:cursor-not-allowed disabled:opacity-60',
+      'inline-flex items-center justify-center rounded-xl font-medium transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50 select-none',
       variants[variant],
       sizes[size],
       className,

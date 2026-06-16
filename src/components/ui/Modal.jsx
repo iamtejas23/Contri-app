@@ -1,52 +1,49 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 
-export const Modal = ({
-  open,
-  onClose,
-  title,
-  description,
-  children,
-}) => {
+export const Modal = ({ open, onClose, title, description, children }) => {
   useEffect(() => {
-    if (!open) {
-      return undefined
-    }
+    if (!open) return undefined
 
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
 
+    const handleEscape = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handleEscape)
-    return () => window.removeEventListener('keydown', handleEscape)
+
+    return () => {
+      document.body.style.overflow = prev
+      window.removeEventListener('keydown', handleEscape)
+    }
   }, [onClose, open])
 
-  if (!open) {
-    return null
-  }
+  if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/45 px-4 py-8 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-[2rem] border border-white/60 bg-cream p-5 shadow-float sm:p-7">
-        <div className="mb-6 flex items-start justify-between gap-4">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink/40 px-4 py-10 backdrop-blur-sm"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-modal">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
           <div>
-            <h2 className="font-display text-2xl font-bold text-ink">{title}</h2>
+            <h2 className="font-display text-xl font-semibold text-ink">{title}</h2>
             {description ? (
-              <p className="mt-1 text-sm text-dusk/70">{description}</p>
+              <p className="mt-0.5 text-sm text-dusk">{description}</p>
             ) : null}
           </div>
           <button
-            aria-label="Close modal"
-            className="rounded-full bg-white/70 p-2 text-dusk transition hover:bg-white"
+            aria-label="Close"
+            className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-ink"
             onClick={onClose}
             type="button"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
-        {children}
+        {/* Body */}
+        <div className="px-6 py-5">{children}</div>
       </div>
     </div>
   )

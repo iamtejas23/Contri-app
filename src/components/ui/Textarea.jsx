@@ -1,16 +1,17 @@
 import { cn } from '../../lib/utils'
 
-export const Textarea = ({ label, className, ...props }) => (
-  <label className="block space-y-2">
+export const Textarea = ({ label, hint, className, ...props }) => (
+  <label className="block space-y-1.5">
     {label ? (
-      <span className="text-sm font-medium text-dusk">{label}</span>
+      <span className="text-sm font-medium text-ink">{label}</span>
     ) : null}
     <textarea
       className={cn(
-        'min-h-[120px] w-full rounded-2xl border border-ink/10 bg-white/85 px-4 py-3 text-sm text-ink outline-none transition placeholder:text-dusk/45 focus:border-teal focus:ring-4 focus:ring-teal/10',
+        'min-h-[100px] w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal focus:ring-2 focus:ring-teal/15',
         className,
       )}
       {...props}
     />
+    {hint ? <span className="text-xs text-dusk">{hint}</span> : null}
   </label>
 )

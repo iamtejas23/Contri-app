@@ -4,24 +4,29 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: '#143334',
-        sand: '#f7f1e3',
-        coral: '#ee6c4d',
-        teal: '#2a9d8f',
-        mint: '#89c8b5',
-        dusk: '#214244',
-        cream: '#fffaf1',
+        ink:   '#0F172A',  // slate-900 — primary text
+        dusk:  '#64748B',  // slate-500 — secondary text
+        sand:  '#F8FAFC',  // slate-50  — page background
+        cream: '#FFFFFF',  // white     — card background
+        teal:  '#0D9488',  // teal-600  — brand / primary action
+        mint:  '#5EEAD4',  // teal-300  — lighter teal accent
+        coral: '#F97316',  // orange-500 — CTA / danger accent
       },
       boxShadow: {
-        float: '0 20px 60px rgba(20, 51, 52, 0.12)',
+        float:    '0 1px 3px 0 rgb(0 0 0/0.08), 0 1px 2px -1px rgb(0 0 0/0.06)',
+        card:     '0 4px 6px -1px rgb(0 0 0/0.06), 0 2px 4px -2px rgb(0 0 0/0.04)',
+        elevated: '0 20px 25px -5px rgb(0 0 0/0.08), 0 8px 10px -6px rgb(0 0 0/0.04)',
+        modal:    '0 25px 50px -12px rgb(0 0 0/0.20)',
       },
       fontFamily: {
-        sans: ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        sans:    ['"DM Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
         display: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        mesh:
-          'radial-gradient(circle at top left, rgba(238, 108, 77, 0.16), transparent 30%), radial-gradient(circle at top right, rgba(42, 157, 143, 0.18), transparent 36%), linear-gradient(180deg, rgba(255, 250, 241, 0.98), rgba(247, 241, 227, 0.92))',
+        mesh: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+      },
+      borderRadius: {
+        card: '1rem',
       },
     },
   },

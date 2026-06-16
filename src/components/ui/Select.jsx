@@ -3,14 +3,14 @@ import { ChevronDown } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 export const Select = ({ label, options = [], className, ...props }) => (
-  <label className="block space-y-2">
+  <label className="block space-y-1.5">
     {label ? (
-      <span className="text-sm font-medium text-dusk">{label}</span>
+      <span className="text-sm font-medium text-ink">{label}</span>
     ) : null}
     <span className="relative block">
       <select
         className={cn(
-          'w-full appearance-none rounded-2xl border border-ink/10 bg-white/85 px-4 py-3 pr-10 text-sm text-ink outline-none transition focus:border-teal focus:ring-4 focus:ring-teal/10',
+          'w-full appearance-none rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 pr-10 text-sm text-ink shadow-sm outline-none transition focus:border-teal focus:ring-2 focus:ring-teal/15',
           className,
         )}
         {...props}
@@ -21,7 +21,7 @@ export const Select = ({ label, options = [], className, ...props }) => (
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-dusk/60" />
+      <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
     </span>
   </label>
 )

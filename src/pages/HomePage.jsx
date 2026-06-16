@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { Map, Plus, Search, Sparkles, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
@@ -9,7 +9,6 @@ import { DEFAULT_TRIP_FORM } from '../lib/constants'
 import { getDisplayName } from '../lib/utils'
 import { createTrip } from '../services/trips'
 import { Button } from '../components/ui/Button'
-import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
 import { TripCard } from '../components/trips/TripCard'
@@ -20,14 +19,22 @@ export const HomePage = () => {
   const { user, profile } = useAuth()
   const { trips, loading } = useUserTrips(user?.uid)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [search, setSearch] = useState('')
 
-  const stats = useMemo(
-    () => ({
-      tripCount: trips.length,
-      memberCount: trips.reduce((sum, trip) => sum + (trip.members?.length || 0), 0),
-    }),
-    [trips],
-  )
+  const stats = useMemo(() => ({
+    tripCount: trips.length,
+    memberCount: trips.reduce((sum, t) => sum + (t.members?.length || 0), 0),
+  }), [trips])
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return trips
+    const q = search.toLowerCase()
+    return trips.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        (t.description || '').toLowerCase().includes(q),
+    )
+  }, [trips, search])
 
   const actor = {
     uid: user?.uid,
@@ -42,82 +49,117 @@ export const HomePage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden bg-gradient-to-br from-cream to-white/85 p-6 sm:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-sm uppercase tracking-[0.22em] text-dusk/55">
-              Welcome back
-            </p>
-            <h1 className="mt-3 font-display text-4xl font-bold text-ink sm:text-5xl">
-              Keep every shared trip fair, clear, and low-drama.
-            </h1>
-            <p className="mt-4 text-base text-dusk/72">
-              Build a trip board for {getDisplayName(profile || user)}, bring in the crew,
-              and let the live dashboard keep the math from turning into group chat chaos.
-            </p>
-          </div>
-
-          <Button onClick={() => setShowCreateModal(true)} size="lg" type="button">
-            <Plus className="h-5 w-5" />
+    <div className="space-y-8">
+      {/* Hero banner */}
+      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-teal via-teal/90 to-teal/70">
+        <div className="px-6 py-8 sm:px-8 sm:py-10">
+          <p className="text-xs font-semibold uppercase tracking-widest text-white/60">
+            Welcome back, {getDisplayName(profile || user)}
+          </p>
+          <h1 className="mt-2 font-display text-3xl font-bold text-white sm:text-4xl">
+            Keep every shared trip fair,<br className="hidden sm:block" /> clear, and low-drama.
+          </h1>
+          <p className="mt-3 max-w-xl text-sm text-white/70">
+            Build a trip board, bring in the crew, and let the live dashboard keep the
+            math from turning into group chat chaos.
+          </p>
+          <Button
+            className="mt-6 bg-white text-teal hover:bg-slate-50"
+            onClick={() => setShowCreateModal(true)}
+            size="lg"
+            type="button"
+            variant="white"
+          >
+            <Plus className="h-4 w-4" />
             Create trip
           </Button>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-[1.75rem] bg-sand/75 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dusk/55">
-              Active trips
-            </p>
-            <p className="mt-3 font-display text-4xl font-bold text-ink">{stats.tripCount}</p>
+        {/* Stats strip */}
+        <div className="grid grid-cols-3 border-t border-white/20 divide-x divide-white/20">
+          <div className="flex items-center gap-3 px-6 py-4">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
+              <Map className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/55">Trips</p>
+              <p className="font-display text-2xl font-bold text-white">{stats.tripCount}</p>
+            </div>
           </div>
-          <div className="rounded-[1.75rem] bg-sand/75 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dusk/55">
-              Total travelers
-            </p>
-            <p className="mt-3 font-display text-4xl font-bold text-ink">{stats.memberCount}</p>
+          <div className="flex items-center gap-3 px-6 py-4">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
+              <Users className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/55">Travelers</p>
+              <p className="font-display text-2xl font-bold text-white">{stats.memberCount}</p>
+            </div>
           </div>
-          <div className="rounded-[1.75rem] bg-sand/75 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-dusk/55">
-              Best use
-            </p>
-            <p className="mt-3 text-sm leading-6 text-dusk/72">
-              Weekend getaways, group stays, road trips, destination weddings, and any
-              itinerary where shared costs pile up fast.
-            </p>
+          <div className="flex items-center gap-3 px-6 py-4">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/55">Best for</p>
+              <p className="text-sm font-medium text-white/85">Group trips</p>
+            </div>
           </div>
         </div>
-      </Card>
+      </div>
 
+      {/* Trips section */}
       <section>
-        <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-dusk/55">Your trips</p>
-            <h2 className="mt-2 font-display text-3xl font-bold text-ink">
+            <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Your trips</p>
+            <h2 className="mt-1 font-display text-2xl font-bold text-ink">
               Pick up where the last receipt left off
             </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            {trips.length > 0 && (
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="w-52 rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal focus:ring-2 focus:ring-teal/15"
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search trips…"
+                  value={search}
+                />
+              </div>
+            )}
+            <Button onClick={() => setShowCreateModal(true)} size="sm" type="button">
+              <Plus className="h-4 w-4" />
+              New trip
+            </Button>
           </div>
         </div>
 
         {loading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} className="h-72 rounded-[2rem]" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-64" />
             ))}
           </div>
-        ) : trips.length ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {trips.map((trip) => (
-              <TripCard key={trip.id} trip={trip} />
-            ))}
-          </div>
-        ) : (
+        ) : trips.length === 0 ? (
           <EmptyState
             actionLabel="Create your first trip"
             description="Start with a destination, invite the group, and add the first shared cost when it happens."
+            icon={Map}
             onAction={() => setShowCreateModal(true)}
             title="No trips yet"
           />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            description={`No trips match "${search}". Try a different name.`}
+            title="No results"
+          />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((trip) => (
+              <TripCard key={trip.id} trip={trip} />
+            ))}
+          </div>
         )}
       </section>
 
