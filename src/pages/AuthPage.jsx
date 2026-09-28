@@ -16,9 +16,9 @@ const GoogleIcon = () => (
 )
 
 const features = [
-  'Real-time expense tracking across the whole group',
-  'Flexible splits: equal, exact, shares, or percentages',
-  'Smart settlement suggestions + PDF & CSV export',
+  'Log petrol, toll, food, and hotel in a few taps',
+  'See exactly who owes whom, then pay with UPI',
+  'Share the hisab on WhatsApp before the group chat starts',
 ]
 
 export const AuthPage = () => {
@@ -71,17 +71,17 @@ export const AuthPage = () => {
           {/* Logo */}
           <div className="flex items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-sm font-bold text-white">C</div>
-            <span className="font-display text-lg font-semibold text-white">Contri-app</span>
+            <span className="font-display text-lg font-semibold text-white">Contri</span>
           </div>
 
           {/* Hero text */}
           <div className="py-12 lg:py-0">
             <h1 className="font-display text-4xl font-bold leading-tight text-white lg:text-5xl">
-              Split trips,<br />not friendships.
+              Trip khatam.<br />Hisab bhi khatam.
             </h1>
             <p className="mt-4 text-base text-white/70">
-              Log bills in real time, see exactly who owes what, and settle
-              up without the awkward group-chat math.
+              The fastest way for Indian friends to split a trip. Rupees first,
+              UPI to settle, WhatsApp when someone needs a nudge.
             </p>
             <div className="mt-8 space-y-3">
               {features.map((f) => (
@@ -95,7 +95,7 @@ export const AuthPage = () => {
 
           {/* Footer quote */}
           <p className="text-xs text-white/40">
-            Trusted for weekend getaways, road trips &amp; destination weddings.
+            Road trips, long weekends, and the group chat that should not do the math.
           </p>
 
           {/* Decorative blobs */}

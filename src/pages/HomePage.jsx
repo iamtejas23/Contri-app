@@ -3,10 +3,11 @@ import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 
+import { ErrorState } from '../components/ui/ErrorState'
 import { useAuth } from '../context/useAuth'
 import { useUserTrips } from '../hooks/useUserTrips'
 import { DEFAULT_TRIP_FORM } from '../lib/constants'
-import { getDisplayName } from '../lib/utils'
+import { buildActor, getDisplayName } from '../lib/utils'
 import { createTrip } from '../services/trips'
 import { Button } from '../components/ui/Button'
 import { EmptyState } from '../components/ui/EmptyState'
@@ -17,7 +18,7 @@ import { TripFormModal } from '../components/trips/TripFormModal'
 export const HomePage = () => {
   const navigate = useNavigate()
   const { user, profile } = useAuth()
-  const { trips, loading } = useUserTrips(user?.uid)
+  const { trips, loading, error, retry } = useUserTrips(user?.uid)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [search, setSearch] = useState('')
 
@@ -36,11 +37,7 @@ export const HomePage = () => {
     )
   }, [trips, search])
 
-  const actor = {
-    uid: user?.uid,
-    name: getDisplayName(profile || user),
-    email: profile?.email || user?.email || '',
-  }
+  const actor = buildActor(user, profile)
 
   const handleCreateTrip = async (values) => {
     const tripId = await createTrip({ values, actor })
@@ -57,11 +54,11 @@ export const HomePage = () => {
             Welcome back, {getDisplayName(profile || user)}
           </p>
           <h1 className="mt-2 font-display text-3xl font-bold text-white sm:text-4xl">
-            Keep every shared trip fair,<br className="hidden sm:block" /> clear, and low-drama.
+            Trip khatam.<br className="hidden sm:block" /> Hisab bhi khatam.
           </h1>
           <p className="mt-3 max-w-xl text-sm text-white/70">
-            Build a trip board, bring in the crew, and let the live dashboard keep the
-            math from turning into group chat chaos.
+            Log petrol, toll, food, and hotel as they happen. See who owes whom,
+            pay with UPI, and send the hisab on WhatsApp.
           </p>
           <Button
             className="mt-6 bg-white text-teal hover:bg-slate-50"
@@ -100,8 +97,8 @@ export const HomePage = () => {
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/55">Best for</p>
-              <p className="text-sm font-medium text-white/85">Group trips</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-white/55">Settle in</p>
+              <p className="text-sm font-medium text-white/85">₹ + UPI</p>
             </div>
           </div>
         </div>
@@ -113,7 +110,7 @@ export const HomePage = () => {
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Your trips</p>
             <h2 className="mt-1 font-display text-2xl font-bold text-ink">
-              Pick up where the last receipt left off
+              Open a hisab
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -135,7 +132,9 @@ export const HomePage = () => {
           </div>
         </div>
 
-        {loading ? (
+        {error && !loading ? (
+          <ErrorState description={error} onRetry={retry} title="Trips did not load" />
+        ) : loading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <Skeleton key={i} className="h-64" />
@@ -144,7 +143,7 @@ export const HomePage = () => {
         ) : trips.length === 0 ? (
           <EmptyState
             actionLabel="Create your first trip"
-            description="Start with a destination, invite the group, and add the first shared cost when it happens."
+            description="Start a trip, add the group, and log the first bill before the WhatsApp math begins."
             icon={Map}
             onAction={() => setShowCreateModal(true)}
             title="No trips yet"

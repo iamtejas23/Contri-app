@@ -6,8 +6,8 @@ export const LoadingScreen = () => (
         <div className="absolute inset-0 rounded-full border-4 border-teal border-t-transparent animate-spin" />
       </div>
       <div className="text-center">
-        <p className="font-display text-lg font-semibold text-ink">Contri-app</p>
-        <p className="mt-1 text-sm text-dusk">Loading your trip board…</p>
+        <p className="font-display text-lg font-semibold text-ink">Contri</p>
+        <p className="mt-1 text-sm text-dusk">Trip khatam. Hisab bhi khatam.</p>
       </div>
     </div>
   </div>

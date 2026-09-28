@@ -9,12 +9,16 @@ export const CURRENCIES = [
 
 export const EXPENSE_CATEGORIES = [
   'Food',
+  'Petrol',
+  'Toll',
+  'Hotel',
   'Travel',
-  'Stay',
   'Activity',
   'Shopping',
   'Other',
 ]
+
+export const LEGACY_CATEGORIES = ['Stay']
 
 export const TRIP_EMOJIS = [
   '🏝️',
@@ -55,6 +59,7 @@ export const DEFAULT_TRIP_FORM = {
   startDate: '',
   endDate: '',
   currency: 'INR',
+  budget: '',
 }
 
 const defaultDate = new Date().toISOString().slice(0, 10)

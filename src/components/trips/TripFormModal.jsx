@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 
 import { CURRENCIES, DEFAULT_TRIP_FORM, TRIP_EMOJIS } from '../../lib/constants'
 import { isDateAfter, isDateBefore } from '../../lib/date'
+import { roundCurrency, toNumber } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Modal } from '../ui/Modal'
@@ -17,6 +18,7 @@ const buildTripFormState = (values) => ({
   startDate: values?.startDate || '',
   endDate: values?.endDate || '',
   currency: values?.currency || DEFAULT_TRIP_FORM.currency,
+  budget: values?.budget ? String(values.budget) : '',
 })
 
 export const TripFormModal = ({
@@ -56,10 +58,13 @@ export const TripFormModal = ({
     setLoading(true)
 
     try {
+      const budgetValue = String(form.budget).trim()
+
       await onSubmit({
         ...form,
         name: form.name.trim(),
         description: form.description.trim(),
+        budget: budgetValue ? roundCurrency(toNumber(budgetValue)) : null,
       })
       onClose()
     } catch {
@@ -115,6 +120,18 @@ export const TripFormModal = ({
             value={form.endDate}
           />
         </div>
+
+        <Input
+          hint="Optional. We’ll show how much of the trip budget is left."
+          label="Trip budget"
+          min="0"
+          name="budget"
+          onChange={handleChange}
+          placeholder="20000"
+          step="1"
+          type="number"
+          value={form.budget}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Select

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import toast from 'react-hot-toast'
 
 import { useAuth } from '../context/useAuth'
+import { isValidUpiId } from '../lib/upi'
 import { getDisplayName } from '../lib/utils'
 import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
@@ -18,11 +19,17 @@ export const ProfilePage = () => {
   const liveValues = {
     name: profile?.name || user?.displayName || '',
     photoURL: profile?.photoURL || user?.photoURL || '',
+    upiId: profile?.upiId || '',
   }
   const form = draft || liveValues
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (form.upiId && !isValidUpiId(form.upiId)) {
+      toast.error('Enter a UPI ID like name@okhdfcbank.')
+      return
+    }
+
     setLoading(true)
     try {
       await updateProfileDetails(form)
@@ -39,7 +46,7 @@ export const ProfilePage = () => {
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Account</p>
-        <h1 className="mt-1 font-display text-2xl font-bold text-ink">Profile settings</h1>
+          <h1 className="mt-1 font-display text-2xl font-bold text-ink">Your profile</h1>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[300px,1fr]">
@@ -83,7 +90,7 @@ export const ProfilePage = () => {
         <Card>
           <h2 className="font-display text-lg font-semibold text-ink">Edit profile</h2>
           <p className="mt-1 text-sm text-dusk">
-            Your display name appears across all trips you join.
+            Your name shows on every trip. Your UPI ID lets friends pay you in one tap.
           </p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
@@ -111,6 +118,15 @@ export const ProfilePage = () => {
                 <span className="text-sm text-dusk">Photo preview</span>
               </div>
             ) : null}
+            <Input
+              hint="Example: yourname@okhdfcbank. Used only when someone settles with you."
+              label="UPI ID"
+              onChange={(e) =>
+                setDraft((c) => ({ ...(c || liveValues), upiId: e.target.value.trim() }))
+              }
+              placeholder="name@okhdfcbank"
+              value={form.upiId}
+            />
             <Input disabled label="Email address" value={profile?.email || user?.email || ''} />
 
             <div className="flex gap-3 pt-2">

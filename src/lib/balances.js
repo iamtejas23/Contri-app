@@ -1,4 +1,4 @@
-import { EXPENSE_CATEGORIES } from './constants'
+import { EXPENSE_CATEGORIES, LEGACY_CATEGORIES } from './constants'
 import { formatTimelineDate } from './date'
 import { resolveSplitAmounts } from './splits'
 import { roundCurrency, toNumber } from './utils'
@@ -127,7 +127,7 @@ export const buildDashboardMetrics = ({
   const totalSpent = roundCurrency(expenses.reduce((sum, item) => sum + toNumber(item.amount), 0))
   const averagePerPerson = members.length ? roundCurrency(totalSpent / members.length) : 0
   const yourBalance = balances.find((entry) => entry.uid === currentUserId)
-  const categoryMap = EXPENSE_CATEGORIES.reduce((accumulator, category) => {
+  const categoryMap = [...EXPENSE_CATEGORIES, ...LEGACY_CATEGORIES].reduce((accumulator, category) => {
     accumulator[category] = 0
     return accumulator
   }, {})
@@ -156,10 +156,14 @@ export const buildDashboardMetrics = ({
   const topSpender = Object.values(contributionMap).sort((first, second) => second.amount - first.amount)[0]
   const mostOwed = [...balances].sort((first, second) => second.net - first.net)[0]
 
+  const budget = roundCurrency(toNumber(trip?.budget))
+
   return {
     balances,
     suggestions: computeSettlementSuggestions(balances),
     totalSpent,
+    budget,
+    budgetLeft: budget ? roundCurrency(budget - totalSpent) : null,
     averagePerPerson,
     yourShare: yourBalance?.share || 0,
     yourNet: yourBalance?.net || 0,

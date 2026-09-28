@@ -9,7 +9,7 @@ export const ActivityFeed = ({ activity, membersMap, currency }) => {
   if (!activity.length) {
     return (
       <EmptyState
-        description="As expenses and settlements happen, the trip feed will keep everyone in sync."
+        description="Kharcha and settlements show up here so the group can see what changed."
         icon={Activity}
         title="No activity yet"
       />

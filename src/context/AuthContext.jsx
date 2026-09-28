@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
       login: loginWithEmail,
       loginWithGoogle,
       logout: logoutUser,
-      updateProfileDetails: async ({ name, photoURL }) => {
+      updateProfileDetails: async ({ name, photoURL, upiId = '' }) => {
         if (!user) {
           return
         }
@@ -83,6 +83,7 @@ export const AuthProvider = ({ children }) => {
           uid: user.uid,
           name,
           photoURL,
+          upiId,
         })
       },
     }),

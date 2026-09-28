@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Link2 } from 'lucide-react'
 
+import { getCategoryMeta } from '../../lib/categories'
 import {
   DEFAULT_EXPENSE_FORM,
   EXPENSE_CATEGORIES,
   SPLIT_MODES,
 } from '../../lib/constants'
+import { ReceiptScanButton } from './ReceiptScanButton'
 import { formatCurrency } from '../../lib/currency'
 import { formatDate, isDateOutsideRange } from '../../lib/date'
 import {
@@ -129,7 +131,7 @@ export const ExpenseFormModal = ({
       description="Track the bill, attach a receipt, and decide exactly who owes what."
       onClose={onClose}
       open={open}
-      title={initialExpense ? 'Edit expense' : 'Add expense'}
+      title={initialExpense?.id ? 'Edit expense' : 'Add expense'}
     >
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -154,14 +156,30 @@ export const ExpenseFormModal = ({
           />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <Select
-            label="Category"
-            name="category"
-            onChange={handleChange}
-            options={EXPENSE_CATEGORIES.map((item) => ({ value: item, label: item }))}
-            value={form.category}
-          />
+        <div className="space-y-2">
+          <span className="text-sm font-medium text-ink">Category</span>
+          <div className="grid grid-cols-4 gap-2">
+            {EXPENSE_CATEGORIES.map((item) => {
+              const meta = getCategoryMeta(item)
+              const active = form.category === item
+              return (
+                <button
+                  key={item}
+                  className={`rounded-2xl border px-2 py-2.5 text-center transition active:scale-95 ${
+                    active ? 'border-teal bg-teal/10' : 'border-slate-200 bg-white'
+                  }`}
+                  onClick={() => setForm((current) => ({ ...current, category: item }))}
+                  type="button"
+                >
+                  <span className="text-lg">{meta.emoji}</span>
+                  <span className="mt-0.5 block text-[11px] font-semibold text-ink">{meta.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
           <Select
             label="Paid by"
             name="paidBy"
@@ -268,6 +286,16 @@ export const ExpenseFormModal = ({
           </div>
         ) : null}
 
+        <ReceiptScanButton
+          onResult={(parsed) => {
+            setForm((current) => ({
+              ...current,
+              amount: parsed.amount || current.amount,
+              title: current.title || parsed.title,
+            }))
+          }}
+        />
+
         <div className="rounded-[1.75rem] border border-dashed border-ink/10 bg-sand/70 p-4">
           <div className="flex items-center gap-2 text-sm font-medium text-dusk">
             <Link2 className="h-4 w-4" />
@@ -319,7 +347,7 @@ export const ExpenseFormModal = ({
             Cancel
           </Button>
           <Button loading={loading} type="submit">
-            {initialExpense ? 'Save changes' : 'Add expense'}
+            {initialExpense?.id ? 'Save changes' : 'Add expense'}
           </Button>
         </div>
       </form>

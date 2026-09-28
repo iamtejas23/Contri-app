@@ -31,6 +31,7 @@ export const JoinTripPage = () => {
             uid: user.uid,
             name: getDisplayName(profile || user),
             email: profile?.email || user.email || '',
+            upiId: profile?.upiId || '',
           },
         })
         toast.success('You joined the trip.')
@@ -49,12 +50,14 @@ export const JoinTripPage = () => {
     <Card className="mx-auto max-w-2xl p-8 text-center">
       <p className="text-sm uppercase tracking-[0.18em] text-dusk/55">Invite link</p>
       <h1 className="mt-3 font-display text-4xl font-bold text-ink">
-        {tripId ? 'Joining trip...' : 'Trip link missing'}
+        {joining ? 'Adding you to the trip…' : tripId ? 'Could not join yet' : 'Trip link missing'}
       </h1>
       <p className="mx-auto mt-4 max-w-lg text-sm text-dusk/70">
         {tripId
-          ? 'We are adding you to the trip now. If the rules are set up correctly, you will be redirected as soon as the membership update lands.'
-          : 'This invite link is missing a trip id. Ask a trip admin to share the invite again.'}
+          ? joining
+            ? 'Hang on. You will land on the hisab as soon as you are in the group.'
+            : 'The invite did not go through. Ask the trip admin to share the WhatsApp link again.'
+          : 'This invite link is missing a trip. Ask a friend to share it again from Contri.'}
       </p>
       <Button className="mt-6" onClick={() => navigate('/')} type="button" variant="secondary">
         {joining ? 'Working...' : 'Back to trips'}

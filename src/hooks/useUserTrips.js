@@ -7,9 +7,11 @@ import { toDateValue } from '../lib/date'
 import { getErrorMessage } from '../lib/errors'
 
 export const useUserTrips = (uid) => {
+  const [retryCount, setRetryCount] = useState(0)
   const [state, setState] = useState({
     uid: null,
     trips: [],
+    error: '',
   })
 
   useEffect(() => {
@@ -34,22 +36,27 @@ export const useUserTrips = (uid) => {
         setState({
           uid,
           trips: nextTrips,
+          error: '',
         })
       },
       (error) => {
-        toast.error(getErrorMessage(error, 'We could not load your trips.'))
+        const message = getErrorMessage(error, 'We could not load your trips.')
+        toast.error(message)
         setState({
           uid,
           trips: [],
+          error: message,
         })
       },
     )
 
     return unsubscribe
-  }, [uid])
+  }, [uid, retryCount])
 
   return {
     trips: state.uid === uid ? state.trips : [],
     loading: Boolean(uid) && state.uid !== uid,
+    error: state.uid === uid ? state.error : '',
+    retry: () => setRetryCount((count) => count + 1),
   }
 }

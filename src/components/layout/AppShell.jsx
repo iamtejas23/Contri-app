@@ -25,9 +25,9 @@ export const AppShell = () => {
               C
             </div>
             <div className="hidden sm:block">
-              <p className="font-display text-base font-semibold text-ink leading-none">Contri-app</p>
+              <p className="font-display text-base font-semibold text-ink leading-none">Contri</p>
               <p className="text-[10px] uppercase tracking-widest text-dusk leading-none mt-0.5">
-                Split trips, not friendships
+                Trip khatam. Hisab bhi khatam.
               </p>
             </div>
           </NavLink>

@@ -1,6 +1,8 @@
-import { ArrowRight, CheckCircle2, Wallet } from 'lucide-react'
+import { Wallet } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
+
+import { WhoOwesWhom } from './WhoOwesWhom'
 
 import { SETTLEMENT_METHODS } from '../../lib/constants'
 import { formatCurrency } from '../../lib/currency'
@@ -21,7 +23,7 @@ const buildInitialForm = (trip) => ({
 })
 
 export const SettlementPanel = ({
-  trip, balances, suggestions, settlements, membersMap, members, onSubmit, canManage = false,
+  trip, balances, suggestions, settlements, membersMap, members, onSubmit, canManage = false, currentUserId,
 }) => {
   const [form, setForm]     = useState(() => buildInitialForm(trip))
   const [filter, setFilter] = useState('all')
@@ -51,6 +53,34 @@ export const SettlementPanel = ({
 
   return (
     <div className="space-y-5">
+      <div>
+        <h3 className="font-display text-lg font-semibold text-ink">Who owes whom</h3>
+        <p className="mt-0.5 text-sm text-dusk">The fewest payments that clear this trip.</p>
+        <div className="mt-4">
+          <WhoOwesWhom
+            currency={trip.currency}
+            currentUserId={currentUserId}
+            membersMap={membersMap}
+            onMarkPaid={canManage ? async (item) => {
+              const today = new Date().toISOString().slice(0, 10)
+              let settledAt = today
+              if (trip?.startDate && settledAt < trip.startDate) settledAt = trip.startDate
+              if (trip?.endDate && settledAt > trip.endDate) settledAt = trip.endDate
+              await onSubmit({
+                from: item.from,
+                to: item.to,
+                amount: String(item.amount),
+                method: trip.currency === 'INR' ? 'upi' : 'online',
+                settledAt,
+                note: 'Marked from who owes whom',
+              })
+            } : undefined}
+            suggestions={suggestions}
+            tripName={trip.name}
+          />
+        </div>
+      </div>
+
       <div className="grid gap-5 xl:grid-cols-[1.1fr,0.9fr]">
         {/* Current balances */}
         <Card>
@@ -81,35 +111,25 @@ export const SettlementPanel = ({
           <h3 className="font-display text-lg font-semibold text-ink">Record settlement</h3>
           <p className="mt-0.5 text-sm text-dusk">Mark a payment as done.</p>
 
-          {/* Suggestions */}
-          {suggestions.length ? (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Suggested</p>
-              {suggestions.slice(0, 3).map((s) => (
-                <button
-                  key={`${s.from}-${s.to}`}
-                  className="group w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-teal/40 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={!canManage}
-                  onClick={() => setForm((c) => ({ ...c, from: s.from, to: s.to, amount: String(s.amount) }))}
-                  type="button"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-ink">{membersMap[s.from]?.name}</span>
-                    <ArrowRight className="h-4 w-4 flex-shrink-0 text-teal" />
-                    <span className="text-sm font-semibold text-ink">{membersMap[s.to]?.name}</span>
-                    <span className="ml-auto font-display text-base font-bold text-ink">
-                      {formatCurrency(s.amount, trip.currency)}
-                    </span>
-                  </div>
-                </button>
-              ))}
+          {suggestions.length && canManage ? (
+            <div className="mt-4">
+              <button
+                className="text-sm font-semibold text-teal"
+                onClick={() => {
+                  const next = suggestions[0]
+                  setForm((current) => ({
+                    ...current,
+                    from: next.from,
+                    to: next.to,
+                    amount: String(next.amount),
+                  }))
+                }}
+                type="button"
+              >
+                Fill the next payment
+              </button>
             </div>
-          ) : (
-            <div className="mt-4 flex items-center gap-2.5 rounded-xl bg-teal-50 px-4 py-3 text-sm text-teal">
-              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              Balances are already close to settled.
-            </div>
-          )}
+          ) : null}
 
           {canManage ? (
             <form className="mt-5 space-y-3" onSubmit={handleSubmit}>

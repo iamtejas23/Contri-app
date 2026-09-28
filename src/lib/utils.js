@@ -42,6 +42,14 @@ export const buildMemberFromIdentity = (identity, role = 'member') => ({
   name: getDisplayName(identity),
   email: identity.email || '',
   role,
+  upiId: identity.upiId || '',
+})
+
+export const buildActor = (user, profile) => ({
+  uid: user?.uid,
+  name: getDisplayName(profile || user),
+  email: profile?.email || user?.email || '',
+  upiId: profile?.upiId || '',
 })
 
 export const sanitizeFileName = (name = 'receipt') =>

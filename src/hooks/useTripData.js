@@ -19,9 +19,11 @@ const defaultState = {
   activity: [],
   loading: true,
   notFound: false,
+  error: '',
 }
 
 export const useTripData = (tripId) => {
+  const [retryCount, setRetryCount] = useState(0)
   const [state, setState] = useState(defaultState)
 
   useEffect(() => {
@@ -70,7 +72,9 @@ export const useTripData = (tripId) => {
         markReady('trip')
       },
       (error) => {
-        toast.error(getErrorMessage(error, 'We could not load that trip.'))
+        const message = getErrorMessage(error, 'We could not load that trip.')
+        toast.error(message)
+        updateForTrip((current) => ({ ...current, error: message }))
         markReady('trip')
       },
     )
@@ -135,12 +139,15 @@ export const useTripData = (tripId) => {
       unsubscribeSettlements()
       unsubscribeActivity()
     }
-  }, [tripId])
+  }, [retryCount, tripId])
+
+  const retry = () => setRetryCount((count) => count + 1)
 
   if (!tripId) {
     return {
       ...defaultState,
       loading: false,
+      retry,
     }
   }
 
@@ -148,8 +155,9 @@ export const useTripData = (tripId) => {
     return {
       ...defaultState,
       tripId,
+      retry,
     }
   }
 
-  return state
+  return { ...state, retry }
 }

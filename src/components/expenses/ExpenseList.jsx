@@ -1,7 +1,6 @@
-import {
-  Hotel, Package, PencilLine, Plane, Receipt,
-  Search, ShoppingBag, Trash2, UtensilsCrossed, Zap,
-} from 'lucide-react'
+import { PencilLine, Receipt, Search, Trash2 } from 'lucide-react'
+
+import { getCategoryMeta } from '../../lib/categories'
 import { useMemo, useState } from 'react'
 
 import { formatCurrency } from '../../lib/currency'
@@ -10,15 +9,6 @@ import { resolveSplitAmounts } from '../../lib/splits'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
-
-const CATEGORY_META = {
-  Food:     { icon: UtensilsCrossed, bg: 'bg-orange-100', text: 'text-orange-600' },
-  Travel:   { icon: Plane,           bg: 'bg-teal-100',   text: 'text-teal-600' },
-  Stay:     { icon: Hotel,           bg: 'bg-blue-100',   text: 'text-blue-600' },
-  Activity: { icon: Zap,             bg: 'bg-yellow-100', text: 'text-yellow-700' },
-  Shopping: { icon: ShoppingBag,     bg: 'bg-purple-100', text: 'text-purple-600' },
-  Other:    { icon: Package,         bg: 'bg-slate-100',  text: 'text-slate-600' },
-}
 
 export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, onCreate, canManage = false }) => {
   const [search, setSearch]               = useState('')
@@ -49,11 +39,11 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
   if (!expenses.length) {
     return (
       <EmptyState
-        actionLabel={canManage ? 'Add first expense' : undefined}
-        description="Add the first bill and the dashboard will start calculating balances in real time."
+        actionLabel={onCreate ? 'Add first kharcha' : undefined}
+        description="Petrol, toll, dinner, hotel — log it in a few taps and the hisab updates for everyone."
         icon={Receipt}
-        onAction={canManage ? onCreate : undefined}
-        title="No expenses yet"
+        onAction={onCreate}
+        title="No kharcha yet"
       />
     )
   }
@@ -102,8 +92,7 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
         <EmptyState description="Try a different search or filter." title="No matching expenses" />
       ) : (
         filtered.map((expense) => {
-          const meta       = CATEGORY_META[expense.category] ?? CATEGORY_META.Other
-          const Icon       = meta.icon
+          const meta = getCategoryMeta(expense.category)
           const splitItems = resolveSplitAmounts(expense)
 
           return (
@@ -111,11 +100,11 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
               <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${meta.bg} ${meta.text}`}>
-                      <Icon className="h-4 w-4" />
+                    <span className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-base ${meta.tone}`}>
+                      {meta.emoji}
                     </span>
                     <p className="font-display text-lg font-semibold text-ink">{expense.title}</p>
-                    <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${meta.bg} ${meta.text}`}>
+                    <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${meta.tone}`}>
                       {expense.category}
                     </span>
                   </div>

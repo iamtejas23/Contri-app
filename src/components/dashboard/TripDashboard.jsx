@@ -26,10 +26,10 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
     return (
       <EmptyState
         actionLabel="Add first expense"
-        description="Once a bill lands here, the dashboard will start tracking totals, daily spend, and who is owed what."
+        description="Log the first petrol, toll, meal, or hotel bill. Totals and the hisab show up right after."
         icon={Receipt}
         onAction={onAddExpense}
-        title="No expenses yet"
+        title="No kharcha yet"
       />
     )
   }
@@ -49,7 +49,7 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
           helper="Your allocated portion" />
         <StatCard icon={ArrowUpDown} label="Your net" tone="blue"
           value={formatCurrency(metrics.yourNet, trip.currency)}
-          helper="Positive = you're owed money" />
+          helper={metrics.yourNet >= 0 ? 'You are owed this' : 'You still owe this'} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">

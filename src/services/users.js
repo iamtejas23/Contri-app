@@ -26,15 +26,17 @@ export const findUserByEmail = async (email) => {
   }
 }
 
-export const updateUserProfileDoc = async ({ uid, name, photoURL = '' }) => {
+export const updateUserProfileDoc = async ({ uid, name, photoURL = '', upiId = '' }) => {
   try {
     const safeName = name.trim()
+    const safeUpi = upiId.trim()
     await setDoc(
       doc(db, 'users', uid),
       {
         name: safeName,
         email: auth.currentUser?.email?.toLowerCase() || '',
         photoURL,
+        upiId: safeUpi,
       },
       { merge: true },
     )
@@ -55,7 +57,9 @@ export const updateUserProfileDoc = async ({ uid, name, photoURL = '' }) => {
         const members = tripDoc
           .data()
           .members.map((member) =>
-            member.uid === uid ? buildMemberFromIdentity({ ...member, uid, name: safeName }, member.role) : member,
+            member.uid === uid
+              ? buildMemberFromIdentity({ ...member, uid, name: safeName, upiId: safeUpi }, member.role)
+              : member,
           )
 
         await updateDoc(doc(db, 'trips', tripDoc.id), { members })

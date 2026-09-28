@@ -24,7 +24,7 @@ const buildExpensePayload = async ({
     category: values.category,
     paidBy: values.paidBy,
     date: values.date,
-    note: values.note.trim(),
+    note: (values.note || '').trim(),
     splitMode: values.splitMode,
     splitAmong: values.splitAmong,
     receiptURL,

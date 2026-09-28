@@ -1,9 +1,9 @@
 import {
-  ArrowRight,
   FileSpreadsheet,
   FileText,
   Link2,
   MailPlus,
+  MessageCircle,
   PencilLine,
   Plus,
   ShieldCheck,
@@ -16,19 +16,25 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ActivityFeed } from '../components/feed/ActivityFeed'
 import { ExpenseFormModal } from '../components/expenses/ExpenseFormModal'
 import { ExpenseList } from '../components/expenses/ExpenseList'
+import { QuickAddSheet } from '../components/expenses/QuickAddSheet'
 import { SettlementPanel } from '../components/settlements/SettlementPanel'
+import { WhoOwesWhom } from '../components/settlements/WhoOwesWhom'
 import { TripFormModal } from '../components/trips/TripFormModal'
 import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
+import { BudgetBar } from '../components/ui/BudgetBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
+import { ErrorState } from '../components/ui/ErrorState'
 import { Input } from '../components/ui/Input'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useAuth } from '../context/useAuth'
 import { buildDashboardMetrics, buildMembersMap } from '../lib/balances'
+import { formatCurrency } from '../lib/currency'
 import { isDateOutsideRange } from '../lib/date'
-import { copyToClipboard, getDisplayName } from '../lib/utils'
+import { buildHisabMessage, buildInviteMessage, openWhatsApp } from '../lib/share'
+import { buildActor, copyToClipboard } from '../lib/utils'
 import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement } from '../services/settlements'
@@ -42,31 +48,29 @@ const TripDashboard = lazy(() =>
 )
 
 const tabs = [
-  { value: 'overview', label: 'Overview', emoji: '📊' },
-  { value: 'expenses', label: 'Expenses', emoji: '🧾' },
-  { value: 'settlements', label: 'Settlements', emoji: '💸' },
+  { value: 'overview', label: 'Hisab', emoji: '💸' },
+  { value: 'expenses', label: 'Kharcha', emoji: '🧾' },
+  { value: 'settlements', label: 'Settle', emoji: '🤝' },
   { value: 'activity', label: 'Activity', emoji: '📋' },
-  { value: 'settings', label: 'Settings', emoji: '⚙️' },
+  { value: 'settings', label: 'Group', emoji: '👥' },
 ]
 const EMPTY_MEMBERS = []
 
 export const TripPage = () => {
   const { tripId } = useParams()
   const navigate = useNavigate()
-  const { trip, expenses, settlements, activity, loading, notFound } = useTripData(tripId)
+  const { trip, expenses, settlements, activity, loading, notFound, error, retry } = useTripData(tripId)
   const { user, profile } = useAuth()
 
   const [activeTab, setActiveTab] = useState('overview')
   const [showExpenseModal, setShowExpenseModal] = useState(false)
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  const [expensePrefill, setExpensePrefill] = useState(null)
   const [editingExpense, setEditingExpense] = useState(null)
   const [showTripModal, setShowTripModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
 
-  const actor = {
-    uid: user?.uid,
-    name: getDisplayName(profile || user),
-    email: profile?.email || user?.email || '',
-  }
+  const actor = buildActor(user, profile)
   const members = trip?.members ?? EMPTY_MEMBERS
 
   const membersMap = useMemo(() => buildMembersMap(members), [members])
@@ -104,6 +108,38 @@ export const TripPage = () => {
   const handleCopyInvite = async () => {
     await copyToClipboard(inviteLink)
     toast.success('Invite link copied.')
+  }
+
+  const handleShareInvite = () => {
+    openWhatsApp(buildInviteMessage({ tripName: trip.name, inviteLink }))
+  }
+
+  const handleShareHisab = () => {
+    openWhatsApp(
+      buildHisabMessage({
+        trip,
+        suggestions: metrics.suggestions,
+        membersMap,
+        totalSpent: metrics.totalSpent,
+        budget: metrics.budget,
+      }),
+    )
+  }
+
+  const settleSuggestion = async (item) => {
+    const today = new Date().toISOString().slice(0, 10)
+    let settledAt = today
+    if (trip?.startDate && settledAt < trip.startDate) settledAt = trip.startDate
+    if (trip?.endDate && settledAt > trip.endDate) settledAt = trip.endDate
+
+    await handleSettlementSubmit({
+      from: item.from,
+      to: item.to,
+      amount: String(item.amount),
+      method: trip.currency === 'INR' ? 'upi' : 'online',
+      settledAt,
+      note: 'Marked from who owes whom',
+    })
   }
 
   const handleInviteMember = async (event) => {
@@ -161,8 +197,8 @@ export const TripPage = () => {
   }
 
   const handleExpenseSubmit = async (values) => {
-    if (!canManageTrip) {
-      toast.error('Only trip admins can manage expenses.')
+    if (editingExpense && !canManageTrip) {
+      toast.error('Only trip admins can edit expenses.')
       return
     }
 
@@ -206,11 +242,6 @@ export const TripPage = () => {
   }
 
   const handleSettlementSubmit = async (values) => {
-    if (!canManageTrip) {
-      toast.error('Only trip admins can record settlements.')
-      return
-    }
-
     if (!values.from || !values.to || values.from === values.to || Number(values.amount) <= 0) {
       toast.error('Enter a valid settlement with different payer and receiver.')
       return
@@ -254,6 +285,16 @@ export const TripPage = () => {
       role,
     })
     toast.success(`${member.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.`)
+  }
+
+  if (error && !trip && !loading) {
+    return (
+      <ErrorState
+        description={error}
+        onRetry={retry}
+        title="This trip did not load"
+      />
+    )
   }
 
   if (loading) {
@@ -315,14 +356,16 @@ export const TripPage = () => {
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-2">
+            <Button onClick={() => setShowQuickAdd(true)} size="sm" type="button">
+              <Plus className="h-4 w-4" />
+              Add kharcha
+            </Button>
+            <Button onClick={handleShareHisab} size="sm" type="button" variant="secondary">
+              <MessageCircle className="h-4 w-4" />
+              WhatsApp
+            </Button>
             {canManageTrip ? (
-              <Button onClick={() => setShowExpenseModal(true)} size="sm" type="button">
-                <Plus className="h-4 w-4" />
-                Add expense
-              </Button>
-            ) : null}
-            {canManageTrip ? (
-              <Button onClick={handleCopyInvite} size="sm" type="button" variant="secondary">
+              <Button onClick={handleShareInvite} size="sm" type="button" variant="secondary">
                 <Link2 className="h-4 w-4" />
                 Invite
               </Button>
@@ -365,13 +408,39 @@ export const TripPage = () => {
       </div>
 
       {activeTab === 'overview' ? (
-        <Suspense fallback={<Skeleton className="h-[540px] rounded-[2rem]" />}>
-          <TripDashboard
-            metrics={metrics}
-            onAddExpense={canManageTrip ? () => setShowExpenseModal(true) : undefined}
-            trip={trip}
-          />
-        </Suspense>
+        <div className="space-y-5">
+          <BudgetBar budget={metrics.budget} currency={trip.currency} spent={metrics.totalSpent} />
+          <section>
+            <div className="mb-3 flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Settle up</p>
+                <h2 className="font-display text-xl font-bold text-ink">Who owes whom</h2>
+              </div>
+              <p className="text-right text-sm font-medium text-dusk">
+                {Math.abs(metrics.yourNet) < 0.01
+                  ? 'You are settled'
+                  : metrics.yourNet > 0
+                    ? `You get ${formatCurrency(metrics.yourNet, trip.currency)}`
+                    : `You owe ${formatCurrency(Math.abs(metrics.yourNet), trip.currency)}`}
+              </p>
+            </div>
+            <WhoOwesWhom
+              currency={trip.currency}
+              currentUserId={user?.uid}
+              membersMap={membersMap}
+              onMarkPaid={settleSuggestion}
+              suggestions={metrics.suggestions}
+              tripName={trip.name}
+            />
+          </section>
+          <Suspense fallback={<Skeleton className="h-[540px] rounded-[2rem]" />}>
+            <TripDashboard
+              metrics={metrics}
+              onAddExpense={() => setShowQuickAdd(true)}
+              trip={trip}
+            />
+          </Suspense>
+        </div>
       ) : null}
 
       {activeTab === 'expenses' ? (
@@ -379,7 +448,7 @@ export const TripPage = () => {
           currency={trip.currency}
           expenses={expenses}
           membersMap={membersMap}
-          onCreate={canManageTrip ? () => setShowExpenseModal(true) : undefined}
+          onCreate={() => setShowQuickAdd(true)}
           onDelete={handleExpenseDelete}
           onEdit={(expense) => {
             setEditingExpense(expense)
@@ -395,7 +464,8 @@ export const TripPage = () => {
           members={members}
           membersMap={membersMap}
           onSubmit={handleSettlementSubmit}
-          canManage={canManageTrip}
+          canManage
+          currentUserId={user?.uid}
           settlements={settlements}
           suggestions={metrics.suggestions}
           trip={trip}
@@ -461,6 +531,17 @@ export const TripPage = () => {
 
             {canManageTrip ? (
               <>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Button onClick={handleCopyInvite} size="sm" type="button" variant="secondary">
+                    <Link2 className="h-4 w-4" />
+                    Copy link
+                  </Button>
+                  <Button onClick={handleShareInvite} size="sm" type="button" variant="secondary">
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp invite
+                  </Button>
+                </div>
+
                 <form className="mt-5 space-y-3" onSubmit={handleInviteMember}>
                   <Input
                     label="Invite by email"
@@ -495,14 +576,43 @@ export const TripPage = () => {
         </div>
       ) : null}
 
+      <div className="sm:hidden">
+        <button
+          className="fixed bottom-20 right-4 z-20 inline-flex h-14 items-center gap-2 rounded-full bg-teal px-5 text-sm font-semibold text-white shadow-elevated transition active:scale-95"
+          onClick={() => setShowQuickAdd(true)}
+          type="button"
+        >
+          <Plus className="h-5 w-5" />
+          Add kharcha
+        </button>
+      </div>
+
+      {showQuickAdd ? (
+        <QuickAddSheet
+          currency={trip.currency}
+          currentUserId={user?.uid}
+          members={members}
+          onAdvanced={(values) => {
+            setEditingExpense(null)
+            setExpensePrefill(values)
+            setShowExpenseModal(true)
+          }}
+          onClose={() => setShowQuickAdd(false)}
+          onSubmit={handleExpenseSubmit}
+          open={showQuickAdd}
+          trip={trip}
+        />
+      ) : null}
+
       {showExpenseModal ? (
         <ExpenseFormModal
           currency={trip.currency}
-          initialExpense={editingExpense}
+          initialExpense={editingExpense || expensePrefill}
           members={members}
           onClose={() => {
             setShowExpenseModal(false)
             setEditingExpense(null)
+            setExpensePrefill(null)
           }}
           onSubmit={handleExpenseSubmit}
           open={showExpenseModal}

@@ -24,7 +24,7 @@ export const TripCard = ({ trip }) => {
             <span className="text-2xl">{trip.emoji || '🏝️'}</span>
             <div className="flex flex-wrap gap-1.5">
               {status ? <Badge tone={status.tone}>{status.label}</Badge> : null}
-              <Badge>{trip.currency}</Badge>
+              <Badge>{trip.currency === 'INR' ? '₹ INR' : trip.currency}</Badge>
             </div>
           </div>
           <ArrowRight className="h-4 w-4 flex-shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-teal" />
@@ -34,7 +34,7 @@ export const TripCard = ({ trip }) => {
         <div className="flex flex-1 flex-col p-5">
           <h3 className="font-display text-lg font-semibold text-ink line-clamp-1">{trip.name}</h3>
           <p className="mt-1.5 line-clamp-2 text-sm text-dusk">
-            {trip.description || 'A shared trip board for plans, bills, and settlements.'}
+            {trip.description || 'Petrol, toll, food, hotel — one hisab for the whole group.'}
           </p>
 
           {/* Meta */}
@@ -53,9 +53,16 @@ export const TripCard = ({ trip }) => {
 
         {/* Footer CTA */}
         <div className="border-t border-slate-100 px-5 py-3">
-          <span className="text-sm font-semibold text-teal group-hover:underline">
-            View trip →
-          </span>
+          <div className="flex items-center justify-between gap-3">
+            {trip.budget ? (
+              <span className="text-xs font-medium text-dusk">Budget set</span>
+            ) : (
+              <span className="text-xs font-medium text-dusk">Open hisab</span>
+            )}
+            <span className="text-sm font-semibold text-teal group-hover:underline">
+              Open →
+            </span>
+          </div>
         </div>
       </div>
     </Link>
