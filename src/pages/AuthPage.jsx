@@ -1,10 +1,10 @@
-import { ArrowRight, CheckCircle2 } from 'lucide-react'
+import { CheckCircle2 } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 
 import { useAuth } from '../context/useAuth'
 import { Button } from '../components/ui/Button'
-import { Input } from '../components/ui/Input'
 
 const GoogleIcon = () => (
   <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
@@ -24,37 +24,21 @@ const features = [
 export const AuthPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
-  const isRegister = location.pathname === '/register'
   const redirectTo = location.state?.from || '/'
-  const { login, register, loginWithGoogle } = useAuth()
-
-  const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const { loginWithGoogle, loginWithNativeGoogle } = useAuth()
+  const isNativeAndroid = Capacitor.getPlatform() === 'android'
   const [loading, setLoading] = useState(false)
-
-  const handleChange = (e) => {
-    const { name, value } = e.target
-    setForm((c) => ({ ...c, [name]: value }))
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    try {
-      if (isRegister) await register(form)
-      else await login(form)
-      navigate(redirectTo, { replace: true })
-    } catch {
-      /* service layer shows toast */
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleGoogle = async () => {
     setLoading(true)
     try {
-      await loginWithGoogle()
-      navigate(redirectTo, { replace: true })
+      if (isNativeAndroid) {
+        await loginWithNativeGoogle()
+        navigate(redirectTo, { replace: true })
+      } else {
+        await loginWithGoogle()
+        navigate(redirectTo, { replace: true })
+      }
     } catch {
       /* service layer shows toast */
     } finally {
@@ -107,12 +91,10 @@ export const AuthPage = () => {
         <div className="flex flex-1 items-center justify-center p-8 lg:p-12">
           <div className="w-full max-w-sm">
             <h2 className="font-display text-2xl font-bold text-ink">
-              {isRegister ? 'Create your account' : 'Welcome back'}
+              Welcome to Contri
             </h2>
             <p className="mt-1.5 text-sm text-dusk">
-              {isRegister
-                ? 'Start tracking shared expenses in minutes.'
-                : 'Sign in to continue where you left off.'}
+              Sign in with Google to continue or create your account.
             </p>
 
             {/* Google button */}
@@ -128,61 +110,6 @@ export const AuthPage = () => {
               Continue with Google
             </Button>
 
-            <div className="my-5 flex items-center gap-3">
-              <span className="h-px flex-1 bg-slate-200" />
-              <span className="text-xs text-slate-400">or with email</span>
-              <span className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            {/* Email form */}
-            <form className="space-y-4" onSubmit={handleSubmit}>
-              {isRegister ? (
-                <Input
-                  label="Full name"
-                  name="name"
-                  onChange={handleChange}
-                  placeholder="Tejas Mane"
-                  required
-                  value={form.name}
-                />
-              ) : null}
-              <Input
-                autoComplete="email"
-                label="Email address"
-                name="email"
-                onChange={handleChange}
-                placeholder="you@example.com"
-                required
-                type="email"
-                value={form.email}
-              />
-              <Input
-                autoComplete={isRegister ? 'new-password' : 'current-password'}
-                label="Password"
-                minLength={6}
-                name="password"
-                onChange={handleChange}
-                placeholder="Min. 6 characters"
-                required
-                type="password"
-                value={form.password}
-              />
-
-              <Button className="w-full" loading={loading} size="lg" type="submit">
-                {isRegister ? 'Create account' : 'Sign in'}
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </form>
-
-            <p className="mt-6 text-center text-sm text-dusk">
-              {isRegister ? 'Already have an account? ' : 'Need an account? '}
-              <Link
-                className="font-semibold text-teal hover:underline"
-                to={isRegister ? '/login' : '/register'}
-              >
-                {isRegister ? 'Sign in' : 'Sign up free'}
-              </Link>
-            </p>
           </div>
         </div>
       </div>

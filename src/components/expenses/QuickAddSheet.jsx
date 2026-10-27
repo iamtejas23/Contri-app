@@ -42,12 +42,16 @@ export const QuickAddSheet = ({
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
+    if (!open) return undefined
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    const onEscape = (event) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onEscape)
     return () => {
       document.body.style.overflow = previous
+      window.removeEventListener('keydown', onEscape)
     }
-  }, [])
+  }, [onClose, open])
 
   const symbol = currencySymbol(currency)
   const preview = useMemo(
@@ -90,6 +94,7 @@ export const QuickAddSheet = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (loading) return
     const values = buildValues()
     const validation = validateSplitConfig({
       amount: values.amount,
@@ -120,10 +125,10 @@ export const QuickAddSheet = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-ink/40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:items-center sm:p-4">
       <button aria-label="Close add expense" className="absolute inset-0" onClick={onClose} type="button" />
       <form
-        className="animate-sheet relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-modal sm:rounded-3xl"
+        className="animate-sheet relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-modal sm:max-h-[92dvh] sm:rounded-3xl"
         onSubmit={handleSubmit}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
@@ -133,7 +138,7 @@ export const QuickAddSheet = ({
           </div>
           <button
             aria-label="Close"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-dusk"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-dusk"
             onClick={onClose}
             type="button"
           >
@@ -141,7 +146,7 @@ export const QuickAddSheet = ({
           </button>
         </div>
 
-        <div className="space-y-5 overflow-y-auto px-5 py-5">
+        <div className="min-h-0 space-y-5 overflow-y-auto overscroll-contain px-5 py-5">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-widest text-dusk">Amount</span>
             <div className="mt-2 flex items-baseline gap-2 border-b border-slate-200 pb-2">
@@ -175,7 +180,7 @@ export const QuickAddSheet = ({
 
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Category</p>
-            <div className="mt-2 grid grid-cols-4 gap-2">
+            <div className="mt-2 grid grid-cols-2 gap-2 min-[380px]:grid-cols-4">
               {EXPENSE_CATEGORIES.map((item) => {
                 const meta = getCategoryMeta(item)
                 const active = category === item
@@ -263,7 +268,7 @@ export const QuickAddSheet = ({
           ) : null}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 px-5 py-4">
+        <div className="grid grid-cols-2 gap-2 border-t border-slate-100 bg-white px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button
             onClick={() => {
               onAdvanced(buildValues())

@@ -1,10 +1,11 @@
 import { Toaster } from 'react-hot-toast'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from './components/layout/AppShell'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { PublicOnlyRoute } from './routes/PublicOnlyRoute'
 import { AuthPage } from './pages/AuthPage'
+import { AboutPage } from './pages/AboutPage'
 import { HomePage } from './pages/HomePage'
 import { JoinTripPage } from './pages/JoinTripPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -17,13 +18,14 @@ function App() {
       <Routes>
         <Route element={<PublicOnlyRoute />}>
           <Route element={<AuthPage />} path="/login" />
-          <Route element={<AuthPage />} path="/register" />
+          <Route element={<Navigate replace to="/login" />} path="/register" />
         </Route>
 
         <Route element={<ProtectedRoute />}>
           <Route element={<AppShell />}>
             <Route element={<HomePage />} path="/" />
             <Route element={<ProfilePage />} path="/profile" />
+            <Route element={<AboutPage />} path="/about" />
             <Route element={<JoinTripPage />} path="/join" />
             <Route element={<TripPage />} path="/trips/:tripId" />
           </Route>

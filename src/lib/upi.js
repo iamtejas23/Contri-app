@@ -1,3 +1,7 @@
+import { AppLauncher } from '@capacitor/app-launcher'
+import { Capacitor } from '@capacitor/core'
+import toast from 'react-hot-toast'
+
 export const isValidUpiId = (value = '') =>
   /^[\w.-]{2,256}@[a-zA-Z]{2,64}$/.test(String(value).trim())
 
@@ -12,7 +16,14 @@ export const buildUpiLink = ({ upiId, name, amount, note }) => {
 
   return `upi://pay?${params.toString()}`
 }
-
-export const openUpiPayment = (link) => {
+export const openUpiPayment = async (link) => {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      await AppLauncher.openUrl({ url: link })
+    } catch {
+      toast.error('No UPI app is available on this device.')
+    }
+    return
+  }
   window.location.href = link
 }

@@ -1,0 +1,24 @@
+{
+  "appId": "com.contriapp.mobile",
+  "appName": "Contri",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#F8FAFC",
+    "allowMixedContent": false,
+    "adjustMarginsForEdgeToEdge": "auto"
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#F8FAFC",
+      "overlaysWebView": false
+    },
+    "Keyboard": {
+      "resizeOnFullScreen": false
+    },
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com"]
+    }
+  }
+}

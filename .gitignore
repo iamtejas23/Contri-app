@@ -25,3 +25,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.vercel
+mobile/google-services.json
+mobile/GoogleService-Info.plist

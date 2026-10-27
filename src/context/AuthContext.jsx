@@ -5,10 +5,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { auth, db } from '../firebase/config'
 import {
   ensureUserProfile,
-  loginWithEmail,
   loginWithGoogle,
+  loginWithNativeGoogle,
   logoutUser,
-  registerWithEmail,
 } from '../services/auth'
 import { updateUserProfileDoc } from '../services/users'
 import { AuthContext } from './auth-context'
@@ -20,13 +19,16 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let unsubscribeProfile = () => {}
+    let generation = 0
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (nextUser) => {
+      const currentGeneration = ++generation
       unsubscribeProfile()
+      setProfile(null)
+      setLoading(true)
 
       if (!nextUser) {
         setUser(null)
-        setProfile(null)
         setLoading(false)
         return
       }
@@ -35,9 +37,11 @@ export const AuthProvider = ({ children }) => {
 
       try {
         await ensureUserProfile(nextUser)
+        if (currentGeneration !== generation) return
         unsubscribeProfile = onSnapshot(
           doc(db, 'users', nextUser.uid),
           (snapshot) => {
+            if (currentGeneration !== generation) return
             setProfile(
               snapshot.exists()
                 ? {
@@ -49,17 +53,20 @@ export const AuthProvider = ({ children }) => {
             setLoading(false)
           },
           () => {
+            if (currentGeneration !== generation) return
             setProfile(null)
             setLoading(false)
           },
         )
       } catch {
+        if (currentGeneration !== generation) return
         setProfile(null)
         setLoading(false)
       }
     })
 
     return () => {
+      generation += 1
       unsubscribeAuth()
       unsubscribeProfile()
     }
@@ -70,9 +77,8 @@ export const AuthProvider = ({ children }) => {
       user,
       profile,
       loading,
-      register: registerWithEmail,
-      login: loginWithEmail,
       loginWithGoogle,
+      loginWithNativeGoogle,
       logout: logoutUser,
       updateProfileDetails: async ({ name, photoURL, upiId = '' }) => {
         if (!user) {

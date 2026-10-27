@@ -73,8 +73,8 @@ export const HomePage = () => {
         </div>
 
         {/* Stats strip */}
-        <div className="grid grid-cols-3 border-t border-white/20 divide-x divide-white/20">
-          <div className="flex items-center gap-3 px-6 py-4">
+        <div className="grid grid-cols-2 divide-x divide-white/20 border-t border-white/20 sm:grid-cols-3">
+          <div className="flex items-center gap-2 px-3 py-4 sm:gap-3 sm:px-6">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
               <Map className="h-4 w-4 text-white" />
             </div>
@@ -83,7 +83,7 @@ export const HomePage = () => {
               <p className="font-display text-2xl font-bold text-white">{stats.tripCount}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-6 py-4">
+          <div className="flex items-center gap-2 px-3 py-4 sm:gap-3 sm:px-6">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
               <Users className="h-4 w-4 text-white" />
             </div>
@@ -92,7 +92,7 @@ export const HomePage = () => {
               <p className="font-display text-2xl font-bold text-white">{stats.memberCount}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 px-6 py-4">
+          <div className="col-span-2 flex items-center gap-2 px-3 py-4 sm:col-span-1 sm:gap-3 sm:px-6">
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-white/15">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
@@ -113,14 +113,16 @@ export const HomePage = () => {
               Open a hisab
             </h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
             {trips.length > 0 && (
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
-                  className="w-52 rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal focus:ring-2 focus:ring-teal/15"
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-ink shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal focus:ring-2 focus:ring-teal/15 sm:w-52"
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search trips…"
+                  aria-label="Search trips"
+                  type="search"
                   value={search}
                 />
               </div>

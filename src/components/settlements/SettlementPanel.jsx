@@ -36,6 +36,7 @@ export const SettlementPanel = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (loading) return
     if (isDateOutsideRange(form.settledAt, { min: trip?.startDate, max: trip?.endDate })) {
       toast.error('Settlement date must fall within the trip dates.')
       return

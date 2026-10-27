@@ -7,12 +7,26 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "android:debug": "cd android && ./gradlew assembleDebug",
+    "assets:android": "capacitor-assets generate --android"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^7.5.0",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/app-launcher": "^7.0.4",
+    "@capacitor/browser": "^7.0.5",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/filesystem": "^7.1.9",
+    "@capacitor/keyboard": "^7.0.6",
+    "@capacitor/share": "^7.0.4",
+    "@capacitor/status-bar": "^7.0.6",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "firebase": "^10.14.1",
+    "firebase": "^11.10.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.14.0",
@@ -21,10 +35,11 @@
     "react-dom": "^18.3.1",
     "react-hot-toast": "^2.6.0",
     "react-router-dom": "^6.30.3",
-    "recharts": "^3.8.1",
-    "tesseract.js": "^7.0.0"
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^7.6.9",
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

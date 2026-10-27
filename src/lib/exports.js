@@ -1,12 +1,38 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import Papa from 'papaparse'
+import { Capacitor } from '@capacitor/core'
+import { Directory, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 
 import { formatCurrency } from './currency'
 import { formatDate } from './date'
 
-const downloadBlob = (filename, content, type) => {
-  const url = URL.createObjectURL(new Blob([content], { type }))
+const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(String(reader.result).split(',')[1])
+  reader.onerror = () => reject(reader.error)
+  reader.readAsDataURL(blob)
+})
+
+const downloadBlob = async (filename, content, type) => {
+  const blob = content instanceof Blob ? content : new Blob([content], { type })
+  if (Capacitor.isNativePlatform()) {
+    const result = await Filesystem.writeFile({
+      path: `exports/${filename}`,
+      data: await blobToBase64(blob),
+      directory: Directory.Cache,
+      recursive: true,
+    })
+    await Share.share({
+      title: filename,
+      files: [result.uri],
+      dialogTitle: 'Save or share your Contri export',
+    })
+    return
+  }
+
+  const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
   link.download = filename
@@ -14,7 +40,7 @@ const downloadBlob = (filename, content, type) => {
   URL.revokeObjectURL(url)
 }
 
-export const exportExpensesCsv = ({ trip, expenses = [], membersMap }) => {
+export const exportExpensesCsv = async ({ trip, expenses = [], membersMap }) => {
   const rows = expenses.map((expense) => ({
     Title: expense.title,
     Amount: expense.amount,
@@ -28,14 +54,14 @@ export const exportExpensesCsv = ({ trip, expenses = [], membersMap }) => {
   }))
 
   const csv = Papa.unparse(rows)
-  downloadBlob(
+  await downloadBlob(
     `${trip.name.toLowerCase().replace(/[^\w]+/g, '-')}-expenses.csv`,
     csv,
     'text/csv;charset=utf-8;',
   )
 }
 
-export const exportTripSummaryPdf = ({
+export const exportTripSummaryPdf = async ({
   trip,
   expenses = [],
   balances = [],
@@ -89,5 +115,9 @@ export const exportTripSummaryPdf = ({
     })
   }
 
-  doc.save(`${trip.name.toLowerCase().replace(/[^\w]+/g, '-')}-summary.pdf`)
+  await downloadBlob(
+    `${trip.name.toLowerCase().replace(/[^\w]+/g, '-')}-summary.pdf`,
+    doc.output('blob'),
+    'application/pdf',
+  )
 }

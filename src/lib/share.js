@@ -1,11 +1,17 @@
 import { formatCurrency } from './currency'
+import { Capacitor } from '@capacitor/core'
+import { Share } from '@capacitor/share'
 
 export const BRAND_LINE = 'Trip khatam. Hisab bhi khatam.'
 
 export const buildWhatsAppLink = (text) =>
   `https://wa.me/?text=${encodeURIComponent(text)}`
 
-export const openWhatsApp = (text) => {
+export const openWhatsApp = async (text) => {
+  if (Capacitor.isNativePlatform()) {
+    await Share.share({ title: 'Contri', text, dialogTitle: 'Share with your group' })
+    return
+  }
   window.open(buildWhatsAppLink(text), '_blank', 'noopener,noreferrer')
 }
 

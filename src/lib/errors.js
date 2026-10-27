@@ -3,8 +3,6 @@ import toast from 'react-hot-toast'
 const ERROR_MESSAGES = {
   'auth/configuration-not-found':
     'Firebase Authentication is not fully configured. In Firebase Console, open Authentication, click Get started, and enable the sign-in methods you want to use.',
-  'auth/email-already-in-use': 'That email is already registered.',
-  'auth/invalid-credential': 'That email or password did not match.',
   'auth/invalid-api-key':
     'This Firebase API key is not valid for Authentication. Double-check the web app config in your .env file.',
   'auth/operation-not-allowed':

@@ -1,4 +1,4 @@
-import { LogOut, Map, UserCircle2 } from 'lucide-react'
+import { Info, LogOut, Map, UserCircle2 } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../../context/useAuth'
@@ -9,16 +9,17 @@ import { Button } from '../ui/Button'
 const navItems = [
   { to: '/', label: 'Trips', icon: Map },
   { to: '/profile', label: 'Profile', icon: UserCircle2 },
+  { to: '/about', label: 'About', icon: Info },
 ]
 
 export const AppShell = () => {
   const { profile, logout } = useAuth()
 
   return (
-    <div className="min-h-screen bg-sand text-ink">
+      <div className="min-h-dvh bg-sand text-ink">
       {/* Top header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] py-3 sm:gap-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <NavLink className="flex items-center gap-2.5 min-w-0" to="/">
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-teal text-sm font-bold text-white">
@@ -70,18 +71,18 @@ export const AppShell = () => {
       </header>
 
       {/* Page content */}
-      <main className="mx-auto max-w-7xl px-4 pb-24 pt-6 sm:px-6 lg:px-8">
+      <main className="app-main mx-auto min-w-0 max-w-7xl px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 sm:pb-24 lg:px-8">
         <Outlet />
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white sm:hidden">
-        <div className="flex items-center justify-around px-4 py-2">
+      <nav className="app-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden">
+        <div className="flex items-center justify-around px-[max(1rem,env(safe-area-inset-left))] py-1 pr-[max(1rem,env(safe-area-inset-right))]">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               className={({ isActive }) =>
-                `flex flex-col items-center gap-1 rounded-xl px-6 py-2 text-xs font-medium transition-colors ${
+                `flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-2 py-2 text-xs font-medium transition-colors ${
                   isActive ? 'text-teal' : 'text-slate-400 hover:text-ink'
                 }`
               }

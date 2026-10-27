@@ -79,6 +79,7 @@ export const ExpenseFormModal = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (loading) return
 
     const validation = validateSplitConfig({
       amount: form.amount,
@@ -158,7 +159,7 @@ export const ExpenseFormModal = ({
 
         <div className="space-y-2">
           <span className="text-sm font-medium text-ink">Category</span>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 min-[380px]:grid-cols-4">
             {EXPENSE_CATEGORIES.map((item) => {
               const meta = getCategoryMeta(item)
               const active = form.category === item
@@ -342,7 +343,7 @@ export const ExpenseFormModal = ({
           </div>
         ) : null}
 
-        <div className="flex justify-end gap-3">
+        <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6">
           <Button onClick={onClose} type="button" variant="secondary">
             Cancel
           </Button>

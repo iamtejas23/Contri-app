@@ -10,6 +10,8 @@ import { Modal } from '../ui/Modal'
 import { Select } from '../ui/Select'
 import { Textarea } from '../ui/Textarea'
 
+const SHIVNERI_FORT_COVER = 'shivneri-fort'
+
 const buildTripFormState = (values) => ({
   ...DEFAULT_TRIP_FORM,
   name: values?.name || '',
@@ -49,6 +51,7 @@ export const TripFormModal = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (loading) return
 
     if (isDateAfter(form.startDate, form.endDate)) {
       toast.error('End date must be the same day or after the start date.')
@@ -146,7 +149,7 @@ export const TripFormModal = ({
           />
 
           <div className="space-y-2">
-            <span className="text-sm font-medium text-dusk">Cover emoji</span>
+            <span className="text-sm font-medium text-dusk">Cover icon</span>
             <div className="grid grid-cols-6 gap-2 rounded-[1.5rem] border border-ink/10 bg-white/70 p-3">
               {TRIP_EMOJIS.map((emoji) => (
                 <button
@@ -160,11 +163,22 @@ export const TripFormModal = ({
                   {emoji}
                 </button>
               ))}
+              <button
+                aria-label="Shivneri Fort"
+                className={`flex items-center justify-center rounded-2xl p-2 transition ${
+                  form.emoji === SHIVNERI_FORT_COVER ? 'bg-ink/10 ring-2 ring-teal' : 'hover:bg-sand'
+                }`}
+                onClick={() => setForm((current) => ({ ...current, emoji: SHIVNERI_FORT_COVER }))}
+                title="Shivneri Fort"
+                type="button"
+              >
+                <img alt="" className="h-9 w-9 object-contain" src="/shivneri-fort.png" />
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3">
+        <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6">
           <Button onClick={onClose} type="button" variant="secondary">
             Cancel
           </Button>

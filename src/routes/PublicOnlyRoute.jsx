@@ -11,7 +11,11 @@ export const PublicOnlyRoute = () => {
     return <LoadingScreen />
   }
 
-  if (user) {
+  const isMobilePortal =
+    location.pathname === '/login' &&
+    new URLSearchParams(location.search).get('mobile') === '1'
+
+  if (user && !user.isAnonymous && !isMobilePortal) {
     return <Navigate replace to={location.state?.from || '/'} />
   }
 

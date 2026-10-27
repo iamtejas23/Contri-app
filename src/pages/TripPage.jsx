@@ -10,6 +10,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { Suspense, lazy, useMemo, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import toast from 'react-hot-toast'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -26,6 +27,7 @@ import { BudgetBar } from '../components/ui/BudgetBar'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { EmptyState } from '../components/ui/EmptyState'
+import { ErrorBoundary } from '../components/ui/ErrorBoundary'
 import { ErrorState } from '../components/ui/ErrorState'
 import { Input } from '../components/ui/Input'
 import { Skeleton } from '../components/ui/Skeleton'
@@ -69,6 +71,7 @@ export const TripPage = () => {
   const [editingExpense, setEditingExpense] = useState(null)
   const [showTripModal, setShowTripModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteLoading, setInviteLoading] = useState(false)
 
   const actor = buildActor(user, profile)
   const members = trip?.members ?? EMPTY_MEMBERS
@@ -86,12 +89,15 @@ export const TripPage = () => {
   )
   const isAdmin = trip?.adminIds?.includes(user?.uid)
   const canManageTrip = Boolean(isAdmin)
-  const inviteLink = trip ? `${window.location.origin}/join?tripId=${trip.id}` : ''
+  const inviteOrigin = Capacitor.isNativePlatform()
+    ? (import.meta.env.VITE_MOBILE_AUTH_URL || 'https://contri-app.vercel.app')
+    : window.location.origin
+  const inviteLink = trip ? `${inviteOrigin}/join?tripId=${trip.id}` : ''
 
   const handlePdfExport = async () => {
     const { exportTripSummaryPdf } = await import('../lib/exports')
 
-    exportTripSummaryPdf({
+    await exportTripSummaryPdf({
       trip,
       expenses,
       balances: metrics.balances,
@@ -102,7 +108,7 @@ export const TripPage = () => {
 
   const handleCsvExport = async () => {
     const { exportExpensesCsv } = await import('../lib/exports')
-    exportExpensesCsv({ trip, expenses, membersMap })
+    await exportExpensesCsv({ trip, expenses, membersMap })
   }
 
   const handleCopyInvite = async () => {
@@ -144,31 +150,35 @@ export const TripPage = () => {
 
   const handleInviteMember = async (event) => {
     event.preventDefault()
+    if (inviteLoading) return
 
     if (!canManageTrip) {
       toast.error('Only trip admins can invite members.')
       return
     }
 
-    const invitedUser = await findUserByEmail(inviteEmail)
+    setInviteLoading(true)
+    try {
+      const invitedUser = await findUserByEmail(inviteEmail)
 
-    if (!invitedUser) {
-      toast.error('That email is not registered in Contri-app yet.')
-      return
+      if (!invitedUser) {
+        toast.error('That email is not registered in Contri-app yet.')
+        return
+      }
+
+      if (trip.memberIds.includes(invitedUser.uid)) {
+        toast.error('That traveler is already in the trip.')
+        return
+      }
+
+      await inviteMemberToTrip({ tripId: trip.id, member: invitedUser })
+      toast.success('Member invited to the trip.')
+      setInviteEmail('')
+    } catch {
+      toast.error('Could not invite this traveler. Check your connection and try again.')
+    } finally {
+      setInviteLoading(false)
     }
-
-    if (trip.memberIds.includes(invitedUser.uid)) {
-      toast.error('That traveler is already in the trip.')
-      return
-    }
-
-    await inviteMemberToTrip({
-      tripId: trip.id,
-      member: invitedUser,
-    })
-
-    toast.success('Member invited to the trip.')
-    setInviteEmail('')
   }
 
   const handleTripUpdate = async (values) => {
@@ -327,7 +337,11 @@ export const TripPage = () => {
       {/* Trip header */}
       <Card className="p-0 overflow-hidden">
         <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-6 py-5">
-          <span className="text-4xl">{trip.emoji}</span>
+          {trip.emoji === 'shivneri-fort' ? (
+            <img alt="Shivneri Fort" className="h-12 w-12 object-contain" src="/shivneri-fort.png" />
+          ) : (
+            <span className="text-4xl">{trip.emoji}</span>
+          )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="font-display text-2xl font-bold text-ink">{trip.name}</h1>
@@ -433,13 +447,15 @@ export const TripPage = () => {
               tripName={trip.name}
             />
           </section>
-          <Suspense fallback={<Skeleton className="h-[540px] rounded-[2rem]" />}>
-            <TripDashboard
-              metrics={metrics}
-              onAddExpense={() => setShowQuickAdd(true)}
-              trip={trip}
-            />
-          </Suspense>
+          <ErrorBoundary title="Charts failed to load">
+            <Suspense fallback={<Skeleton className="h-[540px] rounded-[2rem]" />}>
+              <TripDashboard
+                metrics={metrics}
+                onAddExpense={() => setShowQuickAdd(true)}
+                trip={trip}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       ) : null}
 
@@ -546,11 +562,12 @@ export const TripPage = () => {
                   <Input
                     label="Invite by email"
                     onChange={(e) => setInviteEmail(e.target.value)}
+                  disabled={inviteLoading}
                     placeholder="friend@example.com"
                     type="email"
                     value={inviteEmail}
                   />
-                  <Button size="sm" type="submit">
+                  <Button loading={inviteLoading} size="sm" type="submit">
                     <MailPlus className="h-4 w-4" />
                     Send invite
                   </Button>

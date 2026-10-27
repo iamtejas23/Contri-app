@@ -25,6 +25,7 @@ export const ProfilePage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (loading) return
     if (form.upiId && !isValidUpiId(form.upiId)) {
       toast.error('Enter a UPI ID like name@okhdfcbank.')
       return

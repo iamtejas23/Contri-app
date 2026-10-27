@@ -21,7 +21,11 @@ export const TripCard = ({ trip }) => {
         {/* Header strip */}
         <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-5 py-4">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{trip.emoji || '🏝️'}</span>
+            {trip.emoji === 'shivneri-fort' ? (
+              <img alt="Shivneri Fort" className="h-8 w-8 object-contain" src="/shivneri-fort.png" />
+            ) : (
+              <span className="text-2xl">{trip.emoji || '🏝️'}</span>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {status ? <Badge tone={status.tone}>{status.label}</Badge> : null}
               <Badge>{trip.currency === 'INR' ? '₹ INR' : trip.currency}</Badge>

@@ -20,8 +20,8 @@ Contri-app is a Firebase-powered React app for planning shared trips, tracking e
 
 1. Create a Firebase project in the Firebase console.
 2. Enable Authentication:
-   - Email/Password
    - Google provider
+   - Anonymous (lets invitees join a trip from its link without creating an account)
 3. Create a Firestore database.
 4. Create a Firebase Storage bucket.
    - Cloud Storage for Firebase on web requires the project to be on the Blaze plan.
@@ -70,6 +70,30 @@ npm run dev
 npm run build
 ```
 
+## Android app
+
+Contri packages the same Vite web app in a Capacitor Android shell. Firebase Auth and Firestore remain the backend; no Android-specific API server or database is introduced.
+
+1. Install Node 20 or newer, Java 21, Android SDK Platform 36, and Android build tools. Set `ANDROID_HOME` and `ANDROID_SDK_ROOT` to your SDK directory.
+2. Set the Firebase web app values in `.env`. Download the Android client configuration from the existing Firebase Android app registered as `com.contriapp.mobile`; `android/app/google-services.json` is ignored by Git:
+
+   ```bash
+   firebase apps:sdkconfig ANDROID 1:11047230183:android:138f233651f12bce8aa042 --out android/app/google-services.json
+   ```
+3. Build and sync the app, then assemble a debug APK:
+
+   ```bash
+   npm run build
+   npx cap sync android
+   ANDROID_HOME=/path/to/Android/Sdk ANDROID_SDK_ROOT=/path/to/Android/Sdk npm run android:debug
+   ```
+
+   The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. Install it on a connected device with `adb install -r android/app/build/outputs/apk/debug/app-debug.apk`.
+
+Android Google sign-in uses the native Firebase Authentication plugin and signs the returned Google credential into the existing Firebase JavaScript Auth session. The production Android Firebase app must have the signing certificate SHA-1/SHA-256 registered, and the Google provider must be enabled in Firebase Authentication. Web sign-in continues to use Firebase popup authentication. Native sharing and UPI app launch use Android intents; CSV/PDF exports open the Android share sheet. Re-run `npx cap sync android` after web builds or native dependency changes.
+
+Regenerate the launcher icon and splash assets after changing `resources/icon.png` or `resources/splash.png` with `npm run assets:android`.
+
 ## Firestore model
 
 ### `users/{uid}`
@@ -77,6 +101,7 @@ npm run build
 - `name`
 - `email`
 - `photoURL`
+- `upiId` (optional, for one-tap UPI settlements)
 - `createdAt`
 
 ### `trips/{tripId}`
@@ -87,8 +112,9 @@ npm run build
 - `startDate`
 - `endDate`
 - `currency`
+- `budget` (optional trip spend cap)
 - `createdBy`
-- `members`
+- `members` (includes optional `upiId` per member)
 - `memberIds`
 - `adminIds`
 - `createdAt`
@@ -129,5 +155,6 @@ npm run build
 ## Notes
 
 - `.env` is ignored by git and `.env.example` is committed.
-- Receipt uploads are stored in Firebase Storage under `receipts/{tripId}/...`.
+- Receipt scanning reads the photo on-device via Tesseract in the browser; nothing is uploaded unless you paste a receipt link.
 - Trip listing uses `memberIds` and admin checks use `adminIds` as derived Firestore fields for fast queries and rules.
+- Any trip member can add expenses and record settlements; only admins can edit/delete expenses or manage the trip.
