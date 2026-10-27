@@ -23,6 +23,8 @@ import { addMemberToTrip } from '../src/lib/joinTrip.js'
 import { computeBalances } from '../src/lib/balances.js'
 import { createGuestSession } from '../src/lib/guestAuth.js'
 import { buildCreateExpenseBatch } from '../src/services/expenseWrites.js'
+import { buildCreateSettlementBatch } from '../src/services/settlementWrites.js'
+import { createTripDocument, deleteTripDocuments } from '../src/services/tripDocuments.js'
 
 const projectId = 'demo-contri-notifications'
 let environment
@@ -51,6 +53,15 @@ const expenseValues = {
   splitMode: 'equal',
   splitAmong: [{ uid: 'member-a', value: 1 }, { uid: 'member-b', value: 1 }],
   receiptURL: '',
+}
+const tripValues = {
+  name: 'New weekend',
+  description: '',
+  emoji: '🏝️',
+  startDate: '2026-06-02',
+  endDate: '2026-06-04',
+  currency: 'INR',
+  budget: null,
 }
 
 before(async () => {
@@ -89,6 +100,171 @@ const createExpenseAsActor = async (extraWrite, memberIds = trip.memberIds) => {
   await assertSucceeds(pending.batch.commit())
   return { ...pending, database }
 }
+
+test('an authenticated account can create its own trip but cannot create for another owner', async () => {
+  const database = environment.authenticatedContext(actor.uid, {
+    name: actor.name,
+    email: actor.email,
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+
+  const tripIdCreated = await assertSucceeds(createTripDocument({
+    database,
+    values: tripValues,
+    actor,
+  }))
+  const createdTrip = await getDoc(doc(database, 'trips', tripIdCreated))
+  assert.equal(createdTrip.data().createdBy, actor.uid)
+  assert.deepEqual(createdTrip.data().memberIds, [actor.uid])
+  assert.deepEqual(createdTrip.data().adminIds, [actor.uid])
+
+  await assertFails(createTripDocument({
+    database,
+    values: tripValues,
+    actor: { ...actor, uid: 'someone-else' },
+  }))
+})
+
+test('trip admins can remove all trip subcollection documents and the parent trip', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const database = context.firestore()
+    await setDoc(doc(database, 'trips', tripId, 'expenses', 'expense-old'), {
+      title: 'Old expense', amount: 10, createdBy: actor.uid,
+    })
+    await setDoc(doc(database, 'trips', tripId, 'settlements', 'settlement-old'), {
+      from: 'member-a', to: 'member-b', amount: 10, createdBy: actor.uid,
+    })
+    await setDoc(doc(database, 'trips', tripId, 'activity', 'activity-old'), {
+      actorUid: actor.uid, message: 'Old activity',
+    })
+  })
+
+  const memberDb = environment.authenticatedContext('member-c').firestore()
+  await assertFails(deleteTripDocuments({ database: memberDb, tripId }))
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  await assertSucceeds(deleteTripDocuments({ database: adminDb, tripId }))
+  assert.equal((await getDoc(doc(adminDb, 'trips', tripId))).exists(), false)
+})
+
+test('trip metadata and member role updates are limited to admins and preserve membership ownership', async () => {
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  const memberDb = environment.authenticatedContext('member-c').firestore()
+
+  await assertSucceeds(updateDoc(doc(adminDb, 'trips', tripId), {
+    name: 'Updated coast weekend',
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    name: 'Unauthorized rename',
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(adminDb, 'trips', tripId), {
+    createdBy: 'member-b',
+    updatedAt: serverTimestamp(),
+  }))
+
+  const nextMembers = trip.members.map((member) =>
+    member.uid === 'member-b' ? { ...member, role: 'admin' } : member,
+  )
+  await assertSucceeds(updateDoc(doc(adminDb, 'trips', tripId), {
+    members: nextMembers,
+    adminIds: ['member-a', 'member-b'],
+    updatedAt: serverTimestamp(),
+  }))
+  const escalatedMembers = nextMembers.map((member) =>
+    member.uid === 'member-c' ? { ...member, role: 'admin' } : member,
+  )
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    members: escalatedMembers,
+    adminIds: ['member-a', 'member-b', 'member-c'],
+    updatedAt: serverTimestamp(),
+  }))
+})
+
+test('only an admin can add an existing authenticated member to a trip', async () => {
+  const invitedMember = {
+    uid: 'member-new',
+    name: 'New Traveler',
+    email: 'new@example.test',
+    role: 'member',
+    upiId: '',
+  }
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  await assertSucceeds(updateDoc(doc(adminDb, 'trips', tripId), {
+    members: arrayUnion(invitedMember),
+    memberIds: arrayUnion(invitedMember.uid),
+    updatedAt: serverTimestamp(),
+  }))
+
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  const forgedInvite = { ...invitedMember, uid: 'member-forged' }
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    members: arrayUnion(forgedInvite),
+    memberIds: arrayUnion(forgedInvite.uid),
+    updatedAt: serverTimestamp(),
+  }))
+})
+
+test('a trip member cannot create an expense attributed to another account', async () => {
+  const database = environment.authenticatedContext('member-b').firestore()
+  await assertFails(setDoc(doc(database, 'trips', tripId, 'expenses', 'forged-expense'), {
+    title: 'Forged',
+    amount: 25,
+    category: 'Food',
+    paidBy: 'member-b',
+    createdBy: 'member-a',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }))
+})
+
+test('a trip member can update only their own embedded profile details', async () => {
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  const nextMembers = trip.members.map((member) =>
+    member.uid === 'member-b' ? { ...member, name: 'Updated B', upiId: 'b@upi' } : member,
+  )
+
+  await assertSucceeds(updateDoc(doc(memberDb, 'trips', tripId), {
+    members: nextMembers,
+    updatedAt: serverTimestamp(),
+  }))
+
+  const forgedMembers = nextMembers.map((member) =>
+    member.uid === 'member-a' ? { ...member, name: 'Forged admin name' } : member,
+  )
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    members: forgedMembers,
+    updatedAt: serverTimestamp(),
+  }))
+})
+
+test('settlement creation is admin-only and ties the settlement to the authenticated actor', async () => {
+  const values = {
+    from: 'member-b',
+    to: 'member-a',
+    amount: '200',
+    method: 'upi',
+    settledAt: '2026-06-03',
+    note: 'UPI payment',
+  }
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  const adminBatch = buildCreateSettlementBatch({
+    database: adminDb, tripId, values, actor,
+  })
+  await assertSucceeds(adminBatch.batch.commit())
+  const settlement = await getDoc(doc(adminDb, 'trips', tripId, 'settlements', adminBatch.settlementId))
+  assert.equal(settlement.data().createdBy, actor.uid)
+  assert.equal(settlement.data().amount, 200)
+
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  const memberBatch = buildCreateSettlementBatch({
+    database: memberDb,
+    tripId,
+    values,
+    actor: { ...actor, uid: 'member-b' },
+  })
+  await assertFails(memberBatch.batch.commit())
+})
 
 test('expense workflow atomically notifies the creator and each other trip member once', async () => {
   const { database, expenseId, activityId } = await createExpenseAsActor(undefined, [

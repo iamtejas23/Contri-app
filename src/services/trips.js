@@ -1,47 +1,21 @@
 import {
-  addDoc,
   arrayUnion,
-  collection,
-  deleteDoc,
   doc,
-  getDocs,
   serverTimestamp,
   updateDoc,
-  writeBatch,
 } from 'firebase/firestore'
 
-import { db } from '../firebase/config'
-import { notifyFirebaseError } from '../lib/errors'
-import { addMemberToTrip } from '../lib/joinTrip'
-import { buildMemberFromIdentity } from '../lib/utils'
+import { db } from '../firebase/config.js'
+import { notifyFirebaseError } from '../lib/errors.js'
+import { addMemberToTrip } from '../lib/joinTrip.js'
+import { buildMemberFromIdentity } from '../lib/utils.js'
+import { createTripDocument, deleteTripDocuments } from './tripDocuments.js'
 
-const deleteCollectionDocs = async (collectionRef) => {
-  const snapshot = await getDocs(collectionRef)
-
-  if (snapshot.empty) {
-    return
-  }
-
-  const batch = writeBatch(db)
-  snapshot.docs.forEach((item) => batch.delete(item.ref))
-  await batch.commit()
-}
+export { createTripDocument, deleteTripDocuments } from './tripDocuments.js'
 
 export const createTrip = async ({ values, actor }) => {
   try {
-    const adminMember = buildMemberFromIdentity(actor, 'admin')
-
-    const tripRef = await addDoc(collection(db, 'trips'), {
-      ...values,
-      createdBy: actor.uid,
-      members: [adminMember],
-      memberIds: [actor.uid],
-      adminIds: [actor.uid],
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-
-    return tripRef.id
+    return await createTripDocument({ database: db, values, actor })
   } catch (error) {
     notifyFirebaseError(error, 'We could not create that trip.')
     throw error
@@ -62,10 +36,7 @@ export const updateTrip = async (tripId, values) => {
 
 export const deleteTrip = async (tripId) => {
   try {
-    await deleteCollectionDocs(collection(db, 'trips', tripId, 'expenses'))
-    await deleteCollectionDocs(collection(db, 'trips', tripId, 'settlements'))
-    await deleteCollectionDocs(collection(db, 'trips', tripId, 'activity'))
-    await deleteDoc(doc(db, 'trips', tripId))
+    await deleteTripDocuments({ database: db, tripId })
   } catch (error) {
     notifyFirebaseError(error, 'We could not delete that trip.')
     throw error

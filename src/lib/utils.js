@@ -51,6 +51,7 @@ export const buildActor = (user, profile) => ({
   name: getDisplayName(profile || user),
   email: profile?.email || user?.email || '',
   upiId: profile?.upiId || '',
+  ...(user?.isAnonymous || profile?.isGuest ? { isGuest: true } : {}),
 })
 
 export const sanitizeFileName = (name = 'receipt') =>

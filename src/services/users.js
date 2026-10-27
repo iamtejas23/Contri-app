@@ -1,5 +1,5 @@
 import { updateProfile } from 'firebase/auth'
-import { collection, doc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 
 import { auth, db } from '../firebase/config'
 import { notifyFirebaseError } from '../lib/errors'
@@ -54,15 +54,22 @@ export const updateUserProfileDoc = async ({ uid, name, photoURL = '', upiId = '
 
     await Promise.all(
       tripsSnapshot.docs.map(async (tripDoc) => {
-        const members = tripDoc
-          .data()
-          .members.map((member) =>
-            member.uid === uid
-              ? buildMemberFromIdentity({ ...member, uid, name: safeName, upiId: safeUpi }, member.role)
-              : member,
-          )
+        const currentMembers = tripDoc.data().members
+        const currentMember = currentMembers.find((member) => member.uid === uid)
+        if (!currentMember || (currentMember.name === safeName && (currentMember.upiId || '') === safeUpi)) {
+          return
+        }
 
-        await updateDoc(doc(db, 'trips', tripDoc.id), { members })
+        const members = currentMembers.map((member) =>
+          member.uid === uid
+            ? buildMemberFromIdentity({ ...member, uid, name: safeName, upiId: safeUpi }, member.role)
+            : member,
+        )
+
+        await updateDoc(doc(db, 'trips', tripDoc.id), {
+          members,
+          updatedAt: serverTimestamp(),
+        })
       }),
     )
   } catch (error) {

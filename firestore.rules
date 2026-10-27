@@ -22,6 +22,120 @@ service cloud.firestore {
       return signedIn() && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.adminIds;
     }
 
+    function validGuestFlag(member) {
+      return !('isGuest' in member) || member.isGuest is bool;
+    }
+
+    function isValidTripCreation() {
+      let data = request.resource.data;
+      let creator = data.members[0];
+      return signedIn()
+        && data.keys().hasOnly([
+          'name', 'description', 'emoji', 'startDate', 'endDate', 'currency', 'budget',
+          'createdBy', 'members', 'memberIds', 'adminIds', 'createdAt', 'updatedAt'
+        ])
+        && data.createdBy == request.auth.uid
+        && data.memberIds == [request.auth.uid]
+        && data.adminIds == [request.auth.uid]
+        && data.members.size() == 1
+        && creator.uid == request.auth.uid
+        && creator.role == 'admin'
+        && creator.keys().hasOnly(['uid', 'name', 'email', 'role', 'upiId', 'isGuest'])
+        && validGuestFlag(creator)
+        && ((request.auth.token.firebase.sign_in_provider == 'anonymous' && creator.isGuest == true)
+          || (request.auth.token.firebase.sign_in_provider != 'anonymous' && !('isGuest' in creator)))
+        && data.name is string
+        && data.name.size() > 0
+        && data.currency is string
+        && data.createdAt == request.time
+        && data.updatedAt == request.time;
+    }
+
+    function isAdminTripDetailsUpdate(tripId) {
+      return isTripAdmin(tripId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'description', 'emoji', 'startDate', 'endDate', 'currency', 'budget', 'updatedAt'
+        ])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.members == resource.data.members
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.adminIds == resource.data.adminIds
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.currency is string;
+    }
+
+    function isAdminInviteUpdate(tripId) {
+      let addedIds = request.resource.data.memberIds.removeAll(resource.data.memberIds);
+      let addedMembers = request.resource.data.members.removeAll(resource.data.members);
+      return isTripAdmin(tripId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'members', 'memberIds', 'updatedAt'
+        ])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.adminIds == resource.data.adminIds
+        && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+        && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
+        && addedIds.size() == 1
+        && request.resource.data.members.size() == resource.data.members.size() + 1
+        && request.resource.data.members.hasAll(resource.data.members)
+        && addedMembers.size() == 1
+        && addedMembers[0].uid == addedIds[0]
+        && addedMembers[0].role == 'member'
+        && addedMembers[0].keys().hasOnly(['uid', 'name', 'email', 'role', 'upiId', 'isGuest'])
+        && validGuestFlag(addedMembers[0])
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isAdminRoleUpdate(tripId) {
+      let addedMembers = request.resource.data.members.removeAll(resource.data.members);
+      let removedMembers = resource.data.members.removeAll(request.resource.data.members);
+      let addedAdmins = request.resource.data.adminIds.removeAll(resource.data.adminIds);
+      let removedAdmins = resource.data.adminIds.removeAll(request.resource.data.adminIds);
+      let changedMember = addedMembers[0];
+      let previousMember = removedMembers[0];
+      return isTripAdmin(tripId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'members', 'adminIds', 'updatedAt'
+        ])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.members.size() == resource.data.members.size()
+        && addedMembers.size() == 1
+        && removedMembers.size() == 1
+        && changedMember.uid == previousMember.uid
+        && changedMember.diff(previousMember).affectedKeys().hasOnly(['role'])
+        && changedMember.role in ['admin', 'member']
+        && request.resource.data.adminIds.size() > 0
+        && request.resource.data.memberIds.hasAll(request.resource.data.adminIds)
+        && (
+          (previousMember.role == 'member' && changedMember.role == 'admin'
+            && addedAdmins == [changedMember.uid] && removedAdmins.size() == 0)
+          || (previousMember.role == 'admin' && changedMember.role == 'member'
+            && removedAdmins == [changedMember.uid] && addedAdmins.size() == 0)
+        )
+        && request.resource.data.updatedAt == request.time;
+    }
+
+    function isSelfMemberProfileUpdate() {
+      let addedMembers = request.resource.data.members.removeAll(resource.data.members);
+      let removedMembers = resource.data.members.removeAll(request.resource.data.members);
+      return signedIn()
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.adminIds == resource.data.adminIds
+        && request.resource.data.members.size() == resource.data.members.size()
+        && request.resource.data.updatedAt == request.time
+        && addedMembers.size() == 1
+        && removedMembers.size() == 1
+        && addedMembers[0].uid == request.auth.uid
+        && removedMembers[0].uid == request.auth.uid
+        && addedMembers[0].diff(removedMembers[0]).affectedKeys().hasOnly(['name', 'upiId']);
+    }
+
     function canCreateExpenseNotification(recipientUid, notificationId) {
       let tripId = request.resource.data.tripId;
       let expenseId = request.resource.data.expenseId;
@@ -69,7 +183,8 @@ service cloud.firestore {
           || (request.auth.token.firebase.sign_in_provider != 'anonymous' && !('isGuest' in addedMembers[0]))
         )
         && request.resource.data.adminIds == resource.data.adminIds
-        && request.resource.data.createdBy == resource.data.createdBy;
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.updatedAt == request.time;
     }
 
     match /users/{uid} {
@@ -90,31 +205,52 @@ service cloud.firestore {
     }
 
     match /trips/{tripId} {
-      allow create: if signedIn()
-        && request.resource.data.createdBy == request.auth.uid
-        && request.auth.uid in request.resource.data.memberIds
-        && request.auth.uid in request.resource.data.adminIds;
+      allow create: if isValidTripCreation();
 
-      allow read: if isTripMemberDoc(resource.data);
-      allow update: if isTripAdmin(tripId) || isSelfJoin();
+      allow get: if signedIn() && (resource == null || isTripMemberDoc(resource.data));
+      allow list: if isTripMemberDoc(resource.data);
+      allow update: if isAdminTripDetailsUpdate(tripId)
+        || isAdminInviteUpdate(tripId)
+        || isAdminRoleUpdate(tripId)
+        || isSelfJoin()
+        || isSelfMemberProfileUpdate();
       allow delete: if isTripAdmin(tripId);
 
       match /expenses/{expenseId} {
         allow read: if isTripMember(tripId);
-        allow create: if isTripMember(tripId);
+        allow create: if isTripMember(tripId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.title is string
+          && request.resource.data.title.size() > 0
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.paidBy in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
         allow update, delete: if isTripAdmin(tripId);
       }
 
       match /settlements/{settlementId} {
         allow read: if isTripMember(tripId);
-        allow create: if isTripMember(tripId);
+        allow create: if isTripAdmin(tripId)
+          && request.resource.data.keys().hasOnly([
+            'from', 'to', 'amount', 'method', 'settledAt', 'note', 'createdBy'
+          ])
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.from in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.resource.data.to in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.resource.data.from != request.resource.data.to
+          && request.resource.data.amount is number
+          && request.resource.data.amount > 0
+          && request.resource.data.method in ['cash', 'upi', 'online'];
         allow update, delete: if isTripAdmin(tripId);
       }
 
       match /activity/{activityId} {
         allow read: if isTripMember(tripId);
         allow create: if isTripMember(tripId) && request.resource.data.actorUid == request.auth.uid;
-        allow update, delete: if false;
+        allow update: if false;
+        allow delete: if isTripAdmin(tripId);
       }
     }
   }
