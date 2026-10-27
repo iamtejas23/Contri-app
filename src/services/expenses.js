@@ -9,6 +9,7 @@ import { db } from '../firebase/config'
 import { ACTIVITY_TYPES, createActivityPayload } from '../lib/activity'
 import { notifyFirebaseError } from '../lib/errors'
 import { roundCurrency, toNumber } from '../lib/utils'
+import { buildCreateExpenseBatch } from './expenseWrites'
 
 const buildExpensePayload = async ({
   values,
@@ -32,33 +33,17 @@ const buildExpensePayload = async ({
   }
 }
 
-export const createExpense = async ({ tripId, values, actor }) => {
+export const createExpense = async ({ tripId, tripName, memberIds, currency, values, actor }) => {
   try {
-    const expenseRef = doc(collection(db, 'trips', tripId, 'expenses'))
-    const activityRef = doc(collection(db, 'trips', tripId, 'activity'))
-    const payload = await buildExpensePayload({
+    const { batch } = buildCreateExpenseBatch({
+      database: db,
+      tripId,
+      tripName,
+      memberIds,
+      currency,
       values,
+      actor,
     })
-
-    const batch = writeBatch(db)
-    batch.set(expenseRef, {
-      ...payload,
-      createdAt: serverTimestamp(),
-    })
-    batch.set(
-      activityRef,
-      createActivityPayload({
-        type: ACTIVITY_TYPES.EXPENSE_CREATED,
-        actor,
-        message: '{actor} added {title} for {amount}.',
-        meta: {
-          title: payload.title,
-          amount: payload.amount,
-          expenseId: expenseRef.id,
-        },
-      }),
-    )
-
     await batch.commit()
   } catch (error) {
     notifyFirebaseError(error, 'We could not save that expense.')

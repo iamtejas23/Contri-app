@@ -1,4 +1,4 @@
-import { roundCurrency, toNumber } from './utils'
+import { roundCurrency, toNumber } from './utils.js'
 
 const normalizeMembers = (splitAmong = []) =>
   splitAmong

@@ -22,6 +22,33 @@ service cloud.firestore {
       return signedIn() && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.adminIds;
     }
 
+    function canCreateExpenseNotification(recipientUid, notificationId) {
+      let tripId = request.resource.data.tripId;
+      let expenseId = request.resource.data.expenseId;
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      let expense = getAfter(/databases/$(database)/documents/trips/$(tripId)/expenses/$(expenseId)).data;
+      return signedIn()
+        && request.resource.data.keys().hasOnly([
+          'type', 'tripId', 'tripName', 'expenseId', 'recipientUid', 'actorUid',
+          'actorName', 'expenseTitle', 'amount', 'currency', 'read', 'createdAt'
+        ])
+        && request.resource.data.type == 'expense_created'
+        && request.resource.data.recipientUid == recipientUid
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.read == false
+        && request.resource.data.createdAt == request.time
+        && notificationId == tripId + '_' + expenseId
+        && tripId is string
+        && expenseId is string
+        && request.resource.data.tripName == trip.name
+        && request.auth.uid in trip.memberIds
+        && recipientUid in trip.memberIds
+        && expense.createdBy == request.auth.uid
+        && request.resource.data.expenseTitle == expense.title
+        && request.resource.data.amount == expense.amount
+        && request.resource.data.currency == trip.currency;
+    }
+
     function isSelfJoin() {
       let addedMemberIds = request.resource.data.memberIds.removeAll(resource.data.memberIds);
       let addedMembers = request.resource.data.members.removeAll(resource.data.members);
@@ -36,7 +63,11 @@ service cloud.firestore {
         && addedMembers.size() == 1
         && addedMembers[0].uid == request.auth.uid
         && addedMembers[0].role == 'member'
-        && addedMembers[0].keys().hasOnly(['uid', 'name', 'email', 'role', 'upiId'])
+        && addedMembers[0].keys().hasOnly(['uid', 'name', 'email', 'role', 'upiId', 'isGuest'])
+        && (
+          (request.auth.token.firebase.sign_in_provider == 'anonymous' && addedMembers[0].isGuest == true)
+          || (request.auth.token.firebase.sign_in_provider != 'anonymous' && !('isGuest' in addedMembers[0]))
+        )
         && request.resource.data.adminIds == resource.data.adminIds
         && request.resource.data.createdBy == resource.data.createdBy;
     }
@@ -46,6 +77,16 @@ service cloud.firestore {
         || (signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous');
       allow create, update: if isSelf(uid);
       allow delete: if false;
+
+      match /notifications/{notificationId} {
+        allow get, list: if isSelf(uid);
+        allow create: if canCreateExpenseNotification(uid, notificationId);
+        allow update: if isSelf(uid)
+          && resource.data.read == false
+          && request.resource.data.read == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        allow delete: if false;
+      }
     }
 
     match /trips/{tripId} {

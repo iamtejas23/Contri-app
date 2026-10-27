@@ -1,4 +1,4 @@
-import { Map, Plus, Search, Sparkles, Users } from 'lucide-react'
+import { Link2, Map, Plus, Search, Sparkles, Users } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
@@ -14,12 +14,18 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
 import { TripCard } from '../components/trips/TripCard'
 import { TripFormModal } from '../components/trips/TripFormModal'
+import { Modal } from '../components/ui/Modal'
+import { Input } from '../components/ui/Input'
+import { getTripIdFromInvite } from '../lib/invites'
 
 export const HomePage = () => {
   const navigate = useNavigate()
   const { user, profile } = useAuth()
   const { trips, loading, error, retry } = useUserTrips(user?.uid)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showJoinModal, setShowJoinModal] = useState(false)
+  const [inviteValue, setInviteValue] = useState('')
+  const [inviteError, setInviteError] = useState('')
   const [search, setSearch] = useState('')
 
   const stats = useMemo(() => ({
@@ -45,6 +51,16 @@ export const HomePage = () => {
     navigate(`/trips/${tripId}`)
   }
 
+  const handleJoinTrip = (event) => {
+    event.preventDefault()
+    const tripId = getTripIdFromInvite(inviteValue)
+    if (!tripId) {
+      setInviteError('Enter a valid Contri invite link or trip code.')
+      return
+    }
+    navigate(`/join?tripId=${encodeURIComponent(tripId)}`)
+  }
+
   return (
     <div className="space-y-8">
       {/* Hero banner */}
@@ -60,16 +76,28 @@ export const HomePage = () => {
             Log petrol, toll, food, and hotel as they happen. See who owes whom,
             pay with UPI, and send the hisab on WhatsApp.
           </p>
-          <Button
-            className="mt-6 bg-white text-teal hover:bg-slate-50"
-            onClick={() => setShowCreateModal(true)}
-            size="lg"
-            type="button"
-            variant="white"
-          >
-            <Plus className="h-4 w-4" />
-            Create trip
-          </Button>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button
+              className="bg-white text-teal hover:bg-slate-50"
+              onClick={() => setShowCreateModal(true)}
+              size="lg"
+              type="button"
+              variant="white"
+            >
+              <Plus className="h-4 w-4" />
+              Create trip
+            </Button>
+            <Button
+              className="border border-white/30 bg-white/10 text-white hover:bg-white/20"
+              onClick={() => setShowJoinModal(true)}
+              size="lg"
+              type="button"
+              variant="ghost"
+            >
+              <Link2 className="h-4 w-4" />
+              Join Trip
+            </Button>
+          </div>
         </div>
 
         {/* Stats strip */}
@@ -113,7 +141,7 @@ export const HomePage = () => {
               Open a hisab
             </h2>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
             {trips.length > 0 && (
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -127,6 +155,10 @@ export const HomePage = () => {
                 />
               </div>
             )}
+            <Button onClick={() => setShowJoinModal(true)} size="sm" type="button" variant="secondary">
+              <Link2 className="h-4 w-4" />
+              Join Trip
+            </Button>
             <Button onClick={() => setShowCreateModal(true)} size="sm" type="button">
               <Plus className="h-4 w-4" />
               New trip
@@ -174,6 +206,36 @@ export const HomePage = () => {
           title="Create a new trip"
         />
       ) : null}
+
+      <Modal
+        description="Paste a Contri invite link or enter its trip code."
+        onClose={() => setShowJoinModal(false)}
+        open={showJoinModal}
+        title="Join a trip"
+      >
+        <form className="space-y-4" onSubmit={handleJoinTrip}>
+          <Input
+            autoComplete="off"
+            hint="A trip code is the ID included in the trip’s invite link."
+            label="Invite link or trip code"
+            onChange={(event) => {
+              setInviteValue(event.target.value)
+              setInviteError('')
+            }}
+            placeholder="Paste invite link or trip code"
+            type="text"
+            value={inviteValue}
+          />
+          {inviteError ? <p className="text-sm text-red-600" role="alert">{inviteError}</p> : null}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button onClick={() => setShowJoinModal(false)} type="button" variant="secondary">Cancel</Button>
+            <Button disabled={!inviteValue.trim()} type="submit">
+              <Link2 className="h-4 w-4" />
+              Continue
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

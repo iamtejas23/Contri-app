@@ -1,5 +1,5 @@
-import { CURRENCIES } from './constants'
-import { roundCurrency, toNumber } from './utils'
+import { CURRENCIES } from './constants.js'
+import { roundCurrency, toNumber } from './utils.js'
 
 export const getCurrencyMeta = (code = 'INR') =>
   CURRENCIES.find((currency) => currency.code === code) || CURRENCIES[0]

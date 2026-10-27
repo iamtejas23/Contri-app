@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { auth, db } from '../firebase/config'
 import {
+  createGuestAccount,
   ensureUserProfile,
   loginWithGoogle,
   loginWithNativeGoogle,
@@ -79,6 +80,7 @@ export const AuthProvider = ({ children }) => {
       loading,
       loginWithGoogle,
       loginWithNativeGoogle,
+      createGuestAccount,
       logout: logoutUser,
       updateProfileDetails: async ({ name, photoURL, upiId = '' }) => {
         if (!user) {

@@ -1,4 +1,4 @@
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
@@ -109,6 +109,20 @@ export const AuthPage = () => {
               <GoogleIcon />
               Continue with Google
             </Button>
+
+            <Button
+              className="mt-3 w-full"
+              onClick={() => navigate(redirectTo.startsWith('/join') ? redirectTo : '/join')}
+              size="lg"
+              type="button"
+              variant="secondary"
+            >
+              <UserRound className="h-4 w-4" />
+              Join as Guest
+            </Button>
+            <p className="mt-3 text-xs leading-relaxed text-dusk/70">
+              Guest accounts are anonymous. Sign out or losing this device can make your trip data hard to recover. Link Google from your profile to keep the same account.
+            </p>
 
           </div>
         </div>

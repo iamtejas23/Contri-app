@@ -1,6 +1,7 @@
 import { Camera, Mail, Shield, User } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
+import { Capacitor } from '@capacitor/core'
 
 import { useAuth } from '../context/useAuth'
 import { isValidUpiId } from '../lib/upi'
@@ -12,9 +13,10 @@ import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
 
 export const ProfilePage = () => {
-  const { user, profile, updateProfileDetails } = useAuth()
+  const { user, profile, updateProfileDetails, loginWithGoogle, loginWithNativeGoogle } = useAuth()
   const [draft, setDraft] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [linking, setLinking] = useState(false)
 
   const liveValues = {
     name: profile?.name || user?.displayName || '',
@@ -43,6 +45,20 @@ export const ProfilePage = () => {
     }
   }
 
+  const handleLinkGoogle = async () => {
+    if (linking) return
+    setLinking(true)
+    try {
+      if (Capacitor.getPlatform() === 'android') await loginWithNativeGoogle()
+      else await loginWithGoogle()
+      toast.success('Google is linked to this guest account.')
+    } catch {
+      // The auth service reports provider errors and leaves the guest session intact.
+    } finally {
+      setLinking(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
@@ -64,7 +80,8 @@ export const ProfilePage = () => {
             <p className="font-display text-xl font-bold text-ink">
               {form.name || getDisplayName(profile || user)}
             </p>
-            <p className="mt-1 text-sm text-dusk">{profile?.email || user?.email}</p>
+            <p className="mt-1 text-sm text-dusk">{profile?.contactEmail || profile?.email || user?.email || ''}</p>
+            {user?.isAnonymous ? <Badge className="mt-2" tone="amber">Guest account</Badge> : null}
           </div>
 
           <div className="w-full space-y-2 text-left">
@@ -77,12 +94,14 @@ export const ProfilePage = () => {
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
               <Mail className="h-4 w-4 flex-shrink-0 text-slate-400" />
               <span className="truncate text-sm text-ink">
-                {profile?.email || user?.email}
+                {profile?.email || profile?.contactEmail || user?.email || ''}
               </span>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
               <Shield className="h-4 w-4 flex-shrink-0 text-slate-400" />
-              <Badge tone="teal">Verified</Badge>
+              <Badge tone={user?.isAnonymous ? 'amber' : 'teal'}>
+                {user?.isAnonymous ? 'Guest · not verified' : 'Verified'}
+              </Badge>
             </div>
           </div>
         </Card>
@@ -128,7 +147,7 @@ export const ProfilePage = () => {
               placeholder="name@okhdfcbank"
               value={form.upiId}
             />
-            <Input disabled label="Email address" value={profile?.email || user?.email || ''} />
+            <Input disabled label="Email address" value={profile?.email || profile?.contactEmail || user?.email || ''} />
 
             <div className="flex gap-3 pt-2">
               <Button loading={loading} type="submit">
@@ -143,6 +162,22 @@ export const ProfilePage = () => {
           </form>
         </Card>
       </div>
+
+      {user?.isAnonymous ? (
+        <Card className="border-amber-200 bg-amber-50/70">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="font-display text-lg font-semibold text-ink">Keep this account recoverable</h2>
+              <p className="mt-1 text-sm text-dusk">
+                This guest uses Firebase Anonymous Authentication. Link Google to preserve this same account and its trips if you change devices.
+              </p>
+            </div>
+            <Button loading={linking} onClick={handleLinkGoogle} type="button">
+              Link Google account
+            </Button>
+          </div>
+        </Card>
+      ) : null}
     </div>
   )
 }

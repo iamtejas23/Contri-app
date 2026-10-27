@@ -1,6 +1,6 @@
 import { serverTimestamp } from 'firebase/firestore'
 
-import { formatCurrency } from './currency'
+import { formatCurrency } from './currency.js'
 
 export const ACTIVITY_TYPES = {
   EXPENSE_CREATED: 'expense_created',

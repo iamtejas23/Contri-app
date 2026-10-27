@@ -4,7 +4,9 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
 import { getDisplayName } from '../../lib/utils'
 import { Avatar } from '../ui/Avatar'
+import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
+import { NotificationCenter } from '../notifications/NotificationCenter'
 
 const navItems = [
   { to: '/', label: 'Trips', icon: Map },
@@ -13,7 +15,7 @@ const navItems = [
 ]
 
 export const AppShell = () => {
-  const { profile, logout } = useAuth()
+  const { profile, user, logout } = useAuth()
 
   return (
       <div className="min-h-dvh bg-sand text-ink">
@@ -54,15 +56,17 @@ export const AppShell = () => {
           </nav>
 
           {/* User section */}
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-ink leading-none">
                 {getDisplayName(profile)}
               </p>
               <p className="mt-0.5 text-xs text-dusk">{profile?.email || 'Traveler'}</p>
             </div>
+            {user?.isAnonymous ? <Badge tone="amber">Guest</Badge> : null}
+            <NotificationCenter uid={user?.uid} />
             <Avatar name={getDisplayName(profile)} size="sm" src={profile?.photoURL} />
-            <Button onClick={logout} size="sm" type="button" variant="secondary">
+            <Button aria-label="Sign out" onClick={logout} size="sm" type="button" variant="secondary">
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Sign out</span>
             </Button>

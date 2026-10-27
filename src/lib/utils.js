@@ -43,6 +43,7 @@ export const buildMemberFromIdentity = (identity, role = 'member') => ({
   email: identity.email || '',
   role,
   upiId: identity.upiId || '',
+  ...(identity.isAnonymous || identity.isGuest ? { isGuest: true } : {}),
 })
 
 export const buildActor = (user, profile) => ({

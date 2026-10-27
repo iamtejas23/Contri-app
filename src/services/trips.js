@@ -4,7 +4,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   serverTimestamp,
   updateDoc,
@@ -13,6 +12,7 @@ import {
 
 import { db } from '../firebase/config'
 import { notifyFirebaseError } from '../lib/errors'
+import { addMemberToTrip } from '../lib/joinTrip'
 import { buildMemberFromIdentity } from '../lib/utils'
 
 const deleteCollectionDocs = async (collectionRef) => {
@@ -107,21 +107,7 @@ export const updateTripMemberRole = async ({ tripId, members, memberId, role }) 
 
 export const joinTripByLink = async ({ tripId, member }) => {
   try {
-    try {
-      const tripSnapshot = await getDoc(doc(db, 'trips', tripId))
-
-      if (tripSnapshot.exists() && tripSnapshot.data().memberIds?.includes(member.uid)) {
-        return
-      }
-    } catch {
-      // Non-members cannot read the trip before joining, so we fall through to the join update.
-    }
-
-    await updateDoc(doc(db, 'trips', tripId), {
-      members: arrayUnion(buildMemberFromIdentity(member, 'member')),
-      memberIds: arrayUnion(member.uid),
-      updatedAt: serverTimestamp(),
-    })
+    await addMemberToTrip({ database: db, tripId, member })
   } catch (error) {
     notifyFirebaseError(error, 'We could not join that trip right now.')
     throw error

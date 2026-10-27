@@ -227,6 +227,9 @@ export const TripPage = () => {
 
     await createExpense({
       tripId: trip.id,
+      tripName: trip.name,
+      memberIds: trip.memberIds,
+      currency: trip.currency,
       values,
       actor,
     })
@@ -362,7 +365,9 @@ export const TripPage = () => {
                 <Avatar name={member.name} size="sm" />
                 <div>
                   <p className="text-xs font-semibold text-ink">{member.name}</p>
-                  <p className="text-[10px] uppercase tracking-wider text-dusk">{member.role}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-dusk">
+                    {member.role}{member.isGuest ? ' · guest' : ''}
+                  </p>
                 </div>
               </div>
             ))}
@@ -512,6 +517,7 @@ export const TripPage = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge tone={member.role === 'admin' ? 'teal' : 'default'}>{member.role}</Badge>
+                    {member.isGuest ? <Badge tone="amber">Guest</Badge> : null}
                     {canManageTrip ? (
                       member.role === 'admin' ? (
                         <Button

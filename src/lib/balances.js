@@ -1,7 +1,7 @@
-import { EXPENSE_CATEGORIES, LEGACY_CATEGORIES } from './constants'
-import { formatTimelineDate } from './date'
-import { resolveSplitAmounts } from './splits'
-import { roundCurrency, toNumber } from './utils'
+import { EXPENSE_CATEGORIES, LEGACY_CATEGORIES } from './constants.js'
+import { formatTimelineDate } from './date.js'
+import { resolveSplitAmounts } from './splits.js'
+import { roundCurrency, toNumber } from './utils.js'
 
 export const buildMembersMap = (members = []) =>
   members.reduce((accumulator, member) => {

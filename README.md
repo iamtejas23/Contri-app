@@ -131,8 +131,24 @@ Regenerate the launcher icon and splash assets after changing `resources/icon.pn
 - `splitMode`
 - `splitAmong`
 - `receiptURL`
+- `createdBy` (creator UID; used to validate expense notifications)
 - `createdAt`
 - `updatedAt`
+
+### `users/{uid}/notifications/{tripId}_{expenseId}`
+
+Expense notifications are stored under each recipient's existing user document. Their deterministic document IDs prevent a second create for the same trip expense.
+
+- `type` (`expense_created`)
+- `tripId`, `tripName`, `expenseId`
+- `recipientUid`, `actorUid`, `actorName`
+- `expenseTitle`, `amount`, `currency`
+- `read` (initially `false`)
+- `createdAt`
+
+The expense, activity item, and one notification per other trip member are written in one Firestore batch. Notification reads are restricted to the owning UID by `firestore.rules`; recipients can only change `read` from false to true. Local rules tests run with `npm test` against a demo Firestore Emulator project. Rules have not been deployed to Firebase.
+
+This is an **in-app** notification center. It updates while the app is open. Background Android push is not implemented: securely triggering FCM for expense events requires a trusted server-side sender, and deploying Firebase Cloud Functions requires the Blaze plan. FCM delivery itself is no-cost, but client-side sender credentials would be exposed and are not used here.
 
 ### `trips/{tripId}/settlements/{settlementId}`
 
@@ -158,3 +174,10 @@ Regenerate the launcher icon and splash assets after changing `resources/icon.pn
 - Receipt scanning reads the photo on-device via Tesseract in the browser; nothing is uploaded unless you paste a receipt link.
 - Trip listing uses `memberIds` and admin checks use `adminIds` as derived Firestore fields for fast queries and rules.
 - Any trip member can add expenses and record settlements; only admins can edit/delete expenses or manage the trip.
+
+## Guest accounts
+
+- Guests use Firebase Anonymous Authentication and the existing `users/{uid}` profile and trip membership documents. Their optional, unverified email is stored as `contactEmail`, separate from the authenticated `email` field used for account lookup.
+- Enable **Anonymous** under Firebase Console → Authentication → Sign-in method before using guest sign-in. Google sign-in remains enabled separately; guests can link Google from Profile to keep their Firebase UID and trip data.
+- Guest members have the same membership-based Firestore access as other members. The self-join rule requires an authenticated Firebase user and marks anonymous members as guests. Deploy reviewed `firestore.rules` separately when approved; this change does not deploy rules.
+- `npm test` runs Firestore and Authentication Emulators with a demo project. No production users or trip data are used.
