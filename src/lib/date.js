@@ -21,6 +21,20 @@ export const toDateValue = (value) => {
   return null
 }
 
+export const sortRecordsByDate = (records = [], fields = []) =>
+  [...records].sort((first, second) => {
+    const getTime = (record) => {
+      for (const field of fields) {
+        const date = toDateValue(record[field])
+        if (date) return date.getTime()
+      }
+      return 0
+    }
+
+    const dateDifference = getTime(second) - getTime(first)
+    return dateDifference || String(first.id || '').localeCompare(String(second.id || ''))
+  })
+
 export const formatDate = (value, pattern = 'PPP') => {
   const date = toDateValue(value)
   return date ? format(date, pattern) : '—'

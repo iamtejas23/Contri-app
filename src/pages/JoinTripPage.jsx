@@ -6,6 +6,7 @@ import { useAuth } from '../context/useAuth'
 import { getTripIdFromInvite } from '../lib/invites'
 import { createGuestAccount } from '../services/auth'
 import { joinTripByLink } from '../services/trips'
+import { getErrorMessage } from '../lib/errors'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -16,6 +17,7 @@ export const JoinTripPage = () => {
   const navigate = useNavigate()
   const { user, profile, loading: authLoading } = useAuth()
   const [joining, setJoining] = useState(false)
+  const [joinAttempt, setJoinAttempt] = useState(0)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [inviteValue, setInviteValue] = useState(searchParams.get('tripId') || '')
@@ -44,7 +46,7 @@ export const JoinTripPage = () => {
         })
         navigate(`/trips/${encodeURIComponent(tripId)}`, { replace: true })
       } catch (joinError) {
-        setError(joinError instanceof Error ? joinError.message : 'Could not join this trip. Ask the trip admin for a fresh invite.')
+        setError(getErrorMessage(joinError, 'We could not confirm your membership. Check your connection and invite, then try again.'))
         started.current = false
       } finally {
         setJoining(false)
@@ -52,7 +54,7 @@ export const JoinTripPage = () => {
     }
 
     join()
-  }, [authLoading, navigate, profile, tripId, user])
+  }, [authLoading, joinAttempt, navigate, profile, tripId, user])
 
   const handleGuestJoin = async (event) => {
     event.preventDefault()
@@ -92,7 +94,7 @@ export const JoinTripPage = () => {
     }
   }
 
-  const isWaitingForExistingJoin = Boolean(tripId && (authLoading || user))
+  const isWaitingForExistingJoin = Boolean(tripId && (authLoading || (user && joining)))
 
   return (
     <Card className="mx-auto max-w-2xl p-5 sm:p-8">
@@ -109,6 +111,24 @@ export const JoinTripPage = () => {
 
         {isWaitingForExistingJoin ? (
           <p aria-live="polite" className="mt-6 text-center text-sm text-dusk">Joining the trip…</p>
+        ) : tripId && user && error ? (
+          <div className="mt-6 space-y-4" role="alert">
+            <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-800">
+              Your membership was not confirmed, so this trip has not been opened. {error}
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+              <Button
+                disabled={joining}
+                onClick={() => setJoinAttempt((attempt) => attempt + 1)}
+                type="button"
+              >
+                Try joining again
+              </Button>
+              <Button onClick={() => navigate('/')} type="button" variant="secondary">
+                Back to trips
+              </Button>
+            </div>
+          </div>
         ) : (
           <form className="mt-6 space-y-4" onSubmit={handleGuestJoin}>
             <Input

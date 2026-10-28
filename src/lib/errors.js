@@ -12,7 +12,7 @@ const ERROR_MESSAGES = {
   'auth/unauthorized-domain':
     'This domain is not authorized for Firebase Authentication. Add localhost or your deployed domain in Firebase Console > Authentication > Settings.',
   'permission-denied':
-    'Firestore denied this action. Make sure Firestore exists, deploy the included security rules, and confirm the signed-in user is allowed by those rules.',
+    'Firestore denied this request. Confirm the signed-in account still has access to this trip and that the deployed rules support its data format.',
   unavailable: 'Firebase is unavailable right now. Please try again.',
 }
 

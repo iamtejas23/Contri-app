@@ -11,7 +11,10 @@ service cloud.firestore {
     }
 
     function isTripMemberDoc(data) {
-      return signedIn() && request.auth.uid in data.memberIds;
+      return signedIn() && (
+        (('memberIds' in data) && data.memberIds is list && request.auth.uid in data.memberIds)
+        || (('createdBy' in data) && data.createdBy == request.auth.uid)
+      );
     }
 
     function isTripMember(tripId) {
@@ -19,7 +22,11 @@ service cloud.firestore {
     }
 
     function isTripAdmin(tripId) {
-      return signedIn() && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.adminIds;
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      return signedIn() && (
+        (('adminIds' in trip) && trip.adminIds is list && request.auth.uid in trip.adminIds)
+        || (!('adminIds' in trip) && ('createdBy' in trip) && trip.createdBy == request.auth.uid)
+      );
     }
 
     function validGuestFlag(member) {
@@ -208,7 +215,11 @@ service cloud.firestore {
       allow create: if isValidTripCreation();
 
       allow get: if signedIn() && (resource == null || isTripMemberDoc(resource.data));
-      allow list: if isTripMemberDoc(resource.data);
+      allow list: if signedIn()
+        && request.auth.uid in resource.data.memberIds;
+      allow list: if signedIn()
+        && ('createdBy' in resource.data)
+        && resource.data.createdBy == request.auth.uid;
       allow update: if isAdminTripDetailsUpdate(tripId)
         || isAdminInviteUpdate(tripId)
         || isAdminRoleUpdate(tripId)

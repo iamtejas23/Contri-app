@@ -4,7 +4,7 @@ import { getCategoryMeta } from '../../lib/categories'
 import { useMemo, useState } from 'react'
 
 import { formatCurrency } from '../../lib/currency'
-import { formatDate } from '../../lib/date'
+import { formatDate, toDateValue } from '../../lib/date'
 import { resolveSplitAmounts } from '../../lib/splits'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -29,10 +29,12 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
     }
     if (categoryFilter !== 'all') result = result.filter((e) => e.category === categoryFilter)
     return [...result].sort((a, b) => {
-      if (sortBy === 'date-asc')    return a.date.localeCompare(b.date)
+      const getTime = (expense) => toDateValue(expense.date || expense.createdAt || expense.updatedAt)?.getTime() || 0
+      const dateDifference = getTime(a) - getTime(b)
+      if (sortBy === 'date-asc') return dateDifference
       if (sortBy === 'amount-desc') return b.amount - a.amount
       if (sortBy === 'amount-asc')  return a.amount - b.amount
-      return b.date.localeCompare(a.date)
+      return -dateDifference
     })
   }, [expenses, search, categoryFilter, sortBy, membersMap])
 
@@ -112,7 +114,7 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
                   <p className="mt-2 text-sm text-dusk">
                     Paid by <span className="font-semibold text-ink">{membersMap[expense.paidBy]?.name ?? '—'}</span>
                     <span className="mx-1.5 text-slate-300">·</span>
-                    {formatDate(expense.date)}
+                    {formatDate(expense.date || expense.createdAt || expense.updatedAt)}
                   </p>
 
                   {expense.note ? (

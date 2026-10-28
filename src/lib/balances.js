@@ -1,5 +1,5 @@
 import { EXPENSE_CATEGORIES, LEGACY_CATEGORIES } from './constants.js'
-import { formatTimelineDate } from './date.js'
+import { formatTimelineDate, toDateValue } from './date.js'
 import { resolveSplitAmounts } from './splits.js'
 import { roundCurrency, toNumber } from './utils.js'
 
@@ -144,7 +144,10 @@ export const buildDashboardMetrics = ({
   expenses.forEach((expense) => {
     const amount = roundCurrency(toNumber(expense.amount))
     categoryMap[expense.category] = roundCurrency((categoryMap[expense.category] || 0) + amount)
-    dailyMap[expense.date] = roundCurrency((dailyMap[expense.date] || 0) + amount)
+    const expenseDate = expense.date || toDateValue(expense.createdAt)?.toISOString().slice(0, 10)
+    if (expenseDate) {
+      dailyMap[expenseDate] = roundCurrency((dailyMap[expenseDate] || 0) + amount)
+    }
 
     if (contributionMap[expense.paidBy]) {
       contributionMap[expense.paidBy].amount = roundCurrency(

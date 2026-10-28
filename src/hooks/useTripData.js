@@ -2,13 +2,13 @@ import {
   collection,
   doc,
   onSnapshot,
-  orderBy,
   query,
 } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 
 import { db } from '../firebase/config'
+import { sortRecordsByDate } from '../lib/date'
 import { getErrorMessage } from '../lib/errors'
 
 const defaultState = {
@@ -37,6 +37,7 @@ export const useTripData = (tripId) => {
       settlements: false,
       activity: false,
     }
+    const streamErrors = {}
     const nextBaseState = {
       ...defaultState,
       tripId,
@@ -47,7 +48,6 @@ export const useTripData = (tripId) => {
         return updater(base)
       })
     }
-
     const markReady = (key) => {
       ready[key] = true
 
@@ -55,10 +55,24 @@ export const useTripData = (tripId) => {
         updateForTrip((current) => ({ ...current, loading: false }))
       }
     }
+    const clearStreamError = (key) => {
+      delete streamErrors[key]
+      updateForTrip((current) => ({ ...current, error: Object.values(streamErrors).join(' ') }))
+    }
+    const recordStreamError = (key, error, fallback) => {
+      streamErrors[key] = getErrorMessage(error, fallback)
+      updateForTrip((current) => ({
+        ...current,
+        ...(key === 'trip' ? {} : { [key]: [] }),
+        error: Object.values(streamErrors).join(' '),
+      }))
+      markReady(key)
+    }
 
     const unsubscribeTrip = onSnapshot(
       doc(db, 'trips', tripId),
       (snapshot) => {
+        clearStreamError('trip')
         updateForTrip((current) => ({
           ...current,
           trip: snapshot.exists()
@@ -74,62 +88,64 @@ export const useTripData = (tripId) => {
       (error) => {
         const message = getErrorMessage(error, 'We could not load that trip.')
         toast.error(message)
-        updateForTrip((current) => ({ ...current, error: message }))
-        markReady('trip')
+        recordStreamError('trip', error, 'We could not load that trip.')
       },
     )
 
     const unsubscribeExpenses = onSnapshot(
-      query(collection(db, 'trips', tripId, 'expenses'), orderBy('date', 'desc')),
+      query(collection(db, 'trips', tripId, 'expenses')),
       (snapshot) => {
+        clearStreamError('expenses')
         updateForTrip((current) => ({
           ...current,
-          expenses: snapshot.docs.map((item) => ({
+          expenses: sortRecordsByDate(snapshot.docs.map((item) => ({
             id: item.id,
             ...item.data(),
-          })),
+          })), ['date', 'createdAt', 'updatedAt']),
         }))
         markReady('expenses')
       },
       (error) => {
         toast.error(getErrorMessage(error, 'We could not load trip expenses.'))
-        markReady('expenses')
+        recordStreamError('expenses', error, 'We could not load trip expenses.')
       },
     )
 
     const unsubscribeSettlements = onSnapshot(
-      query(collection(db, 'trips', tripId, 'settlements'), orderBy('settledAt', 'desc')),
+      query(collection(db, 'trips', tripId, 'settlements')),
       (snapshot) => {
+        clearStreamError('settlements')
         updateForTrip((current) => ({
           ...current,
-          settlements: snapshot.docs.map((item) => ({
+          settlements: sortRecordsByDate(snapshot.docs.map((item) => ({
             id: item.id,
             ...item.data(),
-          })),
+          })), ['settledAt', 'createdAt', 'updatedAt']),
         }))
         markReady('settlements')
       },
       (error) => {
         toast.error(getErrorMessage(error, 'We could not load settlements.'))
-        markReady('settlements')
+        recordStreamError('settlements', error, 'We could not load settlements.')
       },
     )
 
     const unsubscribeActivity = onSnapshot(
-      query(collection(db, 'trips', tripId, 'activity'), orderBy('timestamp', 'desc')),
+      query(collection(db, 'trips', tripId, 'activity')),
       (snapshot) => {
+        clearStreamError('activity')
         updateForTrip((current) => ({
           ...current,
-          activity: snapshot.docs.map((item) => ({
+          activity: sortRecordsByDate(snapshot.docs.map((item) => ({
             id: item.id,
             ...item.data(),
-          })),
+          })), ['timestamp', 'createdAt']),
         }))
         markReady('activity')
       },
       (error) => {
         toast.error(getErrorMessage(error, 'We could not load activity.'))
-        markReady('activity')
+        recordStreamError('activity', error, 'We could not load activity.')
       },
     )
 
@@ -141,7 +157,12 @@ export const useTripData = (tripId) => {
     }
   }, [retryCount, tripId])
 
-  const retry = () => setRetryCount((count) => count + 1)
+  const retry = () => {
+    setState((current) => current.tripId === tripId
+      ? { ...current, loading: true, error: '', expenses: [], settlements: [], activity: [] }
+      : current)
+    setRetryCount((count) => count + 1)
+  }
 
   if (!tripId) {
     return {

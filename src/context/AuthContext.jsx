@@ -13,6 +13,8 @@ import {
 import { updateUserProfileDoc } from '../services/users'
 import { AuthContext } from './auth-context'
 
+const AUTH_RESTORE_TIMEOUT_MS = 15000
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -21,9 +23,18 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     let unsubscribeProfile = () => {}
     let generation = 0
+    let initializationTimeout
+
+    const startInitializationFailsafe = () => {
+      clearTimeout(initializationTimeout)
+      initializationTimeout = setTimeout(() => setLoading(false), AUTH_RESTORE_TIMEOUT_MS)
+    }
+
+    startInitializationFailsafe()
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (nextUser) => {
       const currentGeneration = ++generation
+      clearTimeout(initializationTimeout)
       unsubscribeProfile()
       setProfile(null)
       setLoading(true)
@@ -35,6 +46,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       setUser(nextUser)
+      startInitializationFailsafe()
 
       try {
         await ensureUserProfile(nextUser)
@@ -43,6 +55,7 @@ export const AuthProvider = ({ children }) => {
           doc(db, 'users', nextUser.uid),
           (snapshot) => {
             if (currentGeneration !== generation) return
+            clearTimeout(initializationTimeout)
             setProfile(
               snapshot.exists()
                 ? {
@@ -55,12 +68,14 @@ export const AuthProvider = ({ children }) => {
           },
           () => {
             if (currentGeneration !== generation) return
+            clearTimeout(initializationTimeout)
             setProfile(null)
             setLoading(false)
           },
         )
       } catch {
         if (currentGeneration !== generation) return
+        clearTimeout(initializationTimeout)
         setProfile(null)
         setLoading(false)
       }
@@ -68,6 +83,7 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       generation += 1
+      clearTimeout(initializationTimeout)
       unsubscribeAuth()
       unsubscribeProfile()
     }

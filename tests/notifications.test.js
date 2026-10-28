@@ -3,7 +3,13 @@ import { readFile } from 'node:fs/promises'
 import { after, before, beforeEach, test } from 'node:test'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
 import { deleteApp, initializeApp } from 'firebase/app'
-import { connectAuthEmulator, getAuth } from 'firebase/auth'
+import {
+  connectAuthEmulator,
+  createUserWithEmailAndPassword,
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth'
 import {
   arrayUnion,
   collection,
@@ -12,15 +18,18 @@ import {
   getDoc,
   getDocs,
   getFirestore,
+  query,
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore'
 
 import { countUnreadNotifications, expenseNotificationId } from '../src/lib/notifications.js'
 import { getTripIdFromInvite } from '../src/lib/invites.js'
 import { addMemberToTrip } from '../src/lib/joinTrip.js'
 import { computeBalances } from '../src/lib/balances.js'
+import { sortRecordsByDate } from '../src/lib/date.js'
 import { createGuestSession } from '../src/lib/guestAuth.js'
 import { buildCreateExpenseBatch } from '../src/services/expenseWrites.js'
 import { buildCreateSettlementBatch } from '../src/services/settlementWrites.js'
@@ -144,6 +153,147 @@ test('trip admins can remove all trip subcollection documents and the parent tri
   const adminDb = environment.authenticatedContext(actor.uid).firestore()
   await assertSucceeds(deleteTripDocuments({ database: adminDb, tripId }))
   assert.equal((await getDoc(doc(adminDb, 'trips', tripId))).exists(), false)
+})
+
+test('legacy owner trips and child records without optional metadata remain readable and count toward balances', async () => {
+  const legacyTripId = 'legacy-owner-trip'
+  const legacyTrip = {
+    name: 'Older coast weekend',
+    currency: 'INR',
+    createdBy: actor.uid,
+    members: [
+      { uid: actor.uid, name: actor.name, role: 'admin' },
+      { uid: 'member-b', name: 'B Traveler', role: 'member' },
+    ],
+  }
+
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const database = context.firestore()
+    await setDoc(doc(database, 'trips', legacyTripId), legacyTrip)
+    await setDoc(doc(database, 'trips', legacyTripId, 'expenses', 'expense-without-metadata'), {
+      title: 'Old dinner',
+      amount: 120,
+      paidBy: actor.uid,
+      splitMode: 'equal',
+      splitAmong: [{ uid: actor.uid, value: 1 }, { uid: 'member-b', value: 1 }],
+    })
+    await setDoc(doc(database, 'trips', legacyTripId, 'settlements', 'settlement-without-metadata'), {
+      from: 'member-b',
+      to: actor.uid,
+      amount: 60,
+      method: 'upi',
+    })
+  })
+
+  const database = environment.authenticatedContext(actor.uid).firestore()
+  const storedTrip = await assertSucceeds(getDoc(doc(database, 'trips', legacyTripId)))
+  assert.equal(storedTrip.data().members[0].isGuest, undefined)
+  const ownedTrips = await assertSucceeds(getDocs(query(
+    collection(database, 'trips'),
+    where('createdBy', '==', actor.uid),
+  )))
+  assert.ok(ownedTrips.docs.some((item) => item.id === legacyTripId))
+
+  const expenses = await assertSucceeds(getDocs(collection(database, 'trips', legacyTripId, 'expenses')))
+  const settlements = await assertSucceeds(getDocs(collection(database, 'trips', legacyTripId, 'settlements')))
+  assert.equal(expenses.size, 1)
+  assert.equal(settlements.size, 1)
+  assert.deepEqual(sortRecordsByDate(expenses.docs.map((item) => ({ id: item.id, ...item.data() })), ['date', 'createdAt']).map((item) => item.id), ['expense-without-metadata'])
+
+  const balances = computeBalances({
+    trip: storedTrip.data(),
+    expenses: expenses.docs.map((item) => ({ id: item.id, ...item.data() })),
+    settlements: settlements.docs.map((item) => ({ id: item.id, ...item.data() })),
+  })
+  assert.equal(balances.find((item) => item.uid === actor.uid).net, 0)
+  assert.equal(balances.find((item) => item.uid === 'member-b').net, 0)
+})
+
+test('legacy guest ownership remains scoped to the authenticated guest UID', async () => {
+  const legacyTripId = 'legacy-guest-trip'
+  const guestUid = 'guest-owner'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', legacyTripId), {
+      name: 'Guest legacy trip',
+      currency: 'INR',
+      createdBy: guestUid,
+      members: [{ uid: guestUid, name: 'Guest owner', role: 'admin' }],
+    })
+  })
+
+  const guestDb = environment.authenticatedContext(guestUid, {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  await assertSucceeds(getDoc(doc(guestDb, 'trips', legacyTripId)))
+  const outsiderDb = environment.authenticatedContext('unrelated-guest', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  await assertFails(getDoc(doc(outsiderDb, 'trips', legacyTripId)))
+})
+
+test('a joined member remains in trip queries after sign-out, sign-in, and fresh app sessions', async () => {
+  const email = `membership-${Date.now()}-${Math.random().toString(36).slice(2)}@example.test`
+  const password = 'EmulatorOnly123!'
+  const apps = []
+  let sessionNumber = 0
+  const createSession = () => {
+    const app = initializeApp({
+      apiKey: 'demo-api-key',
+      authDomain: `${projectId}.firebaseapp.com`,
+      projectId,
+      appId: `demo-${Date.now()}`,
+    }, `membership-session-${Date.now()}-${sessionNumber++}`)
+    apps.push(app)
+    const auth = getAuth(app)
+    const database = getFirestore(app)
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+    connectFirestoreEmulator(database, '127.0.0.1', 8080)
+    return { app, auth, database }
+  }
+
+  try {
+    const firstSession = createSession()
+    const account = await createUserWithEmailAndPassword(firstSession.auth, email, password)
+    const uid = account.user.uid
+    const joinedMember = { uid, name: 'Persistent Traveler', email }
+
+    await addMemberToTrip({ database: firstSession.database, tripId, member: joinedMember })
+    await addMemberToTrip({ database: firstSession.database, tripId, member: joinedMember })
+    assert.equal(firstSession.auth.currentUser.uid, uid)
+    const joinedTrip = await getDoc(doc(firstSession.database, 'trips', tripId))
+    assert.equal(joinedTrip.data().memberIds.includes(uid), true)
+
+    const assertTripInList = async (database) => {
+      const results = await assertSucceeds(getDocs(query(
+        collection(database, 'trips'),
+        where('memberIds', 'array-contains', uid),
+      )))
+      assert.ok(results.docs.some((item) => item.id === tripId))
+      const storedTrip = await getDoc(doc(database, 'trips', tripId))
+      assert.equal(storedTrip.data().memberIds.filter((id) => id === uid).length, 1)
+      assert.equal(storedTrip.data().members.filter((item) => item.uid === uid).length, 1)
+    }
+
+    await assertTripInList(firstSession.database)
+    await signOut(firstSession.auth)
+    await signInWithEmailAndPassword(firstSession.auth, email, password)
+    assert.equal(firstSession.auth.currentUser.uid, uid)
+    await assertTripInList(firstSession.database)
+
+    await deleteApp(firstSession.app)
+    const secondSession = createSession()
+    const restored = await signInWithEmailAndPassword(secondSession.auth, email, password)
+    assert.equal(restored.user.uid, uid)
+    await assertTripInList(secondSession.database)
+
+    await addMemberToTrip({ database: secondSession.database, tripId, member: joinedMember })
+    await assertTripInList(secondSession.database)
+
+    const outsiderDb = environment.authenticatedContext('membership-outsider').firestore()
+    await assertFails(getDoc(doc(outsiderDb, 'trips', tripId)))
+  } finally {
+    await Promise.all(apps.map((app) => deleteApp(app).catch(() => {})))
+  }
 })
 
 test('trip metadata and member role updates are limited to admins and preserve membership ownership', async () => {
@@ -467,6 +617,19 @@ test('a guest can join an existing trip, add expenses, and see their balance', a
   assert.equal(joinedTrip.data().members.filter((member) => member.uid === joiningMember.uid).length, 1)
   assert.equal(joinedTrip.data().members.find((member) => member.uid === joiningMember.uid).role, 'member')
   assert.equal(joinedTrip.data().members.find((member) => member.uid === joiningMember.uid).isGuest, true)
+  const guestTrips = await assertSucceeds(getDocs(query(
+    collection(database, 'trips'),
+    where('memberIds', 'array-contains', joiningMember.uid),
+  )))
+  assert.ok(guestTrips.docs.some((item) => item.id === tripId))
+  const restoredGuestDatabase = environment.authenticatedContext(joiningMember.uid, {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  const restoredGuestTrips = await assertSucceeds(getDocs(query(
+    collection(restoredGuestDatabase, 'trips'),
+    where('memberIds', 'array-contains', joiningMember.uid),
+  )))
+  assert.ok(restoredGuestTrips.docs.some((item) => item.id === tripId))
 
   const guestExpenseValues = {
     ...expenseValues,
@@ -534,5 +697,8 @@ test('joining an unknown trip code fails without creating a trip', async () => {
   const joiningMember = { uid: 'member-d', name: 'D Traveler', email: 'd@example.test' }
   const database = environment.authenticatedContext(joiningMember.uid).firestore()
 
-  await assertFails(addMemberToTrip({ database, tripId: 'missing-trip', member: joiningMember }))
+  await assert.rejects(
+    addMemberToTrip({ database, tripId: 'missing-trip', member: joiningMember }),
+    /could not be found/i,
+  )
 })

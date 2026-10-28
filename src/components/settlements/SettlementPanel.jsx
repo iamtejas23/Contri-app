@@ -194,7 +194,7 @@ export const SettlementPanel = ({
                     {membersMap[s.from]?.name} <span className="text-dusk">paid</span> {membersMap[s.to]?.name}
                   </p>
                   <p className="text-xs text-dusk">
-                    {formatDate(s.settledAt)} · {s.method.toUpperCase()}
+                    {formatDate(s.settledAt || s.createdAt || s.updatedAt)} · {(s.method || 'payment').toUpperCase()}
                     {s.note ? ` · ${s.note}` : ''}
                   </p>
                 </div>

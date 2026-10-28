@@ -47,7 +47,7 @@ export const exportExpensesCsv = async ({ trip, expenses = [], membersMap }) => 
     Currency: trip.currency,
     Category: expense.category,
     PaidBy: membersMap[expense.paidBy]?.name || expense.paidBy,
-    Date: expense.date,
+    Date: expense.date || formatDate(expense.createdAt || expense.updatedAt),
     SplitMode: expense.splitMode,
     Note: expense.note || '',
     ReceiptURL: expense.receiptURL || '',
@@ -87,7 +87,7 @@ export const exportTripSummaryPdf = async ({
       expense.title,
       expense.category,
       membersMap[expense.paidBy]?.name || expense.paidBy,
-      expense.date,
+      expense.date || formatDate(expense.createdAt || expense.updatedAt),
       formatCurrency(expense.amount, trip.currency),
     ]),
   })

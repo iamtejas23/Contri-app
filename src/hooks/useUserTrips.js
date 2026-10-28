@@ -1,9 +1,8 @@
 import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
 
 import { db } from '../firebase/config'
-import { toDateValue } from '../lib/date'
+import { sortRecordsByDate } from '../lib/date'
 import { getErrorMessage } from '../lib/errors'
 
 export const useUserTrips = (uid) => {
@@ -12,6 +11,7 @@ export const useUserTrips = (uid) => {
     uid: null,
     trips: [],
     error: '',
+    loading: true,
   })
 
   useEffect(() => {
@@ -19,44 +19,66 @@ export const useUserTrips = (uid) => {
       return undefined
     }
 
-    const unsubscribe = onSnapshot(
-      query(collection(db, 'trips'), where('memberIds', 'array-contains', uid)),
+    const tripSources = { memberships: new Map(), ownership: new Map() }
+    const sourceErrors = {}
+    const sourceReady = { memberships: false, ownership: false }
+    const publish = () => {
+      const uniqueTrips = new Map([
+        ...tripSources.memberships,
+        ...tripSources.ownership,
+      ])
+      const messages = Object.values(sourceErrors)
+      setState({
+        uid,
+        trips: sortRecordsByDate([...uniqueTrips.values()], ['createdAt', 'updatedAt']),
+        error: messages.join(' '),
+        loading: !Object.values(sourceReady).every(Boolean),
+      })
+    }
+    const subscribe = (source, tripQuery) => onSnapshot(
+      tripQuery,
       (snapshot) => {
-        const nextTrips = snapshot.docs
-          .map((item) => ({
-            id: item.id,
-            ...item.data(),
-          }))
-          .sort((first, second) => {
-            const firstDate = toDateValue(first.createdAt)?.getTime() || 0
-            const secondDate = toDateValue(second.createdAt)?.getTime() || 0
-            return secondDate - firstDate
-          })
-
-        setState({
-          uid,
-          trips: nextTrips,
-          error: '',
-        })
+        tripSources[source] = new Map(snapshot.docs.map((item) => [item.id, {
+          id: item.id,
+          ...item.data(),
+        }]))
+        delete sourceErrors[source]
+        sourceReady[source] = true
+        publish()
       },
       (error) => {
-        const message = getErrorMessage(error, 'We could not load your trips.')
-        toast.error(message)
-        setState({
-          uid,
-          trips: [],
-          error: message,
-        })
+        sourceErrors[source] = `${source === 'ownership' ? 'Older trips' : 'Trips'}: ${getErrorMessage(error, 'We could not load your trips.')}`
+        sourceReady[source] = true
+        publish()
       },
     )
 
-    return unsubscribe
+    const unsubscribeMemberships = subscribe(
+      'memberships',
+      query(collection(db, 'trips'), where('memberIds', 'array-contains', uid)),
+    )
+    const unsubscribeOwnership = subscribe(
+      'ownership',
+      query(collection(db, 'trips'), where('createdBy', '==', uid)),
+    )
+
+    return () => {
+      unsubscribeMemberships()
+      unsubscribeOwnership()
+    }
   }, [uid, retryCount])
+
+  const retry = () => {
+    setState((current) => current.uid === uid
+      ? { ...current, loading: true, error: '', trips: [] }
+      : current)
+    setRetryCount((count) => count + 1)
+  }
 
   return {
     trips: state.uid === uid ? state.trips : [],
-    loading: Boolean(uid) && state.uid !== uid,
+    loading: Boolean(uid) && (state.uid !== uid || state.loading),
     error: state.uid === uid ? state.error : '',
-    retry: () => setRetryCount((count) => count + 1),
+    retry,
   }
 }

@@ -300,12 +300,12 @@ export const TripPage = () => {
     toast.success(`${member.name} is now ${role === 'admin' ? 'an admin' : 'a member'}.`)
   }
 
-  if (error && !trip && !loading) {
+  if (error && !loading) {
     return (
       <ErrorState
         description={error}
         onRetry={retry}
-        title="This trip did not load"
+        title={trip ? 'Some trip data did not load' : 'This trip did not load'}
       />
     )
   }
@@ -347,7 +347,7 @@ export const TripPage = () => {
           )}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-bold text-ink">{trip.name}</h1>
+              <h1 className="break-words font-display text-2xl font-bold text-ink [overflow-wrap:anywhere]">{trip.name}</h1>
               <Badge>{trip.currency}</Badge>
               {isAdmin ? <Badge tone="teal">Admin</Badge> : null}
             </div>
@@ -361,11 +361,11 @@ export const TripPage = () => {
           {/* Members row */}
           <div className="flex flex-wrap items-center gap-2">
             {members.map((member) => (
-              <div key={member.uid} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
+              <div key={member.uid} className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
                 <Avatar name={member.name} size="sm" />
-                <div>
-                  <p className="text-xs font-semibold text-ink">{member.name}</p>
-                  <p className="text-[10px] uppercase tracking-wider text-dusk">
+                <div className="min-w-0">
+                  <p className="break-words text-xs font-semibold text-ink [overflow-wrap:anywhere]">{member.name}</p>
+                  <p className="break-words text-[10px] uppercase tracking-wider text-dusk [overflow-wrap:anywhere]">
                     {member.role}{member.isGuest ? ' · guest' : ''}
                   </p>
                 </div>
@@ -506,17 +506,17 @@ export const TripPage = () => {
               {members.map((member) => (
                 <div
                   key={member.uid}
-                  className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"
+                  className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <Avatar name={member.name} size="sm" src={member.photoURL} />
-                    <div>
-                      <p className="text-sm font-semibold text-ink">{member.name}</p>
-                      <p className="text-xs text-dusk">{member.email}</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}</p>
+                      {member.email ? <p className="break-all text-xs text-dusk">{member.email}</p> : null}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={member.role === 'admin' ? 'teal' : 'default'}>{member.role}</Badge>
+                  <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
+                    <Badge tone={member.role === 'admin' ? 'teal' : 'default'}>{member.role || 'member'}</Badge>
                     {member.isGuest ? <Badge tone="amber">Guest</Badge> : null}
                     {canManageTrip ? (
                       member.role === 'admin' ? (

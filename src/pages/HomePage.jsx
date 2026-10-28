@@ -166,7 +166,7 @@ export const HomePage = () => {
           </div>
         </div>
 
-        {error && !loading ? (
+        {error && !loading && trips.length === 0 ? (
           <ErrorState description={error} onRetry={retry} title="Trips did not load" />
         ) : loading ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -188,11 +188,19 @@ export const HomePage = () => {
             title="No results"
           />
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((trip) => (
-              <TripCard key={trip.id} trip={trip} />
-            ))}
-          </div>
+          <>
+            {error ? (
+              <div className="mb-4 flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between" role="alert">
+                <p>Some trip records may be missing. {error}</p>
+                <Button onClick={retry} size="sm" type="button" variant="secondary">Retry</Button>
+              </div>
+            ) : null}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filtered.map((trip) => (
+                <TripCard key={trip.id} trip={trip} />
+              ))}
+            </div>
+          </>
         )}
       </section>
 
