@@ -6,6 +6,10 @@ Contri helps a group organize a trip's shared expenses, see how costs split, and
 
 There are no product screenshots in the repository. The image assets are app artwork, icons, and Android splash resources.
 
+## Marketing website
+
+A standalone, dependency-free GitHub Pages site lives in [`docs/`](./docs/). It is isolated from the root Vite/Capacitor app and is deployed by [`.github/workflows/pages.yml`](./.github/workflows/pages.yml) when site files change on `main`. For preview, APK release configuration, and the GitHub Pages repository settings, see [`docs/README.md`](./docs/README.md).
+
 ## What is implemented
 
 | Area | Current behavior |
