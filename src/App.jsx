@@ -5,7 +5,7 @@ import { AppShell } from './components/layout/AppShell'
 import { ProtectedRoute } from './routes/ProtectedRoute'
 import { PublicOnlyRoute } from './routes/PublicOnlyRoute'
 import { AuthPage } from './pages/AuthPage'
-import { AboutPage } from './pages/AboutPage'
+import { SettingsPage } from './pages/SettingsPage'
 import { HomePage } from './pages/HomePage'
 import { JoinTripPage } from './pages/JoinTripPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -25,7 +25,8 @@ function App() {
           <Route element={<AppShell />}>
             <Route element={<HomePage />} path="/" />
             <Route element={<ProfilePage />} path="/profile" />
-            <Route element={<AboutPage />} path="/about" />
+            <Route element={<SettingsPage />} path="/settings" />
+            <Route element={<Navigate replace to="/settings" />} path="/about" />
             <Route element={<JoinTripPage />} path="/join" />
             <Route element={<TripPage />} path="/trips/:tripId" />
           </Route>

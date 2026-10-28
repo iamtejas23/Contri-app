@@ -15,9 +15,11 @@ const COLORS = ['#0D9488', '#F97316', '#3B82F6', '#8B5CF6', '#F59E0B', '#10B981'
 const chartStyle = {
   contentStyle: {
     borderRadius: '12px',
-    border: '1px solid #E2E8F0',
+    border: '1px solid var(--border-color)',
     boxShadow: '0 4px 6px -1px rgb(0 0 0/0.06)',
     fontSize: '13px',
+    backgroundColor: 'var(--surface-color)',
+    color: 'var(--text-primary)',
   },
 }
 
@@ -119,9 +121,9 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
           <div className="mt-4 h-64">
             <ResponsiveContainer height="100%" width="100%">
               <BarChart data={metrics.dailyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
                 <Tooltip formatter={(v) => formatCurrency(v, trip.currency)} {...chartStyle} />
                 <Bar dataKey="value" fill="#0D9488" radius={[6, 6, 2, 2]} />
               </BarChart>
@@ -136,9 +138,9 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
           <div className="mt-4 h-64">
             <ResponsiveContainer height="100%" width="100%">
               <BarChart data={metrics.contributionsData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
-                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
+                <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
                 <Tooltip formatter={(v) => formatCurrency(v, trip.currency)} {...chartStyle} />
                 <Bar dataKey="amount" fill="#F97316" radius={[6, 6, 2, 2]} />
               </BarChart>

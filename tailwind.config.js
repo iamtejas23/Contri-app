@@ -4,10 +4,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink:   '#0F172A',  // slate-900 — primary text
-        dusk:  '#64748B',  // slate-500 — secondary text
-        sand:  '#F8FAFC',  // slate-50  — page background
-        cream: '#FFFFFF',  // white     — card background
+        ink:   'rgb(var(--color-ink) / <alpha-value>)',
+        dusk:  'rgb(var(--color-dusk) / <alpha-value>)',
+        sand:  'rgb(var(--color-sand) / <alpha-value>)',
+        cream: 'rgb(var(--color-cream) / <alpha-value>)',
         teal:  '#0D9488',  // teal-600  — brand / primary action
         mint:  '#5EEAD4',  // teal-300  — lighter teal accent
         coral: '#F97316',  // orange-500 — CTA / danger accent
@@ -23,7 +23,7 @@ export default {
         display: ['"Space Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       backgroundImage: {
-        mesh: 'linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%)',
+        mesh: 'linear-gradient(135deg, rgb(var(--color-cream)) 0%, rgb(var(--color-sand)) 100%)',
       },
       borderRadius: {
         card: '1rem',

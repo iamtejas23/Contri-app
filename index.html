@@ -6,6 +6,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Contri — the easiest way for Indian friends to split trip expenses and settle on UPI. Trip khatam. Hisab bhi khatam." />
     <title>Contri — Trip khatam. Hisab bhi khatam.</title>
+    <script>
+      try {
+        const savedTheme = localStorage.getItem('contri-theme')
+        const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+        const theme = savedTheme === 'light' || savedTheme === 'dark'
+          ? savedTheme
+          : systemPrefersDark ? 'dark' : 'light'
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+      } catch {
+        document.documentElement.dataset.theme = 'light'
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -64,7 +64,7 @@ export const HomePage = () => {
   return (
     <div className="space-y-8">
       {/* Hero banner */}
-      <div className="overflow-hidden rounded-2xl bg-gradient-to-br from-teal via-teal/90 to-teal/70">
+      <div className="mesh-brand-panel overflow-hidden rounded-2xl">
         <div className="px-6 py-8 sm:px-8 sm:py-10">
           <p className="text-xs font-semibold uppercase tracking-widest text-white/60">
             Welcome back, {getDisplayName(profile || user)}

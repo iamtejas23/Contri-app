@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core'
 import { StatusBar, Style } from '@capacitor/status-bar'
 
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { NativeViewport } from './components/NativeViewport'
 import './index.css'
 import App from './App.jsx'
@@ -23,11 +24,13 @@ createRoot(document.getElementById('root')).render(
         v7_relativeSplatPath: true,
       }}
     >
-      <AuthProvider>
-        <NativeViewport>
-          <App />
-        </NativeViewport>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <NativeViewport>
+            <App />
+          </NativeViewport>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </StrictMode>,
 )

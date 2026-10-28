@@ -1,4 +1,4 @@
-import { Info, LogOut, Map, UserCircle2 } from 'lucide-react'
+import { LogOut, Map, Settings2, UserCircle2 } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../../context/useAuth'
@@ -11,7 +11,7 @@ import { NotificationCenter } from '../notifications/NotificationCenter'
 const navItems = [
   { to: '/', label: 'Trips', icon: Map },
   { to: '/profile', label: 'Profile', icon: UserCircle2 },
-  { to: '/about', label: 'About', icon: Info },
+  { to: '/settings', label: 'Settings', icon: Settings2 },
 ]
 
 export const AppShell = () => {
@@ -20,7 +20,7 @@ export const AppShell = () => {
   return (
       <div className="min-h-dvh bg-sand text-ink">
       {/* Top header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)]">
+      <header className="app-topbar sticky top-0 z-30 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] py-3 sm:gap-4 sm:px-6 lg:px-8">
           {/* Logo */}
           <NavLink className="flex items-center gap-2.5 min-w-0" to="/">

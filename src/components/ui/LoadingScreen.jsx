@@ -1,3 +1,5 @@
+import { CREATOR_URL, openCreatorLink } from '../../lib/creatorLink'
+
 export const LoadingScreen = () => (
   <main aria-label="Loading Contri" aria-live="polite" className="contri-splash">
     <div aria-hidden="true" className="contri-splash__glow contri-splash__glow--one" />
@@ -38,6 +40,14 @@ export const LoadingScreen = () => (
       </div>
     </section>
 
-    <span aria-hidden="true" className="contri-splash__caption">MADE FOR SHARED MOMENTS</span>
+    <a
+      className="contri-splash__credit"
+      href={CREATOR_URL}
+      onClick={openCreatorLink}
+      rel="noopener noreferrer"
+      target="_blank"
+    >
+      Built by <span>Tejas Mane</span>
+    </a>
   </main>
 )
