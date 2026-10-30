@@ -54,17 +54,17 @@
 }
 
 html[data-theme='dark'] {
-  --color-ink: 226 232 240;
-  --color-dusk: 171 184 200;
-  --color-sand: 11 18 32;
-  --color-cream: 20 30 45;
-  --surface-color: #111c2b;
-  --surface-muted: #152235;
-  --surface-subtle: #1e2b3d;
-  --border-color: #334155;
-  --text-primary: #e2e8f0;
-  --text-secondary: #aebbd0;
-  --chart-grid: #334155;
+  --color-ink: 244 244 245;
+  --color-dusk: 161 161 170;
+  --color-sand: 0 0 0;
+  --color-cream: 20 20 20;
+  --surface-color: #141414;
+  --surface-muted: #080808;
+  --surface-subtle: #1b1b1b;
+  --border-color: #242424;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --chart-grid: #242424;
   color-scheme: dark;
 }
 
@@ -72,13 +72,15 @@ html[data-theme='dark'] body { background-color: rgb(var(--color-sand)); }
 html[data-theme='dark'] .bg-white,
 html[data-theme='dark'] .bg-cream { background-color: var(--surface-color) !important; }
 html[data-theme='dark'] .bg-slate-50 { background-color: var(--surface-muted) !important; }
-html[data-theme='dark'] .bg-slate-100 { background-color: var(--surface-subtle) !important; }
+html[data-theme='dark'] .bg-slate-100,
+html[data-theme='dark'] .bg-slate-200 { background-color: var(--surface-subtle) !important; }
 html[data-theme='dark'] .border-slate-100,
 html[data-theme='dark'] .border-slate-200,
 html[data-theme='dark'] .border-slate-300 { border-color: var(--border-color) !important; }
 html[data-theme='dark'] .text-slate-900,
 html[data-theme='dark'] .text-slate-800,
-html[data-theme='dark'] .text-slate-700 { color: var(--text-primary) !important; }
+html[data-theme='dark'] .text-slate-700,
+html[data-theme='dark'] .text-slate-300 { color: var(--text-primary) !important; }
 html[data-theme='dark'] .text-slate-600,
 html[data-theme='dark'] .text-slate-500,
 html[data-theme='dark'] .text-slate-400 { color: var(--text-secondary) !important; }
@@ -86,6 +88,8 @@ html[data-theme='dark'] .hover\:bg-slate-50:hover { background-color: var(--surf
 html[data-theme='dark'] .hover\:bg-slate-100:hover { background-color: var(--surface-subtle) !important; }
 html[data-theme='dark'] .active\:bg-slate-100:active { background-color: var(--surface-subtle) !important; }
 html[data-theme='dark'] .bg-teal-50 { background-color: rgb(13 148 136 / 14%) !important; }
+html[data-theme='dark'] .ring-white { --tw-ring-color: #242424; }
+html[data-theme='dark'] .bg-ink.text-white { background-color: #e4e4e7 !important; color: #09090b !important; }
 html[data-theme='dark'] .bg-orange-50 { background-color: rgb(249 115 22 / 12%) !important; }
 html[data-theme='dark'] .bg-red-50 { background-color: rgb(239 68 68 / 13%) !important; }
 html[data-theme='dark'] .bg-amber-50 { background-color: rgb(245 158 11 / 13%) !important; }
@@ -138,6 +142,16 @@ html[data-theme='dark'] textarea::placeholder { color: #94a3b8; }
 }
 
 .settings-builder__terminal { background-color: var(--surface-muted); }
+html[data-theme='dark'] .settings-hero {
+  border-color: #242424;
+  background:
+    radial-gradient(ellipse at 92% 0%, rgb(255 255 255 / 5%), transparent 42%),
+    linear-gradient(135deg, #080808, #111111);
+}
+html[data-theme='dark'] .settings-info-surface {
+  background: radial-gradient(ellipse at 100% 0%, rgb(255 255 255 / 4%), transparent 46%), #141414;
+}
+html[data-theme='dark'] .settings-builder__terminal { background-color: #080808; }
 .mesh-brand-panel {
   background:
     radial-gradient(ellipse at 88% 4%, rgb(94 234 212 / 28%), transparent 38%),

@@ -24,6 +24,17 @@ export const ProfilePage = () => {
     upiId: profile?.upiId || '',
   }
   const form = draft || liveValues
+  const providerNames = (user?.providerData || [])
+    .map(({ providerId }) => ({
+      'google.com': 'Google',
+      'password': 'Email and password',
+      'apple.com': 'Apple',
+    })[providerId] || providerId)
+  const accountType = user?.isAnonymous
+    ? 'Guest account'
+    : providerNames.length
+      ? providerNames.join(', ')
+      : 'Signed-in account'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -80,7 +91,7 @@ export const ProfilePage = () => {
             <p className="font-display text-xl font-bold text-ink">
               {form.name || getDisplayName(profile || user)}
             </p>
-            <p className="mt-1 text-sm text-dusk">{profile?.contactEmail || profile?.email || user?.email || ''}</p>
+            <p className="mt-1 break-all text-sm text-dusk">{profile?.contactEmail || profile?.email || user?.email || 'No email linked'}</p>
             {user?.isAnonymous ? <Badge className="mt-2" tone="amber">Guest account</Badge> : null}
           </div>
 
@@ -93,15 +104,13 @@ export const ProfilePage = () => {
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
               <Mail className="h-4 w-4 flex-shrink-0 text-slate-400" />
-              <span className="truncate text-sm text-ink">
-                {profile?.email || profile?.contactEmail || user?.email || ''}
+              <span className="min-w-0 break-all text-sm text-ink">
+                {profile?.email || profile?.contactEmail || user?.email || 'No email linked'}
               </span>
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-slate-50 px-4 py-3">
               <Shield className="h-4 w-4 flex-shrink-0 text-slate-400" />
-              <Badge tone={user?.isAnonymous ? 'amber' : 'teal'}>
-                {user?.isAnonymous ? 'Guest · not verified' : 'Verified'}
-              </Badge>
+              <span className="min-w-0 break-words text-sm text-ink">{accountType}</span>
             </div>
           </div>
         </Card>

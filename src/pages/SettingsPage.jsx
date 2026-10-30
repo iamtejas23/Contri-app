@@ -19,7 +19,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../context/useAuth'
 import { useTheme } from '../context/useTheme'
 import { getDisplayName } from '../lib/utils'
-import { openCreatorLink, CREATOR_URL } from '../lib/creatorLink'
+import { openCreatorLink, openExternalLink, CREATOR_URL, GITHUB_URL } from '../lib/creatorLink'
 import {
   isNotificationSoundEnabled,
   previewNotificationSound,
@@ -34,6 +34,12 @@ const appearanceOptions = [
   { value: 'dark', label: 'Dark', description: 'Easy on the eyes', icon: Moon },
   { value: 'system', label: 'System', description: 'Follow your device', icon: Monitor },
 ]
+
+const GitHubMark = ({ className = '' }) => (
+  <svg aria-hidden="true" className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M12 .9a11.1 11.1 0 0 0-3.51 21.63c.56.1.76-.24.76-.54v-2.1c-3.1.68-3.76-1.32-3.76-1.32-.5-1.3-1.24-1.65-1.24-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.73 1.16 1.73 1.16 1 .1.8 2.04 3.76 1.44.1-.73.4-1.22.7-1.5-2.48-.28-5.09-1.24-5.09-5.5 0-1.22.44-2.22 1.16-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.05 1.15a10.6 10.6 0 0 1 5.54 0c2.11-1.45 3.05-1.15 3.05-1.15.61 1.54.23 2.68.11 2.96.72.78 1.16 1.78 1.16 3 0 4.27-2.62 5.22-5.11 5.49.4.35.75 1.03.75 2.08v3.09c0 .3.2.65.77.54A11.1 11.1 0 0 0 12 .9Z" />
+  </svg>
+)
 
 export const SettingsPage = () => {
   const { preference, setThemePreference } = useTheme()
@@ -227,6 +233,17 @@ export const SettingsPage = () => {
                   <ArrowUpRight aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-teal" />
                 </a>
                 <p className="mt-1 text-sm text-dusk">Engineering <span aria-hidden="true">·</span> Automation <span aria-hidden="true">·</span> Cloud</p>
+                <a
+                  className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium text-dusk transition hover:text-ink focus-visible:outline-teal"
+                  href={GITHUB_URL}
+                  onClick={(event) => openExternalLink(event, GITHUB_URL)}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  <GitHubMark className="h-4 w-4" />
+                  <span>@iamtejas23</span>
+                  <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+                </a>
               </div>
             </div>
             <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-medium text-dusk sm:self-center">

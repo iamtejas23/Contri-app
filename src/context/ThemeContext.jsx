@@ -21,7 +21,7 @@ export const ThemeProvider = ({ children }) => {
       document.documentElement.style.colorScheme = resolved
 
       if (Capacitor.isNativePlatform()) {
-        const backgroundColor = resolved === 'dark' ? '#0B1220' : '#F8FAFC'
+        const backgroundColor = resolved === 'dark' ? '#000000' : '#F8FAFC'
         StatusBar.setBackgroundColor({ color: backgroundColor }).catch(() => {})
         StatusBar.setStyle({ style: resolved === 'dark' ? Style.Light : Style.Dark }).catch(() => {})
       }
