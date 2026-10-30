@@ -207,7 +207,7 @@ service cloud.firestore {
           && resource.data.read == false
           && request.resource.data.read == true
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-        allow delete: if false;
+        allow delete: if isSelf(uid);
       }
     }
 

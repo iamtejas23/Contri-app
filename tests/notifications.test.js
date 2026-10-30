@@ -14,10 +14,14 @@ import {
   arrayUnion,
   collection,
   connectFirestoreEmulator,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
   getFirestore,
+  limit,
+  onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -26,6 +30,7 @@ import {
 } from 'firebase/firestore'
 
 import { countUnreadNotifications, expenseNotificationId } from '../src/lib/notifications.js'
+import { createNotificationArrivalDetector } from '../src/lib/notificationSound.js'
 import { getTripIdFromInvite } from '../src/lib/invites.js'
 import { addMemberToTrip } from '../src/lib/joinTrip.js'
 import { computeBalances } from '../src/lib/balances.js'
@@ -33,6 +38,12 @@ import { sortRecordsByDate } from '../src/lib/date.js'
 import { createGuestSession } from '../src/lib/guestAuth.js'
 import { buildCreateExpenseBatch } from '../src/services/expenseWrites.js'
 import { buildCreateSettlementBatch } from '../src/services/settlementWrites.js'
+import {
+  clearAllNotificationsFromDatabase as clearAllNotifications,
+  clearNotificationsForTripFromDatabase as clearNotificationsForTrip,
+  getConfirmedNotificationClearAction,
+  getNotificationTrips,
+} from '../src/services/notificationClearing.js'
 import { createTripDocument, deleteTripDocuments } from '../src/services/tripDocuments.js'
 
 const projectId = 'demo-contri-notifications'
@@ -466,6 +477,99 @@ test('users can only read their own notifications and can only mark them read', 
   await assertFails(updateDoc(ownRef, { expenseTitle: 'Changed by recipient' }))
 })
 
+test('clear all removes only the signed-in user notification documents', async () => {
+  const uid = 'clear-owner'
+  const database = environment.authenticatedContext(uid).firestore()
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore()
+    await Promise.all([
+      setDoc(doc(adminDb, 'users', uid, 'notifications', 'first'), { tripId, read: false }),
+      setDoc(doc(adminDb, 'users', uid, 'notifications', 'second'), { tripId, read: true }),
+      setDoc(doc(adminDb, 'users', 'another-user', 'notifications', 'untouched'), { tripId, read: false }),
+    ])
+  })
+
+  const result = await assertSucceeds(clearAllNotifications({ uid, database }))
+  assert.equal(result.deletedCount, 2)
+  assert.equal(result.deletedUnreadCount, 1)
+  assert.equal((await getDocs(collection(database, 'users', uid, 'notifications'))).size, 0)
+  let otherUserNotifications
+  await environment.withSecurityRulesDisabled(async (context) => {
+    otherUserNotifications = await getDocs(collection(context.firestore(), 'users', 'another-user', 'notifications'))
+  })
+  assert.equal(otherUserNotifications.size, 1)
+  await assertFails(deleteDoc(doc(database, 'users', 'another-user', 'notifications', 'untouched')))
+})
+
+test('clear by trip removes only exact matching trip IDs and keeps legacy notifications', async () => {
+  const uid = 'trip-clear-owner'
+  const database = environment.authenticatedContext(uid).firestore()
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore()
+    await Promise.all([
+      setDoc(doc(adminDb, 'users', uid, 'notifications', 'target-1'), { tripId: 'trip-target', tripName: 'Target trip', read: false }),
+      setDoc(doc(adminDb, 'users', uid, 'notifications', 'target-2'), { tripId: 'trip-target', tripName: 'Target trip', read: true }),
+      setDoc(doc(adminDb, 'users', uid, 'notifications', 'other-trip'), { tripId: 'trip-other', tripName: 'Other trip', read: false }),
+      setDoc(doc(adminDb, 'users', uid, 'notifications', 'legacy'), { tripName: 'Legacy without ID', read: false }),
+      setDoc(doc(adminDb, 'users', uid, 'notifications', 'invalid-trip-id'), { tripId: 42, tripName: 'Malformed', read: false }),
+      setDoc(doc(adminDb, 'users', 'another-user', 'notifications', 'same-trip'), { tripId: 'trip-target', read: false }),
+    ])
+  })
+
+  const trips = await assertSucceeds(getNotificationTrips({ uid, database }))
+  assert.deepEqual(trips, [
+    { tripId: 'trip-other', tripName: 'Other trip', count: 1 },
+    { tripId: 'trip-target', tripName: 'Target trip', count: 2 },
+  ])
+  const result = await assertSucceeds(clearNotificationsForTrip({ uid, tripId: 'trip-target', database }))
+  assert.equal(result.deletedCount, 2)
+  assert.equal(result.deletedUnreadCount, 1)
+  const remaining = await getDocs(collection(database, 'users', uid, 'notifications'))
+  assert.deepEqual(remaining.docs.map((notification) => notification.id).sort(), [
+    'invalid-trip-id', 'legacy', 'other-trip',
+  ])
+  let anotherUser
+  await environment.withSecurityRulesDisabled(async (context) => {
+    anotherUser = await getDocs(collection(context.firestore(), 'users', 'another-user', 'notifications'))
+  })
+  assert.equal(anotherUser.size, 1)
+})
+
+test('cancelling a clear confirmation leaves no executable deletion action', () => {
+  let deletionCalls = 0
+  const cancelledDialog = null
+  const action = getConfirmedNotificationClearAction(cancelledDialog)
+  if (action) deletionCalls += 1
+  assert.equal(deletionCalls, 0)
+  assert.deepEqual(getConfirmedNotificationClearAction({ kind: 'trip-picker' }), null)
+  assert.deepEqual(getConfirmedNotificationClearAction({ kind: 'trip-confirm', trip: { tripId: 'trip-alpha' } }), {
+    type: 'trip',
+    tripId: 'trip-alpha',
+  })
+})
+
+test('notification clearing splits large delete sets below Firestore batch limits', async () => {
+  const uid = 'large-clear-owner'
+  const database = environment.authenticatedContext(uid).firestore()
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore()
+    for (let index = 0; index < 1001; index += 100) {
+      const writes = Array.from({ length: Math.min(100, 1001 - index) }, (_, offset) => {
+        const notificationIndex = index + offset
+        return setDoc(doc(adminDb, 'users', uid, 'notifications', `notice-${notificationIndex}`), {
+          tripId,
+          read: notificationIndex % 2 === 0,
+        })
+      })
+      await Promise.all(writes)
+    }
+  })
+
+  const result = await assertSucceeds(clearAllNotifications({ uid, database }))
+  assert.equal(result.deletedCount, 1001)
+  assert.equal((await getDocs(collection(database, 'users', uid, 'notifications'))).size, 0)
+})
+
 test('notification creation rejects mismatched expense details', async () => {
   const database = environment.authenticatedContext(actor.uid).firestore()
   const pending = buildCreateExpenseBatch({
@@ -549,6 +653,86 @@ test('unread count counts only unread notifications', () => {
     {},
   ]), 2)
   assert.equal(countUnreadNotifications([]), 0)
+})
+
+test('Firestore notification listener ignores history and plays once for a live notification', async () => {
+  const app = initializeApp({
+    apiKey: 'demo-api-key',
+    authDomain: 'localhost',
+    projectId,
+  }, `sound-listener-${Date.now()}`)
+  const database = getFirestore(app)
+  const auth = getAuth(app)
+  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    `sound-${Date.now()}@example.test`,
+    'password123',
+  )
+  const uid = credential.user.uid
+  connectFirestoreEmulator(database, '127.0.0.1', 8080)
+  const played = []
+  let resolvePlayed
+  const playedOnce = new Promise((resolve) => { resolvePlayed = resolve })
+  let stopListening = () => {}
+  let playbackTimeout
+  const detect = createNotificationArrivalDetector(uid, {
+    play: () => {
+      played.push('sound')
+      resolvePlayed()
+    },
+    seenKeys: new Set(),
+  })
+
+  try {
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', uid, 'notifications', 'history'), {
+        recipientUid: uid,
+        actorUid: 'another-user',
+        read: false,
+        createdAt: serverTimestamp(),
+      })
+    })
+    const snapshotQuery = query(
+      collection(database, 'users', uid, 'notifications'),
+      orderBy('createdAt', 'desc'),
+      limit(40),
+    )
+    stopListening = onSnapshot(snapshotQuery, { includeMetadataChanges: true }, detect)
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Notification listener did not establish a server snapshot')), 4000)
+      const stopBaseline = onSnapshot(snapshotQuery, { includeMetadataChanges: true }, (snapshot) => {
+        if (!snapshot.metadata.fromCache) {
+          clearTimeout(timeout)
+          stopBaseline()
+          resolve()
+        }
+      }, reject)
+    })
+    assert.deepEqual(played, [])
+
+    await environment.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(context.firestore(), 'users', uid, 'notifications', 'live'), {
+        recipientUid: uid,
+        actorUid: 'another-user',
+        read: false,
+        createdAt: serverTimestamp(),
+      })
+    })
+    await Promise.race([
+      playedOnce,
+      new Promise((_, reject) => {
+        playbackTimeout = setTimeout(() => reject(new Error('Live notification did not trigger sound')), 4000)
+      }),
+    ])
+    clearTimeout(playbackTimeout)
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    assert.deepEqual(played, ['sound'])
+  } finally {
+    stopListening()
+    clearTimeout(playbackTimeout)
+    await deleteApp(app)
+  }
 })
 
 test('a valid trip code or invite URL resolves to the existing trip ID', () => {

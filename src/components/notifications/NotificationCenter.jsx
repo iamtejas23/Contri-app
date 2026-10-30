@@ -1,12 +1,18 @@
-import { Bell, Check, CircleAlert, ExternalLink } from 'lucide-react'
-import { useState } from 'react'
+import { Bell, Check, CircleAlert, ExternalLink, LoaderCircle, Trash2 } from 'lucide-react'
+import { useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 
 import { useNotifications } from '../../hooks/useNotifications'
 import { formatCurrency } from '../../lib/currency'
 import { timeAgo } from '../../lib/date'
-import { markNotificationRead } from '../../services/notifications'
+import {
+  clearAllNotifications,
+  clearNotificationsForTrip,
+  getNotificationTrips,
+  markNotificationRead,
+} from '../../services/notifications'
+import { getConfirmedNotificationClearAction } from '../../services/notificationClearing.js'
 import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { Modal } from '../ui/Modal'
@@ -16,7 +22,52 @@ export const NotificationCenter = ({ uid }) => {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [pendingId, setPendingId] = useState('')
-  const { notifications, unreadCount, loading, error, retry } = useNotifications(uid)
+  const [clearDialog, setClearDialog] = useState(null)
+  const [tripOptions, setTripOptions] = useState([])
+  const [loadingTrips, setLoadingTrips] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const deletePendingRef = useRef(false)
+  const tripLoadPendingRef = useRef(false)
+  const { notifications, unreadCount, loading, error, retry, dismissNotifications } = useNotifications(uid)
+
+  const openTripPicker = async () => {
+    if (tripLoadPendingRef.current || deletePendingRef.current) return
+    tripLoadPendingRef.current = true
+    setClearDialog({ kind: 'trip-picker' })
+    setLoadingTrips(true)
+    try {
+      setTripOptions(await getNotificationTrips({ uid }))
+    } catch {
+      toast.error('Could not load trips from your notifications. Check your connection and try again.')
+      setClearDialog(null)
+    } finally {
+      tripLoadPendingRef.current = false
+      setLoadingTrips(false)
+    }
+  }
+
+  const confirmClear = async () => {
+    if (deletePendingRef.current || !uid) return
+    const action = getConfirmedNotificationClearAction(clearDialog)
+    if (!action) return
+    deletePendingRef.current = true
+    setDeleting(true)
+    try {
+      const result = action.type === 'all'
+        ? await clearAllNotifications({ uid })
+        : await clearNotificationsForTrip({ uid, tripId: action.tripId })
+      dismissNotifications(result)
+      toast.success(result.deletedCount
+        ? `Removed ${result.deletedCount} notification${result.deletedCount === 1 ? '' : 's'}.`
+        : 'There were no notifications to remove.')
+      setClearDialog(null)
+    } catch {
+      toast.error('Could not remove notifications. Check your connection and try again.')
+    } finally {
+      deletePendingRef.current = false
+      setDeleting(false)
+    }
+  }
 
   const openTrip = async (notification) => {
     if (pendingId) return
@@ -57,6 +108,30 @@ export const NotificationCenter = ({ uid }) => {
         open={open}
         title="Notifications"
       >
+        {!loading ? (
+          <div className="mb-4 flex flex-wrap justify-end gap-2">
+            <Button
+              className="min-h-11"
+              disabled={deleting || Boolean(pendingId)}
+              onClick={() => setClearDialog({ kind: 'all-confirm' })}
+              type="button"
+              variant="danger"
+            >
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
+              Clear all
+            </Button>
+            <Button
+              className="min-h-11"
+              disabled={deleting || Boolean(pendingId) || loadingTrips}
+              onClick={openTripPicker}
+              type="button"
+              variant="secondary"
+            >
+              Clear by trip
+            </Button>
+          </div>
+        ) : null}
+
         {error ? (
           <div className="mb-4 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
             <CircleAlert aria-hidden="true" className="h-5 w-5 flex-shrink-0" />
@@ -104,6 +179,73 @@ export const NotificationCenter = ({ uid }) => {
         ) : error ? null : (
           <EmptyState description="New expenses added by your trip members will show up here." title="You’re all caught up" />
         )}
+      </Modal>
+
+      <Modal
+        description={clearDialog?.kind === 'trip-picker'
+          ? 'Only notifications with a saved trip ID are listed.'
+          : 'This permanently removes the selected notifications from your account.'}
+        onClose={() => { if (!deleting) setClearDialog(null) }}
+        open={Boolean(clearDialog)}
+        title={clearDialog?.kind === 'trip-picker' ? 'Clear by trip' : 'Confirm deletion'}
+      >
+        {clearDialog?.kind === 'trip-picker' ? (
+          loadingTrips ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-dusk" role="status">
+              <LoaderCircle aria-hidden="true" className="h-5 w-5 animate-spin" />
+              Loading trips…
+            </div>
+          ) : tripOptions.length ? (
+            <div className="space-y-2">
+              {tripOptions.map((tripOption) => (
+                <button
+                  className="flex min-h-14 w-full items-center justify-between gap-3 rounded-xl border border-slate-200 px-4 py-3 text-left transition hover:border-teal/40 hover:bg-teal/5"
+                  key={tripOption.tripId}
+                  onClick={() => setClearDialog({ kind: 'trip-confirm', trip: tripOption })}
+                  type="button"
+                >
+                  <span className="min-w-0">
+                    <span className="block break-words font-semibold text-ink">{tripOption.tripName}</span>
+                    <span className="mt-0.5 block text-xs text-dusk">{tripOption.count} notification{tripOption.count === 1 ? '' : 's'}</span>
+                  </span>
+                  <Trash2 aria-hidden="true" className="h-4 w-4 flex-shrink-0 text-dusk" />
+                </button>
+              ))}
+              <p className="pt-2 text-xs leading-5 text-dusk">
+                Older notifications without a trip ID are left untouched by this action.
+              </p>
+            </div>
+          ) : (
+            <EmptyState
+              description="Notifications without a saved trip ID are kept safe and cannot be grouped by trip."
+              title="No trips to clear"
+            />
+          )
+        ) : clearDialog?.kind === 'all-confirm' ? (
+          <div className="space-y-5">
+            <p className="text-sm leading-6 text-dusk">
+              All notifications in your account will be removed. Trips, expenses, settlements, members, and other users’ notifications will not be affected.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button disabled={deleting} onClick={() => setClearDialog(null)} type="button" variant="secondary">Cancel</Button>
+              <Button loading={deleting} onClick={confirmClear} type="button" variant="danger">
+                Delete all notifications
+              </Button>
+            </div>
+          </div>
+        ) : clearDialog?.kind === 'trip-confirm' ? (
+          <div className="space-y-5">
+            <p className="break-words text-sm leading-6 text-dusk">
+              Remove {clearDialog.trip.count} notification{clearDialog.trip.count === 1 ? '' : 's'} for <strong className="text-ink">{clearDialog.trip.tripName}</strong>? Notifications without this exact trip ID and all other account data will remain untouched.
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button disabled={deleting} onClick={() => setClearDialog({ kind: 'trip-picker' })} type="button" variant="secondary">Back</Button>
+              <Button loading={deleting} onClick={confirmClear} type="button" variant="danger">
+                Delete trip notifications
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </>
   )

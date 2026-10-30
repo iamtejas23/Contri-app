@@ -6,15 +6,25 @@ import {
   LogOut,
   Monitor,
   Moon,
+  Play,
   Sun,
   UserRound,
+  Volume2,
+  VolumeX,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import toast from 'react-hot-toast'
 
 import { useAuth } from '../context/useAuth'
 import { useTheme } from '../context/useTheme'
 import { getDisplayName } from '../lib/utils'
 import { openCreatorLink, CREATOR_URL } from '../lib/creatorLink'
+import {
+  isNotificationSoundEnabled,
+  previewNotificationSound,
+  setNotificationSoundEnabled,
+} from '../lib/notificationSound'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -28,8 +38,24 @@ const appearanceOptions = [
 export const SettingsPage = () => {
   const { preference, setThemePreference } = useTheme()
   const { user, profile, logout } = useAuth()
+  const [soundEnabled, setSoundEnabled] = useState(isNotificationSoundEnabled)
   const displayName = getDisplayName(profile || user)
   const accountEmail = profile?.contactEmail || profile?.email || user?.email
+
+  const handleSoundToggle = async () => {
+    const nextValue = !soundEnabled
+    const unlocked = await setNotificationSoundEnabled(nextValue)
+    setSoundEnabled(nextValue)
+    if (nextValue && !unlocked) {
+      toast('Sound is enabled, but audio was blocked. Toggle it off and on again to retry.')
+    }
+  }
+
+  const handleSoundPreview = async () => {
+    const played = await previewNotificationSound()
+    if (played) toast.success('Preview tone sent. Check media volume and silent mode if you cannot hear it.')
+    else toast.error('Audio is unavailable. Check device media volume and try again.')
+  }
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-7 sm:space-y-9">
@@ -78,6 +104,35 @@ export const SettingsPage = () => {
                 </button>
               )
             })}
+          </div>
+          <div className="mt-5 flex min-w-0 flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${soundEnabled ? 'bg-teal/10 text-teal' : 'bg-slate-100 text-dusk'}`}>
+                {soundEnabled
+                  ? <Volume2 aria-hidden="true" className="h-5 w-5" />
+                  : <VolumeX aria-hidden="true" className="h-5 w-5" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-ink">Sound On/Off</span>
+                <span className="mt-0.5 block text-xs leading-5 text-dusk">Play a quiet chime for new updates while Contri is open.</span>
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button onClick={handleSoundPreview} size="sm" type="button" variant="secondary">
+                <Play aria-hidden="true" className="h-4 w-4" />
+                Test sound
+              </Button>
+              <button
+                aria-checked={soundEnabled}
+                aria-label={soundEnabled ? 'Sound On' : 'Sound Off'}
+                className={`relative inline-flex h-8 w-14 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-teal ${soundEnabled ? 'bg-teal' : 'bg-slate-300'}`}
+                onClick={handleSoundToggle}
+                role="switch"
+                type="button"
+              >
+                <span className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${soundEnabled ? 'translate-x-7' : 'translate-x-1'}`} />
+              </button>
+            </div>
           </div>
         </Card>
       </section>
