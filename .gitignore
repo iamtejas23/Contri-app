@@ -28,3 +28,5 @@ dist-ssr
 .vercel
 mobile/google-services.json
 mobile/GoogleService-Info.plist
+*.jks
+*.keystore

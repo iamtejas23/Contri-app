@@ -1,5 +1,14 @@
 apply plugin: 'com.android.application'
 
+def releaseVersionName = project.findProperty('CONTRI_VERSION_NAME') ?: '1.0'
+def releaseVersionCode = (project.findProperty('CONTRI_VERSION_CODE') ?: '1').toInteger()
+def signingStorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+def signingStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+def signingKeyAlias = System.getenv('ANDROID_KEY_ALIAS')
+def signingKeyPassword = System.getenv('ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = [signingStorePath, signingStorePassword, signingKeyAlias, signingKeyPassword]
+    .every { value -> value != null && !value.trim().isEmpty() }
+
 android {
     namespace "com.contriapp.mobile"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +16,8 @@ android {
         applicationId "com.contriapp.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode releaseVersionCode
+        versionName releaseVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,10 +25,31 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            // Use an ignored placeholder when building locally without signing secrets.
+            // The release task guard below prevents producing an unsigned release APK.
+            storeFile file(signingStorePath ?: 'release-key.jks')
+            storePassword signingStorePassword ?: ''
+            keyAlias signingKeyAlias ?: ''
+            keyPassword signingKeyPassword ?: ''
+        }
+    }
     buildTypes {
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+tasks.configureEach { task ->
+    if (task.name in ['validateSigningRelease', 'packageRelease', 'assembleRelease']) {
+        task.doFirst {
+            if (!hasReleaseSigning) {
+                throw new GradleException('Release signing is not configured. Provide ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD.')
+            }
         }
     }
 }

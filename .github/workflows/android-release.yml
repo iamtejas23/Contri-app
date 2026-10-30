@@ -1,0 +1,177 @@
+name: Build and publish Android release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build signed APK and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Validate version tag
+        id: version
+        shell: bash
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Expected a stable semantic version tag such as v1.2.3; received: $tag" >&2
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          if (( minor > 999 || patch > 999 )); then
+            echo 'Android version code mapping requires minor and patch components no greater than 999.' >&2
+            exit 1
+          fi
+          version_code=$((major * 1000000 + minor * 1000 + patch + 1))
+          if (( version_code > 2100000000 )); then
+            echo 'The tag maps to an Android version code above the supported limit.' >&2
+            exit 1
+          fi
+          echo "name=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "code=$version_code" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure this tag has no existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "A GitHub Release already exists for $GITHUB_REF_NAME; refusing to replace it." >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.12.0'
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: sdkmanager 'platform-tools' 'platforms;android-36' 'build-tools;35.0.0'
+
+      - name: Install web dependencies
+        run: npm ci
+
+      - name: Prepare Firebase client configuration
+        shell: bash
+        env:
+          ANDROID_GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.ANDROID_GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [[ -z "$ANDROID_GOOGLE_SERVICES_JSON_BASE64" ]]; then
+            echo 'Missing Actions secret: ANDROID_GOOGLE_SERVICES_JSON_BASE64' >&2
+            exit 1
+          fi
+          printf '%s' "$ANDROID_GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+          node -e "JSON.parse(require('node:fs').readFileSync('android/app/google-services.json', 'utf8'))"
+
+      - name: Build web assets
+        shell: bash
+        run: |
+          for name in VITE_FIREBASE_API_KEY VITE_FIREBASE_AUTH_DOMAIN VITE_FIREBASE_PROJECT_ID VITE_FIREBASE_STORAGE_BUCKET VITE_FIREBASE_MESSAGING_SENDER_ID VITE_FIREBASE_APP_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing Actions secret: $name" >&2
+              exit 1
+            fi
+          done
+          npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          VITE_MOBILE_AUTH_URL: ${{ secrets.VITE_MOBILE_AUTH_URL }}
+
+      - name: Sync Capacitor Android project
+        run: npx cap sync android
+
+      - name: Configure release signing
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing Actions secret for $name (see README release setup)." >&2
+              exit 1
+            fi
+          done
+          keystore_path="$RUNNER_TEMP/contri-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+          chmod 600 "$keystore_path"
+          echo "ANDROID_KEYSTORE_PATH=$keystore_path" >> "$GITHUB_ENV"
+
+      - name: Assemble signed release APK
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          CONTRI_VERSION_NAME: ${{ steps.version.outputs.name }}
+          CONTRI_VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: ./gradlew --no-daemon assembleRelease "-PCONTRI_VERSION_NAME=$CONTRI_VERSION_NAME" "-PCONTRI_VERSION_CODE=$CONTRI_VERSION_CODE"
+
+      - name: Prepare APK and SHA-256 checksum
+        shell: bash
+        run: |
+          apk_source='android/app/build/outputs/apk/release/app-release.apk'
+          if [[ ! -s "$apk_source" ]]; then
+            echo "Expected release APK was not generated: $apk_source" >&2
+            exit 1
+          fi
+          apk_name="Contri-${GITHUB_REF_NAME}.apk"
+          apk_path="$RUNNER_TEMP/$apk_name"
+          checksum_path="$RUNNER_TEMP/$apk_name.sha256"
+          cp "$apk_source" "$apk_path"
+          (cd "$RUNNER_TEMP" && sha256sum "$apk_name" > "$apk_name.sha256")
+          echo "apk_path=$apk_path" >> "$GITHUB_OUTPUT"
+          echo "checksum_path=$checksum_path" >> "$GITHUB_OUTPUT"
+        id: assets
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "${{ steps.assets.outputs.apk_path }}"
+          "${{ steps.assets.outputs.checksum_path }}"
+          --title "Contri $GITHUB_REF_NAME"
+          --generate-notes
+
+      - name: Remove signing inputs
+        if: always()
+        shell: bash
+        run: |
+          rm -f android/app/google-services.json
+          if [[ -n "${ANDROID_KEYSTORE_PATH:-}" ]]; then rm -f "$ANDROID_KEYSTORE_PATH"; fi
