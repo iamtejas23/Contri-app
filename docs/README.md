@@ -14,7 +14,7 @@ Then open `http://localhost:8000`. The website has no npm build step.
 
 ## Configure a real APK release
 
-Edit [`site-config.js`](./site-config.js) and set `APK_URL`, `VERSION`, and `RELEASE_DATE` when a real APK is published. Until `APK_URL` is non-empty, the site shows a disabled “Android download coming soon” button. Use a URL to a real, publicly accessible APK; do not commit signing material or a test/debug APK. The version and release date are optional display metadata.
+Edit [`site-config.js`](./site-config.js) and set `APK_URL`, `VERSION`, and `RELEASE_DATE` when a real APK is published. Until `APK_URL` is non-empty, the site shows a disabled “Android APK · Coming Soon” button. Use a URL to a real, publicly accessible APK; do not commit signing material or a test/debug APK. The version and release date are optional display metadata.
 
 ## Enable GitHub Pages
 
@@ -28,4 +28,4 @@ The workflow at `.github/workflows/pages.yml` publishes `docs/` through GitHub A
 
 All site assets use relative paths, so the project subpath is supported. If the repository becomes private or Pages availability changes for its plan, verify GitHub's current Pages eligibility and repository settings.
 
-The expected public URL returned GitHub Pages' “Site not found” page when checked during this update, so the landing page is not currently verified as deployed. Complete the setup above and confirm the Actions deployment succeeds before sharing the URL.
+The existing public project URL responded successfully when checked during this update: `https://iamtejas23.github.io/Contri-app/`. Local changes to `docs/` are not live until the existing GitHub Pages workflow runs after they are pushed to `main` (or manually dispatched). This task does not deploy the site.
