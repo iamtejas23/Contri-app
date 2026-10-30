@@ -112,12 +112,13 @@ cp "$APK" "$RELEASE_APK"
 )
 
 echo "==> Publishing tag and release assets"
-REMOTE_TAG="$(git ls-remote --tags origin "refs/tags/$TAG" "refs/tags/$TAG^{}" | awk 'NR==1 {print $1}')"
-if [[ -n "$REMOTE_TAG" && "$REMOTE_TAG" != "$TAG_COMMIT" ]]; then
-  echo "Remote tag $TAG points to a different commit. Refusing to publish." >&2
+REMOTE_TAG_OBJECT="$(git ls-remote --tags origin "refs/tags/$TAG" | awk 'NR==1 {print $1}')"
+LOCAL_TAG_OBJECT="$(git rev-parse "$TAG")"
+if [[ -n "$REMOTE_TAG_OBJECT" && "$REMOTE_TAG_OBJECT" != "$LOCAL_TAG_OBJECT" ]]; then
+  echo "Remote tag $TAG points to a different object. Refusing to publish." >&2
   exit 1
 fi
-if [[ -z "$REMOTE_TAG" ]]; then
+if [[ -z "$REMOTE_TAG_OBJECT" ]]; then
   git push origin "$TAG"
 fi
 
