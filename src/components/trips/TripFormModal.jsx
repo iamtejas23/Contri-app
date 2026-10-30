@@ -5,6 +5,7 @@ import { CURRENCIES, DEFAULT_TRIP_FORM, TRIP_EMOJIS } from '../../lib/constants'
 import { isDateAfter, isDateBefore } from '../../lib/date'
 import { roundCurrency, toNumber } from '../../lib/utils'
 import { Button } from '../ui/Button'
+import { DatePicker } from '../ui/DatePicker'
 import { Input } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { Select } from '../ui/Select'
@@ -52,6 +53,11 @@ export const TripFormModal = ({
   const handleSubmit = async (event) => {
     event.preventDefault()
     if (loading) return
+
+    if (!form.startDate || !form.endDate) {
+      toast.error('Choose both trip dates.')
+      return
+    }
 
     if (isDateAfter(form.startDate, form.endDate)) {
       toast.error('End date must be the same day or after the start date.')
@@ -103,23 +109,21 @@ export const TripFormModal = ({
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Input
+          <DatePicker
             hint="Changing this updates the earliest allowed end date."
             label="Start date"
             name="startDate"
             onChange={handleChange}
             required
-            type="date"
             value={form.startDate}
           />
-          <Input
+          <DatePicker
             hint="End date cannot be before the start date."
             label="End date"
             min={form.startDate || undefined}
             name="endDate"
             onChange={handleChange}
             required
-            type="date"
             value={form.endDate}
           />
         </div>

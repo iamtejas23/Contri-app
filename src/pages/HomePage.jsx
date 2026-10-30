@@ -44,6 +44,11 @@ export const HomePage = () => {
   }, [trips, search])
 
   const actor = buildActor(user, profile)
+  const currentUserCard = useMemo(() => ({
+    uid: user?.uid,
+    name: profile?.name || user?.displayName,
+    photoURL: profile?.photoURL || user?.photoURL,
+  }), [profile?.name, profile?.photoURL, user?.displayName, user?.photoURL, user?.uid])
 
   const handleCreateTrip = async (values) => {
     const tripId = await createTrip({ values, actor })
@@ -197,7 +202,11 @@ export const HomePage = () => {
             ) : null}
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filtered.map((trip) => (
-                <TripCard key={trip.id} trip={trip} />
+                <TripCard
+                  key={trip.id}
+                  currentUser={currentUserCard}
+                  trip={trip}
+                />
               ))}
             </div>
           </>

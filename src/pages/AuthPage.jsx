@@ -5,6 +5,7 @@ import { Capacitor } from '@capacitor/core'
 
 import { useAuth } from '../context/useAuth'
 import { Button } from '../components/ui/Button'
+import { BrandMark } from '../components/BrandMark'
 
 const GoogleIcon = () => (
   <svg className="h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
@@ -47,44 +48,47 @@ export const AuthPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-sand">
-      <div className="mx-auto flex min-h-screen max-w-6xl flex-col lg:flex-row">
+    <div className="min-h-dvh bg-sand">
+      <div className="mx-auto flex min-h-dvh max-w-6xl flex-col lg:flex-row">
 
         {/* Left panel — brand */}
-        <div className="relative flex flex-col justify-between bg-teal p-8 lg:w-[45%] lg:p-12">
+        <div className="relative flex flex-col justify-between overflow-hidden bg-[#080808] px-6 py-7 sm:p-8 lg:min-h-dvh lg:w-[45%] lg:p-12">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 text-sm font-bold text-white">C</div>
-            <span className="font-display text-lg font-semibold text-white">Contri</span>
+            <BrandMark className="h-9 w-9" />
+            <div>
+              <span className="font-display text-lg font-bold lowercase leading-none text-white">contri</span>
+              <span className="mt-1 block text-[10px] text-zinc-400">Travel together. Split together.</span>
+            </div>
           </div>
 
           {/* Hero text */}
-          <div className="py-12 lg:py-0">
+          <div className="py-10 lg:py-0">
             <h1 className="font-display text-4xl font-bold leading-tight text-white lg:text-5xl">
               Trip khatam.<br />Hisab bhi khatam.
             </h1>
-            <p className="mt-4 text-base text-white/70">
+            <p className="mt-4 text-base text-zinc-400">
               The fastest way for Indian friends to split a trip. Rupees first,
               UPI to settle, WhatsApp when someone needs a nudge.
             </p>
             <div className="mt-8 space-y-3">
               {features.map((f) => (
                 <div key={f} className="flex items-start gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-white/70" />
-                  <p className="text-sm text-white/80">{f}</p>
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-emerald-400" />
+                  <p className="text-sm text-zinc-300">{f}</p>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Footer quote */}
-          <p className="text-xs text-white/40">
+          <p className="text-xs text-zinc-500">
             Road trips, long weekends, and the group chat that should not do the math.
           </p>
 
           {/* Decorative blobs */}
-          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-white/5" />
-          <div className="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-white/5" />
+          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-500/5 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-12 -left-12 h-40 w-40 rounded-full bg-emerald-500/5 blur-2xl" />
         </div>
 
         {/* Right panel — form */}

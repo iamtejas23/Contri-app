@@ -17,8 +17,9 @@ import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { Modal } from '../ui/Modal'
 import { Skeleton } from '../ui/Skeleton'
+import { Avatar } from '../ui/Avatar'
 
-export const NotificationCenter = ({ uid }) => {
+export const NotificationCenter = ({ uid, currentUserPhotoURL }) => {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [pendingId, setPendingId] = useState('')
@@ -157,8 +158,17 @@ export const NotificationCenter = ({ uid }) => {
                 onClick={() => openTrip(notification)}
                 type="button"
               >
-                <span className={`mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl ${notification.read ? 'bg-slate-100 text-dusk' : 'bg-teal/10 text-teal'}`}>
-                  {notification.read ? <Check aria-hidden="true" className="h-4 w-4" /> : <Bell aria-hidden="true" className="h-4 w-4" />}
+                <span className="relative mt-1 flex-shrink-0">
+                  <Avatar
+                    label={`${notification.actorName || 'Trip member'} avatar`}
+                    name={notification.actorName || 'Trip member'}
+                    size="sm"
+                    src={notification.actorUid === uid ? currentUserPhotoURL : ''}
+                    uid={notification.actorUid}
+                  />
+                  <span className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-sand ${notification.read ? 'bg-slate-300 text-slate-700' : 'bg-amber-500 text-black'}`}>
+                    {notification.read ? <Check aria-hidden="true" className="h-2.5 w-2.5" /> : <Bell aria-hidden="true" className="h-2.5 w-2.5" />}
+                  </span>
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">

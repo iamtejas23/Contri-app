@@ -75,8 +75,17 @@ export const TripPage = () => {
 
   const actor = buildActor(user, profile)
   const members = trip?.members ?? EMPTY_MEMBERS
+  const displayMembers = useMemo(() => members.map((member) => (
+    member.uid === user?.uid
+      ? {
+          ...member,
+          name: profile?.name || user?.displayName || member.name,
+          photoURL: profile?.photoURL || user?.photoURL || member.photoURL || '',
+        }
+      : member
+  )), [members, profile?.name, profile?.photoURL, user?.displayName, user?.photoURL, user?.uid])
 
-  const membersMap = useMemo(() => buildMembersMap(members), [members])
+  const membersMap = useMemo(() => buildMembersMap(displayMembers), [displayMembers])
   const metrics = useMemo(
     () =>
       buildDashboardMetrics({
@@ -360,17 +369,28 @@ export const TripPage = () => {
         <div className="flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           {/* Members row */}
           <div className="flex flex-wrap items-center gap-2">
-            {members.map((member) => (
-              <div key={member.uid} className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5">
-                <Avatar name={member.name} size="sm" />
-                <div className="min-w-0">
-                  <p className="break-words text-xs font-semibold text-ink [overflow-wrap:anywhere]">{member.name}</p>
-                  <p className="break-words text-[10px] uppercase tracking-wider text-dusk [overflow-wrap:anywhere]">
-                    {member.role}{member.isGuest ? ' · guest' : ''}
-                  </p>
-                </div>
+            <div aria-label={`${displayMembers.length} trip members`} className="flex min-w-0 items-center gap-3" role="group">
+              <div className="flex flex-shrink-0 items-center -space-x-2.5">
+                {displayMembers.slice(0, 5).map((member) => (
+                  <Avatar
+                    key={member.uid}
+                    label={`${member.name || 'Member'} avatar`}
+                    name={member.name}
+                    size="sm"
+                    src={member.photoURL}
+                    uid={member.uid}
+                  />
+                ))}
+                {displayMembers.length > 5 ? (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-dusk ring-2 ring-sand">
+                    +{displayMembers.length - 5}
+                  </span>
+                ) : null}
               </div>
-            ))}
+              <span className="text-sm font-medium text-dusk">
+                {displayMembers.length} {displayMembers.length === 1 ? 'member' : 'members'}
+              </span>
+            </div>
           </div>
 
           {/* Action buttons */}
@@ -466,6 +486,7 @@ export const TripPage = () => {
 
       {activeTab === 'expenses' ? (
         <ExpenseList
+          activity={activity}
           currency={trip.currency}
           expenses={expenses}
           membersMap={membersMap}
@@ -482,7 +503,7 @@ export const TripPage = () => {
       {activeTab === 'settlements' ? (
         <SettlementPanel
           balances={metrics.balances}
-          members={members}
+          members={displayMembers}
           membersMap={membersMap}
           onSubmit={handleSettlementSubmit}
           canManage
@@ -503,16 +524,19 @@ export const TripPage = () => {
             <h2 className="font-display text-lg font-semibold text-ink">Members</h2>
             <p className="mt-1 text-sm text-dusk">Manage roles for everyone in this trip.</p>
             <div className="mt-5 space-y-2">
-              {members.map((member) => (
+              {displayMembers.map((member) => (
                 <div
                   key={member.uid}
                   className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar name={member.name} size="sm" src={member.photoURL} />
+                    <Avatar name={member.name} size="sm" src={member.photoURL} uid={member.uid} />
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}</p>
                       {member.email ? <p className="break-all text-xs text-dusk">{member.email}</p> : null}
+                      <p className="mt-1 text-xs text-dusk">
+                        Contributed {formatCurrency(metrics.balances.find((entry) => entry.uid === member.uid)?.paid || 0, trip.currency)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
@@ -614,7 +638,7 @@ export const TripPage = () => {
         <QuickAddSheet
           currency={trip.currency}
           currentUserId={user?.uid}
-          members={members}
+          members={displayMembers}
           onAdvanced={(values) => {
             setEditingExpense(null)
             setExpensePrefill(values)
@@ -631,7 +655,7 @@ export const TripPage = () => {
         <ExpenseFormModal
           currency={trip.currency}
           initialExpense={editingExpense || expensePrefill}
-          members={members}
+          members={displayMembers}
           onClose={() => {
             setShowExpenseModal(false)
             setEditingExpense(null)

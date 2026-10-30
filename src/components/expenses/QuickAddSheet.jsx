@@ -8,6 +8,7 @@ import { currencySymbol, formatCurrency } from '../../lib/currency'
 import { buildSplitAmongPayload, resolveSplitAmounts, validateSplitConfig } from '../../lib/splits'
 import { getDisplayName } from '../../lib/utils'
 import { ReceiptScanButton } from './ReceiptScanButton'
+import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000]
@@ -217,13 +218,14 @@ export const QuickAddSheet = ({
               {members.map((member) => (
                 <button
                   key={member.uid}
-                  className={`flex-shrink-0 rounded-full px-3 py-1.5 text-sm font-medium transition active:scale-95 ${
+                  className={`inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition active:scale-95 ${
                     paidBy === member.uid ? 'bg-ink text-white' : 'bg-slate-100 text-dusk'
                   }`}
                   onClick={() => setPaidBy(member.uid)}
                   type="button"
                 >
-                  {member.uid === currentUserId ? 'You' : member.name}
+                  <Avatar label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
+                  {member.uid === currentUserId ? 'You' : member.name || 'Member'}
                 </button>
               ))}
             </div>
@@ -237,13 +239,14 @@ export const QuickAddSheet = ({
                 return (
                   <button
                     key={member.uid}
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition active:scale-95 ${
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition active:scale-95 ${
                       active ? 'bg-teal text-white' : 'bg-slate-100 text-dusk'
                     }`}
                     onClick={() => toggleMember(member.uid)}
                     type="button"
                   >
-                    {member.uid === currentUserId ? 'You' : member.name}
+                    <Avatar label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
+                    {member.uid === currentUserId ? 'You' : member.name || 'Member'}
                   </button>
                 )
               })}

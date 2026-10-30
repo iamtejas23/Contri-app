@@ -25,10 +25,16 @@ export const ActivityFeed = ({ activity, membersMap, currency }) => {
           ) : null}
 
           <div className="relative z-10 mt-1 flex-shrink-0">
-            <Avatar name={item.actorName} size="sm" />
+            <Avatar
+              label={`${item.actorName || membersMap?.[item.actorUid]?.name || 'Unknown member'} avatar`}
+              name={item.actorName || membersMap?.[item.actorUid]?.name || 'Unknown member'}
+              size="sm"
+              src={membersMap?.[item.actorUid]?.photoURL}
+              uid={item.actorUid}
+            />
           </div>
 
-          <div className="flex-1 rounded-xl border border-slate-100 bg-white p-4 shadow-float">
+          <div className="min-w-0 flex-1 rounded-xl border border-slate-100 bg-white p-4 shadow-float">
             <p className="text-sm leading-relaxed text-ink">
               {getActivityText(item, membersMap, currency)}
             </p>

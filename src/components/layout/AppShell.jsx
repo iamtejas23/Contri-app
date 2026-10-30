@@ -4,6 +4,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../context/useAuth'
 import { getDisplayName } from '../../lib/utils'
 import { Avatar } from '../ui/Avatar'
+import { BrandMark } from '../BrandMark'
 import { Badge } from '../ui/Badge'
 import { Button } from '../ui/Button'
 import { NotificationCenter } from '../notifications/NotificationCenter'
@@ -16,6 +17,7 @@ const navItems = [
 
 export const AppShell = () => {
   const { profile, user, logout } = useAuth()
+  const displayName = getDisplayName(profile || user)
 
   return (
       <div className="min-h-dvh bg-sand text-ink">
@@ -23,14 +25,12 @@ export const AppShell = () => {
       <header className="app-topbar sticky top-0 z-30 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] py-3 sm:gap-4 sm:px-6 lg:px-8">
           {/* Logo */}
-          <NavLink className="flex items-center gap-2.5 min-w-0" to="/">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-teal text-sm font-bold text-white">
-              C
-            </div>
-            <div className="hidden sm:block">
-              <p className="font-display text-base font-semibold text-ink leading-none">Contri</p>
-              <p className="text-[10px] uppercase tracking-widest text-dusk leading-none mt-0.5">
-                Trip khatam. Hisab bhi khatam.
+          <NavLink aria-label="contri home" className="flex min-w-0 items-center gap-2" to="/">
+            <BrandMark className="h-8 w-8 rounded-[10px]" />
+            <div className="min-w-0">
+              <p className="font-display text-lg font-bold lowercase leading-none tracking-tight text-ink">contri</p>
+              <p className="mt-1 hidden whitespace-nowrap text-[10px] leading-none text-dusk lg:block">
+                Travel together. Split together.
               </p>
             </div>
           </NavLink>
@@ -59,19 +59,19 @@ export const AppShell = () => {
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <div className="hidden text-right sm:block">
               <p className="text-sm font-semibold text-ink leading-none">
-                {getDisplayName(profile)}
+                {displayName}
               </p>
               <p className="mt-0.5 text-xs text-dusk">{profile?.email || 'Traveler'}</p>
             </div>
-            {user?.isAnonymous ? <Badge tone="amber">Guest</Badge> : null}
-            <NotificationCenter uid={user?.uid} />
+            {user?.isAnonymous ? <Badge className="hidden sm:inline-flex" tone="amber">Guest</Badge> : null}
+            <NotificationCenter currentUserPhotoURL={profile?.photoURL || user?.photoURL} uid={user?.uid} />
             <NavLink
-              aria-label={`Open profile for ${getDisplayName(profile)}`}
+              aria-label={`Open profile for ${displayName}`}
               className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl transition hover:bg-slate-100 focus-visible:outline-teal"
               title="Open your profile"
               to="/profile"
             >
-              <Avatar name={getDisplayName(profile)} size="sm" src={profile?.photoURL} />
+              <Avatar name={displayName} size="sm" src={profile?.photoURL || user?.photoURL} uid={user?.uid} />
             </NavLink>
             <Button aria-label="Sign out" onClick={logout} size="sm" type="button" variant="secondary">
               <LogOut className="h-4 w-4" />

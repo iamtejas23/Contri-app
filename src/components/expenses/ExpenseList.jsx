@@ -4,16 +4,20 @@ import { getCategoryMeta } from '../../lib/categories'
 import { useMemo, useState } from 'react'
 
 import { formatCurrency } from '../../lib/currency'
-import { formatDate, toDateValue } from '../../lib/date'
+import { formatDate } from '../../lib/date'
+import { buildExpenseCreationActivityMap, resolveExpenseCreator } from '../../lib/expenseCreators'
+import { sortExpensesNewestFirst } from '../../lib/expenseSorting'
 import { resolveSplitAmounts } from '../../lib/splits'
+import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
+import { Select } from '../ui/Select'
 
-export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, onCreate, canManage = false }) => {
+export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onEdit, onDelete, onCreate, canManage = false }) => {
   const [search, setSearch]               = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [sortBy, setSortBy]               = useState('date-desc')
+  const creationActivityMap = useMemo(() => buildExpenseCreationActivityMap(activity), [activity])
 
   const categories = useMemo(() => [...new Set(expenses.map((e) => e.category))].sort(), [expenses])
 
@@ -22,21 +26,15 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
     if (search.trim()) {
       const q = search.toLowerCase()
       result = result.filter((e) =>
-        e.title.toLowerCase().includes(q) ||
+        (e.title || '').toLowerCase().includes(q) ||
         (membersMap[e.paidBy]?.name || '').toLowerCase().includes(q) ||
         (e.note || '').toLowerCase().includes(q),
       )
     }
     if (categoryFilter !== 'all') result = result.filter((e) => e.category === categoryFilter)
-    return [...result].sort((a, b) => {
-      const getTime = (expense) => toDateValue(expense.date || expense.createdAt || expense.updatedAt)?.getTime() || 0
-      const dateDifference = getTime(a) - getTime(b)
-      if (sortBy === 'date-asc') return dateDifference
-      if (sortBy === 'amount-desc') return b.amount - a.amount
-      if (sortBy === 'amount-asc')  return a.amount - b.amount
-      return -dateDifference
-    })
-  }, [expenses, search, categoryFilter, sortBy, membersMap])
+    return result
+  }, [expenses, search, categoryFilter, membersMap])
+  const newestFirst = useMemo(() => sortExpensesNewestFirst(filtered, creationActivityMap), [filtered, creationActivityMap])
 
   if (!expenses.length) {
     return (
@@ -64,25 +62,14 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
               value={search}
             />
           </div>
-          <div className="flex gap-2">
-            <select
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-teal"
+          <div className="flex flex-wrap gap-2">
+            <Select
+              aria-label="Filter expenses by category"
+              className="flex-1 rounded-lg sm:flex-none"
               onChange={(e) => setCategoryFilter(e.target.value)}
+              options={[{ value: 'all', label: 'All categories' }, ...categories.map((category) => ({ value: category, label: category }))]}
               value={categoryFilter}
-            >
-              <option value="all">All categories</option>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <select
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-ink outline-none focus:border-teal"
-              onChange={(e) => setSortBy(e.target.value)}
-              value={sortBy}
-            >
-              <option value="date-desc">Newest first</option>
-              <option value="date-asc">Oldest first</option>
-              <option value="amount-desc">Highest amount</option>
-              <option value="amount-asc">Lowest amount</option>
-            </select>
+            />
           </div>
         </div>
         {(search || categoryFilter !== 'all') && (
@@ -93,9 +80,10 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
       {filtered.length === 0 ? (
         <EmptyState description="Try a different search or filter." title="No matching expenses" />
       ) : (
-        filtered.map((expense) => {
+        newestFirst.map((expense) => {
           const meta = getCategoryMeta(expense.category)
           const splitItems = resolveSplitAmounts(expense)
+          const creator = resolveExpenseCreator(expense, membersMap, creationActivityMap)
 
           return (
             <Card key={expense.id} className="p-0 overflow-hidden">
@@ -105,17 +93,24 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
                     <span className={`inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-base ${meta.tone}`}>
                       {meta.emoji}
                     </span>
-                    <p className="font-display text-lg font-semibold text-ink">{expense.title}</p>
+                    <p className="min-w-0 break-words font-display text-lg font-semibold text-ink">{expense.title || 'Untitled expense'}</p>
                     <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${meta.tone}`}>
                       {expense.category}
                     </span>
                   </div>
 
-                  <p className="mt-2 text-sm text-dusk">
-                    Paid by <span className="font-semibold text-ink">{membersMap[expense.paidBy]?.name ?? '—'}</span>
+                  <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                    <span className="inline-flex min-w-0 items-center gap-2 text-sm text-dusk">
+                      <Avatar label={`${creator.name}, expense creator`} name={creator.name} size="xs" src={creator.photoURL} uid={creator.uid} />
+                      <span className="min-w-0">Added by <span className="break-words font-semibold text-ink">{creator.name}</span></span>
+                    </span>
+                    <span className="text-slate-300" aria-hidden="true">·</span>
+                    <span className="text-sm text-dusk">
+                      Paid by <span className="font-semibold text-ink">{membersMap[expense.paidBy]?.name || 'Unknown member'}</span>
+                    </span>
                     <span className="mx-1.5 text-slate-300">·</span>
-                    {formatDate(expense.date || expense.createdAt || expense.updatedAt)}
-                  </p>
+                    <span className="text-sm text-dusk">{formatDate(expense.date || expense.createdAt || expense.updatedAt)}</span>
+                  </div>
 
                   {expense.note ? (
                     <p className="mt-2.5 rounded-lg bg-slate-50 px-3.5 py-2.5 text-sm text-dusk">
@@ -126,9 +121,9 @@ export const ExpenseList = ({ expenses, membersMap, currency, onEdit, onDelete, 
                   {splitItems.length ? (
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {splitItems.map((item) => (
-                        <span key={item.uid} className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-dusk">
-                          {membersMap[item.uid]?.name}:{' '}
-                          <span className="font-semibold text-ink">{formatCurrency(item.amount, currency)}</span>
+                        <span key={item.uid} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-dusk">
+                          <Avatar label={`${membersMap[item.uid]?.name || 'Member'} avatar`} name={membersMap[item.uid]?.name} size="xs" src={membersMap[item.uid]?.photoURL} uid={item.uid} />
+                          <span className="min-w-0 break-words">{membersMap[item.uid]?.name || 'Unknown member'}: <span className="font-semibold text-ink">{formatCurrency(item.amount, currency)}</span></span>
                         </span>
                       ))}
                     </div>

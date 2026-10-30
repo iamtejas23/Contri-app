@@ -49,6 +49,7 @@
   #root { min-height: 100vh; min-height: 100dvh; min-width: 0; }
 
   input, select, textarea { scroll-margin-block: 1rem 6rem; scroll-margin-inline: 1rem; }
+  select { min-width: 0; max-width: 100%; touch-action: manipulation; }
 
   :focus-visible { outline: 2px solid #0f766e; outline-offset: 2px; }
 }
@@ -57,11 +58,11 @@ html[data-theme='dark'] {
   --color-ink: 244 244 245;
   --color-dusk: 161 161 170;
   --color-sand: 0 0 0;
-  --color-cream: 20 20 20;
-  --surface-color: #141414;
+  --color-cream: 23 23 23;
+  --surface-color: #171717;
   --surface-muted: #080808;
-  --surface-subtle: #1b1b1b;
-  --border-color: #242424;
+  --surface-subtle: #101010;
+  --border-color: #252525;
   --text-primary: #f4f4f5;
   --text-secondary: #a1a1aa;
   --chart-grid: #242424;
@@ -154,9 +155,10 @@ html[data-theme='dark'] .settings-info-surface {
 html[data-theme='dark'] .settings-builder__terminal { background-color: #080808; }
 .mesh-brand-panel {
   background:
-    radial-gradient(ellipse at 88% 4%, rgb(94 234 212 / 28%), transparent 38%),
-    radial-gradient(ellipse at 8% 100%, rgb(15 118 110 / 48%), transparent 44%),
-    linear-gradient(135deg, #0f9488 0%, #0d827b 100%);
+    radial-gradient(ellipse at 88% 4%, rgb(139 92 246 / 13%), transparent 38%),
+    radial-gradient(ellipse at 8% 100%, rgb(16 185 129 / 10%), transparent 44%),
+    linear-gradient(135deg, #000000 0%, #080808 100%);
+  border: 1px solid #252525;
 }
 
 @layer utilities {
@@ -232,15 +234,15 @@ html[data-keyboard-open='true'] .app-main { padding-bottom: max(1rem, env(safe-a
   width: 72%;
   aspect-ratio: 1;
   place-items: center;
-  border: 1px solid rgb(255 255 255 / 76%);
+  border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 2rem;
   color: #fff;
-  background: linear-gradient(145deg, #14b8a6 0%, #0d9488 76%);
-  box-shadow: 0 18px 38px rgb(13 148 136 / 22%), inset 0 1px 0 rgb(255 255 255 / 28%);
+  background: #034c5e;
+  box-shadow: 0 18px 38px rgb(3 76 94 / 26%);
   animation: contri-splash-mark 850ms cubic-bezier(.18,.8,.25,1) 80ms both;
 }
 
-.contri-splash__logo { width: 58%; height: 58%; }
+.contri-splash__logo { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
 
 .contri-splash__orbit {
   position: absolute;

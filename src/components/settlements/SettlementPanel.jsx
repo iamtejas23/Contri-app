@@ -9,9 +9,11 @@ import { formatCurrency } from '../../lib/currency'
 import { formatDate, isDateOutsideRange } from '../../lib/date'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
+import { DatePicker } from '../ui/DatePicker'
 import { EmptyState } from '../ui/EmptyState'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
+import { Avatar } from '../ui/Avatar'
 
 const buildInitialForm = (trip) => ({
   from: '',
@@ -37,6 +39,10 @@ export const SettlementPanel = ({
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (loading) return
+    if (!form.settledAt) {
+      toast.error('Choose a settlement date.')
+      return
+    }
     if (isDateOutsideRange(form.settledAt, { min: trip?.startDate, max: trip?.endDate })) {
       toast.error('Settlement date must fall within the trip dates.')
       return
@@ -93,11 +99,14 @@ export const SettlementPanel = ({
                 key={entry.uid}
                 className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"
               >
-                <div>
-                  <p className="font-semibold text-ink">{entry.name}</p>
-                  <p className="text-xs text-dusk">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Avatar label={`${entry.name || 'Member'} avatar`} name={entry.name} size="sm" src={membersMap[entry.uid]?.photoURL} uid={entry.uid} />
+                  <div className="min-w-0">
+                    <p className="break-words font-semibold text-ink">{entry.name || 'Unknown member'}</p>
+                    <p className="text-xs text-dusk">
                     Paid {formatCurrency(entry.paid, trip.currency)} · Share {formatCurrency(entry.share, trip.currency)}
-                  </p>
+                    </p>
+                  </div>
                 </div>
                 <p className={`font-display text-xl font-bold ${entry.net >= 0 ? 'text-teal' : 'text-coral'}`}>
                   {formatCurrency(entry.net, trip.currency)}
@@ -151,11 +160,11 @@ export const SettlementPanel = ({
               <div className="grid gap-3 sm:grid-cols-3">
                 <Input label="Amount" min="0" onChange={(e) => setForm((c) => ({ ...c, amount: e.target.value }))} required step="0.01" type="number" value={form.amount} />
                 <Select label="Method" onChange={(e) => setForm((c) => ({ ...c, method: e.target.value }))} options={SETTLEMENT_METHODS} value={form.method} />
-                <Input
+                <DatePicker
                   hint={trip?.startDate && trip?.endDate ? `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}` : undefined}
                   label="Date" max={trip?.endDate} min={trip?.startDate}
                   onChange={(e) => setForm((c) => ({ ...c, settledAt: e.target.value }))}
-                  required type="date" value={form.settledAt}
+                  required value={form.settledAt}
                 />
               </div>
               <Input label="Note" onChange={(e) => setForm((c) => ({ ...c, note: e.target.value }))} placeholder="UPI ref, cash handoff…" value={form.note} />
@@ -178,6 +187,7 @@ export const SettlementPanel = ({
           </div>
           <div className="w-full sm:w-56">
             <Select
+              aria-label="Filter settlement history by member"
               onChange={(e) => setFilter(e.target.value)}
               options={[{ value: 'all', label: 'All members' }, ...members.map((m) => ({ value: m.uid, label: m.name }))]}
               value={filter}
@@ -188,11 +198,15 @@ export const SettlementPanel = ({
         {filteredHistory.length ? (
           <div className="mt-4 space-y-2">
             {filteredHistory.map((s) => (
-              <div key={s.id} className="flex flex-col justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center">
-                <div>
-                  <p className="font-semibold text-ink">
-                    {membersMap[s.from]?.name} <span className="text-dusk">paid</span> {membersMap[s.to]?.name}
-                  </p>
+              <div key={s.id} className="flex min-w-0 flex-col justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center">
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <Avatar label={`${membersMap[s.from]?.name || 'Payer'} payer`} name={membersMap[s.from]?.name} size="sm" src={membersMap[s.from]?.photoURL} uid={s.from} />
+                    <span className="max-w-[10rem] break-words text-sm font-semibold text-ink">{membersMap[s.from]?.name || 'Unknown member'}</span>
+                    <span className="text-xs text-dusk">paid</span>
+                    <Avatar label={`${membersMap[s.to]?.name || 'Receiver'} receiver`} name={membersMap[s.to]?.name} size="sm" src={membersMap[s.to]?.photoURL} uid={s.to} />
+                    <span className="max-w-[10rem] break-words text-sm font-semibold text-ink">{membersMap[s.to]?.name || 'Unknown member'}</span>
+                  </div>
                   <p className="text-xs text-dusk">
                     {formatDate(s.settledAt || s.createdAt || s.updatedAt)} · {(s.method || 'payment').toUpperCase()}
                     {s.note ? ` · ${s.note}` : ''}

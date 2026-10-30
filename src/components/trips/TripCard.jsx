@@ -1,8 +1,10 @@
 import { ArrowRight, CalendarDays, Users } from 'lucide-react'
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 
 import { formatDate } from '../../lib/date'
 import { Badge } from '../ui/Badge'
+import { Avatar } from '../ui/Avatar'
 
 const getTripStatus = (startDate, endDate) => {
   const today = new Date().toISOString().slice(0, 10)
@@ -12,8 +14,15 @@ const getTripStatus = (startDate, endDate) => {
   return { label: 'Active', tone: 'green' }
 }
 
-export const TripCard = ({ trip }) => {
+const TripCardComponent = ({ trip, currentUser }) => {
   const status = getTripStatus(trip.startDate, trip.endDate)
+  const members = (trip.members || []).map((member) => member.uid === currentUser?.uid
+    ? {
+        ...member,
+        name: currentUser.name || member.name,
+        photoURL: currentUser.photoURL || member.photoURL || '',
+      }
+    : member)
 
   return (
     <Link className="group block h-full" to={`/trips/${trip.id}`}>
@@ -43,10 +52,16 @@ export const TripCard = ({ trip }) => {
 
           {/* Meta */}
           <div className="mt-4 flex flex-wrap gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-dusk">
-              <Users className="h-3.5 w-3.5" />
-              {trip.members?.length || 0}{' '}
-              {trip.members?.length === 1 ? 'member' : 'members'}
+            <span aria-label={`${members.length} trip members`} className="inline-flex min-w-0 items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-dusk" role="group">
+              {members.length ? (
+                <span className="flex flex-shrink-0 items-center -space-x-2">
+                  {members.slice(0, 3).map((member) => (
+                    <Avatar key={member.uid} className="h-6 w-6 text-[9px]" label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
+                  ))}
+                  {members.length > 3 ? <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-[9px] font-bold text-dusk ring-2 ring-sand">+{members.length - 3}</span> : null}
+                </span>
+              ) : <Users className="h-3.5 w-3.5" />}
+              <span className="truncate">{members.length} {members.length === 1 ? 'member' : 'members'}</span>
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-medium text-dusk">
               <CalendarDays className="h-3.5 w-3.5" />
@@ -72,3 +87,5 @@ export const TripCard = ({ trip }) => {
     </Link>
   )
 }
+
+export const TripCard = memo(TripCardComponent)

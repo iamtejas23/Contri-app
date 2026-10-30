@@ -20,9 +20,11 @@ import {
 } from '../../lib/splits'
 import { getDisplayName, isValidUrl } from '../../lib/utils'
 import { Button } from '../ui/Button'
+import { DatePicker } from '../ui/DatePicker'
 import { Input } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { Select } from '../ui/Select'
+import { Avatar } from '../ui/Avatar'
 import { Textarea } from '../ui/Textarea'
 
 const buildInitialForm = (members, initialExpense, trip) => ({
@@ -80,6 +82,11 @@ export const ExpenseFormModal = ({
   const handleSubmit = async (event) => {
     event.preventDefault()
     if (loading) return
+
+    if (!form.date) {
+      toast.error('Choose an expense date.')
+      return
+    }
 
     const validation = validateSplitConfig({
       amount: form.amount,
@@ -191,7 +198,7 @@ export const ExpenseFormModal = ({
             }))}
             value={form.paidBy}
           />
-          <Input
+          <DatePicker
             hint={
               trip?.startDate && trip?.endDate
                 ? `${formatDate(trip.startDate)} to ${formatDate(trip.endDate)}`
@@ -203,7 +210,6 @@ export const ExpenseFormModal = ({
             name="date"
             onChange={handleChange}
             required
-            type="date"
             value={form.date}
           />
         </div>
@@ -224,13 +230,14 @@ export const ExpenseFormModal = ({
               return (
                 <button
                   key={member.uid}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition ${
                     active ? 'bg-ink text-white' : 'bg-sand text-dusk'
                   }`}
                   onClick={() => toggleMember(member.uid)}
                   type="button"
                 >
-                  {member.name}
+                  <Avatar label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
+                  {member.name || 'Member'}
                 </button>
               )
             })}

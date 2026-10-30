@@ -9,6 +9,8 @@ import toast from 'react-hot-toast'
 
 import { db } from '../firebase/config'
 import { sortRecordsByDate } from '../lib/date'
+import { buildExpenseCreationActivityMap } from '../lib/expenseCreators'
+import { sortExpensesNewestFirst } from '../lib/expenseSorting'
 import { getErrorMessage } from '../lib/errors'
 
 const defaultState = {
@@ -38,6 +40,7 @@ export const useTripData = (tripId) => {
       activity: false,
     }
     const streamErrors = {}
+    let creationActivityMap = {}
     const nextBaseState = {
       ...defaultState,
       tripId,
@@ -60,10 +63,12 @@ export const useTripData = (tripId) => {
       updateForTrip((current) => ({ ...current, error: Object.values(streamErrors).join(' ') }))
     }
     const recordStreamError = (key, error, fallback) => {
+      if (key === 'activity') creationActivityMap = {}
       streamErrors[key] = getErrorMessage(error, fallback)
       updateForTrip((current) => ({
         ...current,
         ...(key === 'trip' ? {} : { [key]: [] }),
+        ...(key === 'activity' ? { expenses: sortExpensesNewestFirst(current.expenses) } : {}),
         error: Object.values(streamErrors).join(' '),
       }))
       markReady(key)
@@ -98,10 +103,10 @@ export const useTripData = (tripId) => {
         clearStreamError('expenses')
         updateForTrip((current) => ({
           ...current,
-          expenses: sortRecordsByDate(snapshot.docs.map((item) => ({
+          expenses: sortExpensesNewestFirst(snapshot.docs.map((item) => ({
             id: item.id,
             ...item.data(),
-          })), ['date', 'createdAt', 'updatedAt']),
+          })), creationActivityMap),
         }))
         markReady('expenses')
       },
@@ -134,12 +139,15 @@ export const useTripData = (tripId) => {
       query(collection(db, 'trips', tripId, 'activity')),
       (snapshot) => {
         clearStreamError('activity')
+        const activity = sortRecordsByDate(snapshot.docs.map((item) => ({
+          id: item.id,
+          ...item.data(),
+        })), ['timestamp', 'createdAt'])
+        creationActivityMap = buildExpenseCreationActivityMap(activity)
         updateForTrip((current) => ({
           ...current,
-          activity: sortRecordsByDate(snapshot.docs.map((item) => ({
-            id: item.id,
-            ...item.data(),
-          })), ['timestamp', 'createdAt']),
+          activity,
+          expenses: sortExpensesNewestFirst(current.expenses, creationActivityMap),
         }))
         markReady('activity')
       },

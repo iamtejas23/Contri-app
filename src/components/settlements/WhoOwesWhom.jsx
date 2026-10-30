@@ -6,6 +6,7 @@ import { formatCurrency } from '../../lib/currency'
 import { buildPaymentMessage, openWhatsApp } from '../../lib/share'
 import { buildUpiLink, openUpiPayment } from '../../lib/upi'
 import { Button } from '../ui/Button'
+import { Avatar } from '../ui/Avatar'
 
 export const WhoOwesWhom = ({
   suggestions = [],
@@ -56,16 +57,22 @@ export const WhoOwesWhom = ({
             key={key}
             className="animate-rise rounded-2xl border border-slate-200 bg-white p-4 shadow-float"
           >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
+            <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-dusk">{label}</p>
-                <p className="mt-1 flex items-center gap-2 font-semibold text-ink">
-                  <span className="truncate">{from?.name || 'Someone'}</span>
-                  <ArrowRight className="h-4 w-4 flex-shrink-0 text-teal" />
-                  <span className="truncate">{to?.name || 'Someone'}</span>
-                </p>
+                <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <Avatar label={`${from?.name || 'Unknown member'}, payer`} name={from?.name || 'Unknown member'} size="sm" src={from?.photoURL} uid={item.from} />
+                    <span className="max-w-[9rem] break-words text-sm font-semibold text-ink">{from?.name || 'Unknown member'}</span>
+                  </span>
+                  <ArrowRight aria-label="pays" className="h-4 w-4 flex-shrink-0 text-blue-500" />
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <Avatar label={`${to?.name || 'Unknown member'}, receiver`} name={to?.name || 'Unknown member'} size="sm" src={to?.photoURL} uid={item.to} />
+                    <span className="max-w-[9rem] break-words text-sm font-semibold text-ink">{to?.name || 'Unknown member'}</span>
+                  </span>
+                </div>
               </div>
-              <p className="font-display text-2xl font-bold text-ink">
+              <p className="font-display text-2xl font-bold text-blue-500 sm:text-right">
                 {formatCurrency(item.amount, currency)}
               </p>
             </div>

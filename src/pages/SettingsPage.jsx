@@ -28,6 +28,7 @@ import {
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
+import { BrandMark } from '../components/BrandMark'
 
 const appearanceOptions = [
   { value: 'light', label: 'Light', description: 'Bright and clear', icon: Sun },
@@ -185,10 +186,10 @@ export const SettingsPage = () => {
         </div>
         <Card className="settings-info-surface">
           <div className="flex items-start gap-4">
-            <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-teal/10 font-display text-lg font-bold text-teal">C</span>
+            <BrandMark className="h-11 w-11 rounded-2xl" />
             <div className="min-w-0">
-              <h3 className="font-display text-lg font-semibold text-ink">Contri</h3>
-              <p className="text-sm text-dusk">Trip khatam. Hisab bhi khatam.</p>
+              <h3 className="font-display text-lg font-semibold lowercase text-ink">contri</h3>
+              <p className="text-sm text-dusk">Travel together. Split together.</p>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-dusk">
                 Keep shared trip expenses together, see who owes whom, and record settlements with your group.
               </p>
