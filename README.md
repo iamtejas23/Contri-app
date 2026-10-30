@@ -138,13 +138,13 @@ Native Google sign-in also needs the **release signing certificate's SHA-1 and S
 
 ### Publish a version
 
-Commit and push the code you want released, then create and push an annotated tag. Replace `v1.0.1` with the next unused version:
+Commit and push the code you want released, then create and push an annotated tag. Replace `v1.0.2` with the next unused version:
 
 ```bash
 git switch main
 git pull --ff-only
-git tag -a v1.0.1 -m "Contri v1.0.1"
-git push origin v1.0.1
+git tag -a v1.0.2 -m "Contri v1.0.2"
+git push origin v1.0.2
 ```
 
 Follow the **Build and publish Android release** workflow in the repository Actions tab. The generated APK and checksum will be attached to that tag's Release. A semver-derived Android `versionCode` is set by the workflow; minor and patch components must be at most 999. Use a new, higher version tag for every release.
