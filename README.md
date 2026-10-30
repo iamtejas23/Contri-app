@@ -68,7 +68,7 @@ flowchart LR
 └── firestore.rules          Firestore authorization rules
 ```
 
-`shared/` has its own private package manifest and TypeScript exports; the root app does not declare it as a workspace dependency. The root npm scripts do not build or test that package separately.
+`shared/` has its own private package manifest and TypeScript exports; the root app does not declare it as a workspace dependency. The root npm scripts do not build or test that package separately
 
 ## Prerequisites
 
