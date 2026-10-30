@@ -87,18 +87,27 @@ For Android builds, also install:
 
 The project uses Gradle 8.11.1, Android Gradle Plugin 8.9.1, minimum Android SDK 23, compile SDK 36, and target SDK 35. Keep Java, Android SDK, and Gradle compatible with those project settings.
 
-## Automated Android APK releases
+## Local Android APK releases
 
-The workflow [`.github/workflows/android-release.yml`](./.github/workflows/android-release.yml) runs only for stable version tags matching `vX.Y.Z` (for example `v1.0.0`). It builds `android/app/build/outputs/apk/release/app-release.apk` with Gradle, signs it using a keystore supplied at run time, then creates a GitHub Release with generated notes and two assets:
+Android releases are built on your own machine and uploaded to GitHub Releases. GitHub Actions does **not** build the APK.
 
-- `Contri-vX.Y.Z.apk`
-- `Contri-vX.Y.Z.apk.sha256`
+The helper script `scripts/release-android.sh` builds the signed APK locally, verifies its signature, creates a SHA-256 checksum, pushes only the release tag if it is not already on the remote, and publishes the APK plus checksum as assets on a GitHub Release. It does not push source commits or upload APKs to the Git repository.
 
-The workflow grants only `contents: write`, needed to create the release. It refuses a tag that already has a release, and GitHub's release creation command fails instead of replacing an existing release. No release is created as part of setting up this workflow.
+### One-time local setup
 
-### One-time GitHub Actions setup
+Install/configure Node.js, JDK 17, Android SDK (including Platform 36 and Build Tools 35.0.0), Git, and GitHub CLI (`gh`). Authenticate GitHub CLI with permission to create releases:
 
-Create a dedicated Android release keystore once and keep a protected backup. Do not commit the keystore or passwords. On a machine with JDK 17+, for example:
+```bash
+gh auth login
+```
+
+Configure your local Firebase client files:
+- Root `.env` with the required `VITE_FIREBASE_*` values described in the [Firebase client environment](#firebase-client-environment) section.
+- `android/app/google-services.json` for the Android Firebase app.
+
+Both files must remain local and gitignored. Do not commit service-account credentials or private Firebase credentials.
+
+Create a dedicated Android release keystore once and keep a protected backup. Never commit the keystore or passwords:
 
 ```bash
 mkdir -p ~/.android/contri-release
@@ -107,49 +116,45 @@ keytool -genkeypair -v \
   -alias contri-release -keyalg RSA -keysize 4096 -validity 10000
 ```
 
-Add these repository **Actions secrets** under **Settings → Secrets and variables → Actions**:
-
-| Secret | Value |
-| --- | --- |
-| `ANDROID_SIGNING_KEYSTORE_BASE64` | Base64 encoding of the release `.jks` file. |
-| `ANDROID_SIGNING_KEYSTORE_PASSWORD` | Keystore password. |
-| `ANDROID_SIGNING_KEY_ALIAS` | The key alias, e.g. `contri-release`. |
-| `ANDROID_SIGNING_KEY_PASSWORD` | Password for the signing key. |
-| `ANDROID_GOOGLE_SERVICES_JSON_BASE64` | Base64 encoding of the app's `android/app/google-services.json`; needed for native Firebase/Google authentication. |
-| `VITE_FIREBASE_API_KEY` | Existing Firebase web app config value used by the web bundle. |
-| `VITE_FIREBASE_AUTH_DOMAIN` | Existing Firebase web app config value. |
-| `VITE_FIREBASE_PROJECT_ID` | Existing Firebase project ID used by the app. |
-| `VITE_FIREBASE_STORAGE_BUCKET` | Existing Firebase web app config value. |
-| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Existing Firebase web app config value. |
-| `VITE_FIREBASE_APP_ID` | Existing Firebase web app config value. |
-| `VITE_FIREBASE_MEASUREMENT_ID` | Optional existing measurement ID. |
-| `VITE_MOBILE_AUTH_URL` | Optional public web origin for Android invite links. |
-
-To set the keystore secret with GitHub CLI without printing its base64 data in the terminal, run:
+Export signing values in your local shell (enter the real values; do not put passwords in shell history):
 
 ```bash
-gh secret set ANDROID_SIGNING_KEYSTORE_BASE64 \
-  < <(base64 -w 0 ~/.android/contri-release/contri-release.jks)
+export ANDROID_KEYSTORE_PATH="$HOME/.android/contri-release/contri-release.jks"
+read -rsp "Keystore password: " ANDROID_KEYSTORE_PASSWORD; echo
+export ANDROID_KEYSTORE_PASSWORD
+export ANDROID_KEY_ALIAS="contri-release"
+read -rsp "Key password: " ANDROID_KEY_PASSWORD; echo
+export ANDROID_KEY_PASSWORD
 ```
 
-On macOS, replace `base64 -w 0` with `base64`. Set the password/alias secrets using `gh secret set SECRET_NAME` (it prompts for the value), or enter them in the repository Actions secrets page. The `VITE_FIREBASE_*` values are client configuration embedded in the app bundle, not privileged server credentials; never add service-account keys or private Firebase credentials to these secrets. The Android Firebase config is generated only in the Actions runner and removed after the job.
+Register the release keystore's SHA-1 and SHA-256 fingerprints in the intended Firebase Android app for native Google sign-in:
 
-Native Google sign-in also needs the **release signing certificate's SHA-1 and SHA-256** registered for the Android app in Firebase Console. Obtain the fingerprints with `keytool -list -v -keystore ~/.android/contri-release/contri-release.jks -alias contri-release` and configure them in the intended Firebase project. This setup does not change Firebase configuration or data.
+```bash
+keytool -list -v -keystore "$ANDROID_KEYSTORE_PATH" -alias "$ANDROID_KEY_ALIAS"
+```
 
-### Publish a version
+### Publish a release
 
-Commit and push the code you want released, then create and push an annotated tag. Replace `v1.0.2` with the next unused version:
+First commit and push the app source you want to release. Then create an annotated version tag on that exact commit and run the local release script:
 
 ```bash
 git switch main
 git pull --ff-only
+git status
 git tag -a v1.0.2 -m "Contri v1.0.2"
-git push origin v1.0.2
+bash scripts/release-android.sh v1.0.2
 ```
 
-Follow the **Build and publish Android release** workflow in the repository Actions tab. The generated APK and checksum will be attached to that tag's Release. A semver-derived Android `versionCode` is set by the workflow; minor and patch components must be at most 999. Use a new, higher version tag for every release.
+Use the next unused `vX.Y.Z` version each time. The script requires a clean working tree and the tag to point to the current `HEAD`. It runs `npm ci`, `npm run build`, `npx cap sync android`, and Gradle `assembleRelease` locally. It then verifies the signed APK and generates:
 
-The latest release page is [github.com/iamtejas23/Contri-app/releases/latest](https://github.com/iamtejas23/Contri-app/releases/latest). It will show no release until the first version tag is built successfully. The landing page continues to say “Coming Soon” until its `docs/site-config.js` is deliberately configured with a direct APK URL; no debug APK or local build path is published by this workflow.
+- `dist/releases/vX.Y.Z/Contri-vX.Y.Z.apk`
+- `dist/releases/vX.Y.Z/Contri-vX.Y.Z.apk.sha256`
+
+Finally, it pushes only the version tag (if not already on origin) and creates a GitHub Release with generated notes and those two assets. It refuses to overwrite an existing release. It does not push your source branch or commit the APK into the repository.
+
+The script derives Android `versionCode` from the semantic version; minor and patch components must each be at most 999. Keep and back up the same signing keystore for every update so existing users can install updates over their current app.
+
+The latest release page is [github.com/iamtejas23/Contri-app/releases/latest](https://github.com/iamtejas23/Contri-app/releases/latest). The GitHub Pages site should link to this page; it will show no release until the first local release is successfully published.
 
 ## Firebase project setup
 
