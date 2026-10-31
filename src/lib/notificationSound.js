@@ -1,5 +1,8 @@
 export const NOTIFICATION_SOUND_STORAGE_KEY = 'contri-notification-sound'
+export const NOTIFICATION_SOUND_DURATION_SECONDS = 1.24
 
+const SOUND_URL = new URL('../assets/notification-coin.wav', import.meta.url).href
+const MAX_SCHEDULED_SOUNDS = 2
 const getStorage = (storage) => storage ?? globalThis.localStorage
 
 export const isNotificationSoundEnabled = (storage) => {
@@ -20,20 +23,55 @@ export const persistNotificationSoundPreference = (enabled, storage) => {
   return normalized
 }
 
+const loadBundledBuffer = async (audioContext) => {
+  const response = await fetch(SOUND_URL)
+  if (!response.ok) throw new Error('The bundled notification sound could not be loaded.')
+  return audioContext.decodeAudioData(await response.arrayBuffer())
+}
+
 export const createNotificationSoundPlayer = ({
   AudioContextConstructor = globalThis.AudioContext || globalThis.webkitAudioContext,
   storage,
+  loadBuffer = loadBundledBuffer,
+  durationSeconds = NOTIFICATION_SOUND_DURATION_SECONDS,
 } = {}) => {
   let audioContext = null
+  let audioBuffer = null
+  let bufferPromise = null
+  let nextStartTime = 0
+  let scheduledSounds = 0
+
+  const getBuffer = async () => {
+    if (audioBuffer) return audioBuffer
+    if (!bufferPromise) {
+      bufferPromise = Promise.resolve(loadBuffer(audioContext))
+        .then((buffer) => {
+          if (!buffer) throw new Error('The bundled notification sound is empty.')
+          audioBuffer = buffer
+          return buffer
+        })
+        .catch((error) => {
+          bufferPromise = null
+          throw error
+        })
+    }
+    return bufferPromise
+  }
 
   const enable = async () => {
     if (!AudioContextConstructor) return false
     try {
       if (!audioContext || audioContext.state === 'closed') {
         audioContext = new AudioContextConstructor()
+        audioBuffer = null
+        bufferPromise = null
+        nextStartTime = 0
+        scheduledSounds = 0
       }
       if (audioContext.state === 'suspended') await audioContext.resume()
-      return audioContext.state === 'running'
+      if (audioContext.state !== 'running') return false
+      await getBuffer()
+      return true
     } catch {
       return false
     }
@@ -46,6 +84,11 @@ export const createNotificationSoundPlayer = ({
     } catch {
       // The preference is still off if an audio context cannot be closed.
     }
+    audioContext = null
+    audioBuffer = null
+    bufferPromise = null
+    nextStartTime = 0
+    scheduledSounds = 0
   }
 
   const setEnabled = async (enabled) => {
@@ -57,25 +100,32 @@ export const createNotificationSoundPlayer = ({
     return enable()
   }
 
-  const emitTone = () => {
-    if (!audioContext || audioContext.state !== 'running') {
-      return false
-    }
+  const emitSound = async () => {
+    if (!audioContext || audioContext.state !== 'running') return false
+    if (scheduledSounds >= MAX_SCHEDULED_SOUNDS) return false
 
     try {
+      const buffer = await getBuffer()
+      if (!audioContext || audioContext.state !== 'running') return false
+      // Multiple Firestore additions can call play before the bundled buffer resolves.
+      // Re-check after that await so a burst cannot overfill the short playback queue.
+      if (scheduledSounds >= MAX_SCHEDULED_SOUNDS) return false
       const now = audioContext.currentTime
-      const oscillator = audioContext.createOscillator()
+      const startAt = Math.max(now, nextStartTime)
+      const source = audioContext.createBufferSource()
       const gain = audioContext.createGain()
-      oscillator.type = 'sine'
-      oscillator.frequency.setValueAtTime(660, now)
-      oscillator.frequency.exponentialRampToValueAtTime(880, now + 0.12)
-      gain.gain.setValueAtTime(0.0001, now)
-      gain.gain.exponentialRampToValueAtTime(0.035, now + 0.018)
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2)
-      oscillator.connect(gain)
+      source.buffer = buffer
+      // Keep digital headroom; device media volume remains in control of perceived loudness.
+      gain.gain.setValueAtTime(0.82, startAt)
+      source.connect(gain)
       gain.connect(audioContext.destination)
-      oscillator.start(now)
-      oscillator.stop(now + 0.21)
+      scheduledSounds += 1
+      nextStartTime = startAt + durationSeconds
+      source.onended = () => {
+        scheduledSounds = Math.max(0, scheduledSounds - 1)
+        if (scheduledSounds === 0 && audioContext) nextStartTime = audioContext.currentTime
+      }
+      source.start(startAt)
       return true
     } catch {
       return false
@@ -85,9 +135,8 @@ export const createNotificationSoundPlayer = ({
   const play = async () => {
     if (!isNotificationSoundEnabled(storage) || !audioContext) return false
     try {
-      // WebViews can suspend an already-unlocked context when the app loses focus.
       if (audioContext.state === 'suspended') await audioContext.resume()
-      return emitTone()
+      return await emitSound()
     } catch {
       return false
     }
@@ -95,7 +144,7 @@ export const createNotificationSoundPlayer = ({
 
   const preview = async () => {
     if (!(await enable())) return false
-    return emitTone()
+    return emitSound()
   }
 
   return { enable, disable, play, preview, setEnabled }

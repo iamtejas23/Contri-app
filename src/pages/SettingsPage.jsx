@@ -60,7 +60,7 @@ export const SettingsPage = () => {
 
   const handleSoundPreview = async () => {
     const played = await previewNotificationSound()
-    if (played) toast.success('Preview tone sent. Check media volume and silent mode if you cannot hear it.')
+    if (played) toast.success('Coin sound preview played. Check media volume or silent mode if needed.')
     else toast.error('Audio is unavailable. Check device media volume and try again.')
   }
 
@@ -121,13 +121,13 @@ export const SettingsPage = () => {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-ink">Sound On/Off</span>
-                <span className="mt-0.5 block text-xs leading-5 text-dusk">Play a quiet chime for new updates while Contri is open.</span>
+                <span className="mt-0.5 block text-xs leading-5 text-dusk">Play a short coin sound for new notifications while Contri is open.</span>
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button onClick={handleSoundPreview} size="sm" type="button" variant="secondary">
                 <Play aria-hidden="true" className="h-4 w-4" />
-                Test sound
+                Preview sound
               </Button>
               <button
                 aria-checked={soundEnabled}
