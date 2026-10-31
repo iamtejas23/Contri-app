@@ -169,8 +169,31 @@ html[data-theme='dark'] .settings-builder__terminal { background-color: #080808;
   .scrollbar-none::-webkit-scrollbar { display: none; }
 }
 
+/* Keep desktop browser scrollbars intact; Android's WebView uses its native touch scroll affordance. */
+html.native-app {
+  scroll-behavior: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+html.native-app::-webkit-scrollbar,
+html.native-app body::-webkit-scrollbar,
+html.native-app *::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+html.native-app body,
+html.native-app #root {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+html.native-app :is([class*='overflow-y-auto'], [class*='overflow-y-scroll'], [class*='overflow-x-auto'], [role='listbox']) {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
 @media (pointer: coarse) {
-  button, [role='button'], .app-bottom-nav a { min-height: 44px; }
+  button, [role='button'], .app-bottom-nav a { min-height: 44px; touch-action: manipulation; }
 }
 
 html[data-keyboard-open='true'] .app-bottom-nav { visibility: hidden; pointer-events: none; }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Link2 } from 'lucide-react'
 
@@ -11,6 +11,7 @@ import {
 import { ReceiptScanButton } from './ReceiptScanButton'
 import { formatCurrency } from '../../lib/currency'
 import { formatDate, isDateOutsideRange } from '../../lib/date'
+import { fromMinorUnits, getCurrencyFractionDigits, toMinorUnits } from '../../lib/money.js'
 import {
   buildSplitAmongPayload,
   getSelectedMemberIds,
@@ -27,10 +28,10 @@ import { Select } from '../ui/Select'
 import { Avatar } from '../ui/Avatar'
 import { Textarea } from '../ui/Textarea'
 
-const buildInitialForm = (members, initialExpense, trip) => ({
+const buildInitialForm = (members, initialExpense, trip, currentUserId) => ({
   ...DEFAULT_EXPENSE_FORM,
   ...initialExpense,
-  paidBy: initialExpense?.paidBy || members[0]?.uid || '',
+  paidBy: initialExpense?.paidBy || members.find((member) => member.uid === currentUserId)?.uid || members[0]?.uid || '',
   amount: initialExpense?.amount ? String(initialExpense.amount) : '',
   date: initialExpense?.date || trip?.startDate || DEFAULT_EXPENSE_FORM.date,
   receiptURL: initialExpense?.receiptURL || '',
@@ -42,10 +43,11 @@ export const ExpenseFormModal = ({
   onSubmit,
   members = [],
   currency,
+  currentUserId,
   initialExpense,
   trip,
 }) => {
-  const [form, setForm] = useState(() => buildInitialForm(members, initialExpense, trip))
+  const [form, setForm] = useState(() => buildInitialForm(members, initialExpense, trip, currentUserId))
   const [selectedMemberIds, setSelectedMemberIds] = useState(() =>
     getSelectedMemberIds(members, initialExpense?.splitAmong || []),
   )
@@ -53,20 +55,21 @@ export const ExpenseFormModal = ({
     getSplitValueMap(members, initialExpense?.splitMode || 'equal', initialExpense?.splitAmong || []),
   )
   const [loading, setLoading] = useState(false)
+  const submitLock = useRef(false)
+  const currencyStep = 1 / (10 ** getCurrencyFractionDigits(currency))
 
-  const previewSplit = useMemo(
-    () =>
-      resolveSplitAmounts({
-        amount: form.amount,
-        splitMode: form.splitMode,
-        splitAmong: buildSplitAmongPayload({
-          splitMode: form.splitMode,
-          selectedMemberIds,
-          splitValues,
-        }),
-      }),
-    [form.amount, form.splitMode, selectedMemberIds, splitValues],
+  const previewSplit = useMemo(() => {
+    const splitAmong = buildSplitAmongPayload({ splitMode: form.splitMode, selectedMemberIds, splitValues, currency })
+    if (form.splitMode === 'exact') {
+      return splitAmong.map((item) => ({ uid: item.uid, amount: fromMinorUnits(toMinorUnits(item.value, currency), currency) }))
+    }
+    return resolveSplitAmounts({ amount: form.amount, currency, splitMode: form.splitMode, splitAmong })
+  },
+    [form.amount, form.splitMode, selectedMemberIds, splitValues, currency],
   )
+  const expenseMinor = toMinorUnits(form.amount, currency)
+  const exactAssignedMinor = selectedMemberIds.reduce((sum, uid) => sum + toMinorUnits(splitValues[uid], currency), 0)
+  const exactRemaining = fromMinorUnits(expenseMinor - exactAssignedMinor, currency)
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -81,7 +84,7 @@ export const ExpenseFormModal = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (loading) return
+    if (loading || submitLock.current) return
 
     if (!form.date) {
       toast.error('Choose an expense date.')
@@ -90,6 +93,7 @@ export const ExpenseFormModal = ({
 
     const validation = validateSplitConfig({
       amount: form.amount,
+      currency,
       splitMode: form.splitMode,
       selectedMemberIds,
       splitValues,
@@ -115,6 +119,7 @@ export const ExpenseFormModal = ({
       return
     }
 
+    submitLock.current = true
     setLoading(true)
 
     try {
@@ -124,12 +129,14 @@ export const ExpenseFormModal = ({
           splitMode: form.splitMode,
           selectedMemberIds,
           splitValues,
+          currency,
         }),
       })
       onClose()
     } catch {
       // Parent/service layer already shows a toast for Firebase failures.
     } finally {
+      submitLock.current = false
       setLoading(false)
     }
   }
@@ -158,7 +165,8 @@ export const ExpenseFormModal = ({
             onChange={handleChange}
             placeholder="2450"
             required
-            step="0.01"
+            inputMode="decimal"
+            step={currencyStep}
             type="number"
             value={form.amount}
           />
@@ -280,13 +288,14 @@ export const ExpenseFormModal = ({
                         : `(${currency})`
                   }`}
                   min="0"
+                  inputMode="decimal"
                   onChange={(event) =>
                     setSplitValues((current) => ({
                       ...current,
                       [member.uid]: event.target.value,
                     }))
                   }
-                  step="0.01"
+                  step={form.splitMode === 'exact' ? currencyStep : 0.01}
                   type="number"
                   value={splitValues[member.uid] || ''}
                 />
@@ -295,6 +304,7 @@ export const ExpenseFormModal = ({
         ) : null}
 
         <ReceiptScanButton
+          currency={currency}
           onResult={(parsed) => {
             setForm((current) => ({
               ...current,
@@ -331,6 +341,17 @@ export const ExpenseFormModal = ({
           </div>
         </div>
 
+        {form.splitMode === 'exact' ? (
+          <div aria-live="polite" className={`rounded-2xl border p-4 ${exactRemaining === 0 ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+            <div className="flex flex-wrap justify-between gap-2 text-sm">
+              <span className="text-dusk">Assigned {formatCurrency(fromMinorUnits(exactAssignedMinor, currency), currency)}</span>
+              <span className={`font-semibold ${exactRemaining === 0 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                {exactRemaining === 0 ? 'Fully allocated' : `${formatCurrency(Math.abs(exactRemaining), currency)} ${exactRemaining > 0 ? 'remaining' : 'over'}`}
+              </span>
+            </div>
+          </div>
+        ) : null}
+
         {previewSplit.length ? (
           <div className="rounded-[1.75rem] border border-ink/10 bg-white/65 p-4">
             <p className="text-sm font-medium text-dusk">Preview</p>
@@ -342,7 +363,7 @@ export const ExpenseFormModal = ({
                 >
                   {getDisplayName(members.find((member) => member.uid === item.uid))}:{' '}
                   <span className="font-semibold text-ink">
-                    {formatCurrency(item.amount, currency)}
+                  {formatCurrency(item.amount, currency)}
                   </span>
                 </div>
               ))}

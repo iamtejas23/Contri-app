@@ -1,5 +1,5 @@
 import { ArrowRight, CheckCircle2, MessageCircle, Smartphone } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 
 import { formatCurrency } from '../../lib/currency'
@@ -17,6 +17,7 @@ export const WhoOwesWhom = ({
   onMarkPaid,
 }) => {
   const [pendingKey, setPendingKey] = useState('')
+  const pendingRef = useRef(false)
 
   if (!suggestions.length) {
     return (
@@ -111,10 +112,13 @@ export const WhoOwesWhom = ({
                 <Button
                   loading={pendingKey === key}
                   onClick={async () => {
+                    if (pendingRef.current) return
+                    pendingRef.current = true
                     setPendingKey(key)
                     try {
                       await onMarkPaid(item)
                     } finally {
+                      pendingRef.current = false
                       setPendingKey('')
                     }
                   }}

@@ -1,4 +1,4 @@
-import { ArrowUpDown, DollarSign, Receipt, TrendingUp, Users } from 'lucide-react'
+import { ArrowDownRight, ArrowUpDown, ArrowUpRight, DollarSign, HandCoins, Receipt, Users, Wallet } from 'lucide-react'
 import {
   Bar, BarChart, CartesianGrid, Cell, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -39,19 +39,28 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
   return (
     <div className="space-y-5">
       {/* KPI row */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={DollarSign} label="Total spent" tone="coral"
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <StatCard icon={DollarSign} label="Total expenses" tone="coral"
           value={formatCurrency(metrics.totalSpent, trip.currency)}
-          helper="Full trip spend so far" />
-        <StatCard icon={Users} label="Per-person avg" tone="teal"
-          value={formatCurrency(metrics.averagePerPerson, trip.currency)}
-          helper="Average share per traveler" />
-        <StatCard icon={TrendingUp} label="Your share" tone="mint"
+          helper="Recorded expenses; settlements excluded" />
+        <StatCard icon={Wallet} label="Paid by you" tone="blue"
+          value={formatCurrency(metrics.yourPaid, trip.currency)}
+          helper="Upfront payments you made" />
+        <StatCard icon={Users} label="Your expense share" tone="teal"
           value={formatCurrency(metrics.yourShare, trip.currency)}
-          helper="Your allocated portion" />
-        <StatCard icon={ArrowUpDown} label="Your net" tone="blue"
-          value={formatCurrency(metrics.yourNet, trip.currency)}
-          helper={metrics.yourNet >= 0 ? 'You are owed this' : 'You still owe this'} />
+          helper="Your allocated part of expenses" />
+        <StatCard icon={ArrowDownRight} label="You owe" tone="coral"
+          value={formatCurrency(metrics.yourOwed, trip.currency)}
+          helper="Your remaining amount to pay" />
+        <StatCard icon={ArrowUpRight} label="Owed to you" tone="mint"
+          value={formatCurrency(metrics.yourReceivable, trip.currency)}
+          helper="Others’ remaining amount to pay you" />
+        <StatCard icon={HandCoins} label="Settled" tone="teal"
+          value={formatCurrency(metrics.settledAmount, trip.currency)}
+          helper="Recorded transfers, not expenses" />
+        <StatCard icon={ArrowUpDown} label="Trip outstanding" tone="blue"
+          value={formatCurrency(metrics.outstandingAmount, trip.currency)}
+          helper="Unsettled amount across the group" />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -66,7 +75,7 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-orange-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-widest text-orange-500">Top spender</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-orange-500">Paid most upfront</p>
               <p className="mt-2 font-display text-lg font-bold text-ink">
                 {metrics.topSpender?.name || '—'}
               </p>
@@ -128,6 +137,17 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
                 <Bar dataKey="value" fill="#0D9488" radius={[6, 6, 2, 2]} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-4 space-y-2" aria-label="Member financial summaries">
+            {metrics.contributionsData.map((member) => (
+              <div key={member.uid} className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-slate-50 px-3 py-2 text-sm sm:grid-cols-4">
+                <p className="col-span-2 truncate font-semibold text-ink sm:col-span-4" title={member.name}>{member.name}</p>
+                <p className="min-w-0 text-dusk"><span className="block text-[11px] uppercase tracking-wide">Paid</span><span className="block truncate font-medium text-ink">{formatCurrency(member.paid || 0, trip.currency)}</span></p>
+                <p className="min-w-0 text-dusk"><span className="block text-[11px] uppercase tracking-wide">Share</span><span className="block truncate font-medium text-ink">{formatCurrency(member.share || 0, trip.currency)}</span></p>
+                <p className="min-w-0 text-dusk"><span className="block text-[11px] uppercase tracking-wide">Settled sent / received</span><span className="block truncate font-medium text-ink">{formatCurrency(member.settledOut || 0, trip.currency)} / {formatCurrency(member.settledIn || 0, trip.currency)}</span></p>
+                <p className="min-w-0 text-dusk"><span className="block text-[11px] uppercase tracking-wide">Net balance</span><span className={`block truncate font-semibold ${(member.net || 0) >= 0 ? 'text-teal' : 'text-coral'}`}>{formatCurrency(member.net || 0, trip.currency)}</span></p>
+              </div>
+            ))}
           </div>
         </Card>
 

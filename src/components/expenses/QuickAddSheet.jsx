@@ -1,10 +1,11 @@
 import { X } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 
 import { EXPENSE_CATEGORIES } from '../../lib/constants'
 import { getCategoryMeta } from '../../lib/categories'
 import { currencySymbol, formatCurrency } from '../../lib/currency'
+import { getCurrencyFractionDigits } from '../../lib/money.js'
 import { buildSplitAmongPayload, resolveSplitAmounts, validateSplitConfig } from '../../lib/splits'
 import { getDisplayName } from '../../lib/utils'
 import { ReceiptScanButton } from './ReceiptScanButton'
@@ -41,6 +42,7 @@ export const QuickAddSheet = ({
   const [paidBy, setPaidBy] = useState(defaultPayer)
   const [selectedIds, setSelectedIds] = useState(() => members.map((member) => member.uid))
   const [loading, setLoading] = useState(false)
+  const submitLock = useRef(false)
 
   useEffect(() => {
     if (!open) return undefined
@@ -59,14 +61,16 @@ export const QuickAddSheet = ({
     () =>
       resolveSplitAmounts({
         amount,
+        currency,
         splitMode: 'equal',
         splitAmong: buildSplitAmongPayload({
           splitMode: 'equal',
           selectedMemberIds: selectedIds,
           splitValues: {},
+          currency,
         }),
       }),
-    [amount, selectedIds],
+    [amount, selectedIds, currency],
   )
 
   if (!open) return null
@@ -88,6 +92,7 @@ export const QuickAddSheet = ({
     receiptURL: '',
     splitAmong: buildSplitAmongPayload({
       splitMode: 'equal',
+        currency,
       selectedMemberIds: selectedIds,
       splitValues: {},
     }),
@@ -95,10 +100,11 @@ export const QuickAddSheet = ({
 
   const handleSubmit = async (event) => {
     event.preventDefault()
-    if (loading) return
+    if (loading || submitLock.current) return
     const values = buildValues()
     const validation = validateSplitConfig({
       amount: values.amount,
+      currency,
       splitMode: 'equal',
       selectedMemberIds: selectedIds,
       splitValues: {},
@@ -114,6 +120,7 @@ export const QuickAddSheet = ({
       return
     }
 
+    submitLock.current = true
     setLoading(true)
     try {
       await onSubmit(values)
@@ -121,12 +128,13 @@ export const QuickAddSheet = ({
     } catch {
       // Parent surfaces Firebase errors.
     } finally {
+      submitLock.current = false
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-ink/40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-ink/40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:items-center sm:p-4">
       <button aria-label="Close add expense" className="absolute inset-0" onClick={onClose} type="button" />
       <form
         className="animate-sheet relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-modal sm:max-h-[92dvh] sm:rounded-3xl"
@@ -159,7 +167,7 @@ export const QuickAddSheet = ({
                 min="0"
                 onChange={(event) => setAmount(event.target.value)}
                 placeholder="0"
-                step="0.01"
+                step={1 / (10 ** getCurrencyFractionDigits(currency))}
                 type="number"
                 value={amount}
               />
@@ -254,6 +262,7 @@ export const QuickAddSheet = ({
           </div>
 
           <ReceiptScanButton
+            currency={currency}
             onResult={(parsed) => {
               if (parsed.amount) setAmount(parsed.amount)
               if (parsed.title && !title) setTitle(parsed.title)

@@ -1,12 +1,14 @@
 import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
 
 import { ACTIVITY_TYPES, createActivityPayload } from '../lib/activity.js'
-import { roundCurrency, toNumber } from '../lib/utils.js'
+import { fromMinorUnits, parseMinorUnits } from '../lib/money.js'
+import { assertFinanciallyValid, validateSettlementForWrite } from '../lib/financialValidation.js'
 
-export const buildCreateSettlementBatch = ({ database, tripId, values, actor }) => {
+export const buildCreateSettlementBatch = ({ database, tripId, values, actor, currency = 'INR' }) => {
+  assertFinanciallyValid(validateSettlementForWrite({ values, currency }))
   const settlementRef = doc(collection(database, 'trips', tripId, 'settlements'))
   const activityRef = doc(collection(database, 'trips', tripId, 'activity'))
-  const amount = roundCurrency(toNumber(values.amount))
+  const amount = fromMinorUnits(parseMinorUnits(values.amount, currency), currency)
   const batch = writeBatch(database)
 
   batch.set(settlementRef, {

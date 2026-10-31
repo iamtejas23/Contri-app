@@ -1,5 +1,5 @@
 import { Wallet } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 
 import { WhoOwesWhom } from './WhoOwesWhom'
@@ -7,6 +7,8 @@ import { WhoOwesWhom } from './WhoOwesWhom'
 import { SETTLEMENT_METHODS } from '../../lib/constants'
 import { formatCurrency } from '../../lib/currency'
 import { formatDate, isDateOutsideRange } from '../../lib/date'
+import { getCurrencyFractionDigits } from '../../lib/money.js'
+import { validateSettlementForWrite } from '../../lib/financialValidation.js'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { DatePicker } from '../ui/DatePicker'
@@ -30,6 +32,8 @@ export const SettlementPanel = ({
   const [form, setForm]     = useState(() => buildInitialForm(trip))
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(false)
+  const submitLock = useRef(false)
+  const currencyStep = 1 / (10 ** getCurrencyFractionDigits(trip.currency))
 
   const filteredHistory = useMemo(() => {
     if (filter === 'all') return settlements
@@ -38,7 +42,16 @@ export const SettlementPanel = ({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (loading) return
+    if (loading || submitLock.current) return
+    const validation = validateSettlementForWrite({
+      values: form,
+      currency: trip.currency,
+      memberIds: trip.memberIds || members.map((member) => member.uid),
+    })
+    if (!validation.valid) {
+      toast.error(validation.message)
+      return
+    }
     if (!form.settledAt) {
       toast.error('Choose a settlement date.')
       return
@@ -47,6 +60,7 @@ export const SettlementPanel = ({
       toast.error('Settlement date must fall within the trip dates.')
       return
     }
+    submitLock.current = true
     setLoading(true)
     try {
       await onSubmit(form)
@@ -54,6 +68,7 @@ export const SettlementPanel = ({
     } catch {
       /* parent shows toast */
     } finally {
+      submitLock.current = false
       setLoading(false)
     }
   }
@@ -158,7 +173,7 @@ export const SettlementPanel = ({
                 />
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
-                <Input label="Amount" min="0" onChange={(e) => setForm((c) => ({ ...c, amount: e.target.value }))} required step="0.01" type="number" value={form.amount} />
+                <Input label="Amount" inputMode="decimal" min="0" onChange={(e) => setForm((c) => ({ ...c, amount: e.target.value }))} required step={currencyStep} type="number" value={form.amount} />
                 <Select label="Method" onChange={(e) => setForm((c) => ({ ...c, method: e.target.value }))} options={SETTLEMENT_METHODS} value={form.method} />
                 <DatePicker
                   hint={trip?.startDate && trip?.endDate ? `${formatDate(trip.startDate)} – ${formatDate(trip.endDate)}` : undefined}

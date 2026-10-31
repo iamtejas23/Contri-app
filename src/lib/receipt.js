@@ -1,25 +1,27 @@
-const MONEY = /(?:₹|rs\.?|inr)?\s*([0-9]{1,3}(?:,[0-9]{2,3})+(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/gi
+import { fromMinorUnits, getCurrencyFractionDigits, parseMinorUnits, toMinorUnits } from './money.js'
+
+const MONEY = /(?:₹|rs\.?|inr)?\s*([0-9]{1,3}(?:,[0-9]{2,3})+(?:\.\d+)?|[0-9]+(?:\.\d+)?)/gi
 
 const TOTAL_HINT = /(grand\s*total|amount\s*payable|net\s*amount|total|to\s*pay|bill\s*amount|balance)/i
 
 const TESSERACT_CDN = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'
 
-const parseMoney = (raw) => {
+const parseMoney = (raw, currency = 'INR') => {
   const cleaned = String(raw).replace(/,/g, '')
-  const value = Number(cleaned)
-  if (!Number.isFinite(value) || value <= 0 || value > 10000000) {
+  const minor = parseMinorUnits(cleaned, currency)
+  if (!minor || minor < 0 || minor > toMinorUnits(10000000, currency)) {
     return null
   }
-  return Number(value.toFixed(2))
+  return Number(fromMinorUnits(minor, currency).toFixed(getCurrencyFractionDigits(currency)))
 }
 
-const amountsIn = (line) => {
+const amountsIn = (line, currency) => {
   const found = []
   const pattern = new RegExp(MONEY.source, 'gi')
   let match = pattern.exec(line)
 
   while (match) {
-    const value = parseMoney(match[1])
+    const value = parseMoney(match[1], currency)
     if (value) {
       found.push(value)
     }
@@ -29,7 +31,7 @@ const amountsIn = (line) => {
   return found
 }
 
-export const parseReceiptText = (text = '') => {
+export const parseReceiptText = (text = '', currency = 'INR') => {
   const lines = String(text)
     .split(/\n/)
     .map((line) => line.replace(/\s+/g, ' ').trim())
@@ -39,7 +41,7 @@ export const parseReceiptText = (text = '') => {
   const all = []
 
   lines.forEach((line) => {
-    const amounts = amountsIn(line)
+    const amounts = amountsIn(line, currency)
     all.push(...amounts)
     if (TOTAL_HINT.test(line)) {
       hinted.push(...amounts)
@@ -97,7 +99,7 @@ const loadTesseract = () => {
   })
 }
 
-export const scanReceiptFile = async (file, onProgress) => {
+export const scanReceiptFile = async (file, onProgress, currency = 'INR') => {
   const Tesseract = await loadTesseract()
   const worker = await Tesseract.createWorker('eng', 1, {
     logger: (message) => {
@@ -109,7 +111,7 @@ export const scanReceiptFile = async (file, onProgress) => {
 
   try {
     const result = await worker.recognize(file)
-    return parseReceiptText(result.data?.text || '')
+    return parseReceiptText(result.data?.text || '', currency)
   } finally {
     await worker.terminate()
   }

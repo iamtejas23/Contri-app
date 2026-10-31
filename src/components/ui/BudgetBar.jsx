@@ -1,13 +1,16 @@
 import { formatCurrency } from '../../lib/currency'
+import { fromMinorUnits, toMinorUnits } from '../../lib/money.js'
 
 export const BudgetBar = ({ spent = 0, budget = 0, currency = 'INR' }) => {
   if (!budget) {
     return null
   }
 
-  const ratio = Math.min(spent / budget, 1)
-  const over = spent > budget + 0.01
-  const left = budget - spent
+  const budgetMinor = toMinorUnits(budget, currency)
+  const spentMinor = toMinorUnits(spent, currency)
+  const ratio = budgetMinor > 0 ? Math.min(spentMinor / budgetMinor, 1) : 0
+  const over = spentMinor > budgetMinor
+  const left = fromMinorUnits(budgetMinor - spentMinor, currency)
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">

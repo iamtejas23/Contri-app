@@ -2,16 +2,18 @@ import { collection, doc, serverTimestamp, writeBatch } from 'firebase/firestore
 
 import { ACTIVITY_TYPES, createActivityPayload } from '../lib/activity.js'
 import { buildExpenseNotification, expenseNotificationId } from '../lib/notifications.js'
-import { roundCurrency, toNumber } from '../lib/utils.js'
+import { fromMinorUnits, parseMinorUnits } from '../lib/money.js'
+import { assertFinanciallyValid, validateExpenseForWrite } from '../lib/financialValidation.js'
 
-const buildExpensePayload = ({ values, actor, existingExpense }) => {
+const buildExpensePayload = ({ values, actor, existingExpense, currency = 'INR' }) => {
+  assertFinanciallyValid(validateExpenseForWrite({ values, currency }))
   const receiptURL = Object.hasOwn(values, 'receiptURL')
     ? values.receiptURL.trim()
     : existingExpense?.receiptURL || ''
 
   return {
     title: values.title.trim(),
-    amount: roundCurrency(toNumber(values.amount)),
+    amount: fromMinorUnits(parseMinorUnits(values.amount, currency), currency),
     category: values.category,
     paidBy: values.paidBy,
     date: values.date,
@@ -33,9 +35,10 @@ export const buildCreateExpenseBatch = ({
   values,
   actor,
 }) => {
+  assertFinanciallyValid(validateExpenseForWrite({ values, currency }))
   const expenseRef = doc(collection(database, 'trips', tripId, 'expenses'))
   const activityRef = doc(collection(database, 'trips', tripId, 'activity'))
-  const payload = buildExpensePayload({ values, actor })
+  const payload = buildExpensePayload({ values, actor, currency })
   const batch = writeBatch(database)
 
   batch.set(expenseRef, {

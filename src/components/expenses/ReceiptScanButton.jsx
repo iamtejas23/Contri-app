@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 
 import { scanReceiptFile } from '../../lib/receipt'
 
-export const ReceiptScanButton = ({ onResult, compact = false }) => {
+export const ReceiptScanButton = ({ onResult, compact = false, currency = 'INR' }) => {
   const inputRef = useRef(null)
   const [progress, setProgress] = useState(null)
   const [error, setError] = useState('')
@@ -26,7 +26,7 @@ export const ReceiptScanButton = ({ onResult, compact = false }) => {
     setProgress(0)
 
     try {
-      const parsed = await scanReceiptFile(file, setProgress)
+      const parsed = await scanReceiptFile(file, setProgress, currency)
 
       if (!parsed.amount && !parsed.title) {
         setError('Could not read an amount. Type it in — the photo stays on this device.')

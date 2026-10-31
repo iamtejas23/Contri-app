@@ -82,7 +82,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
       ) : (
         newestFirst.map((expense) => {
           const meta = getCategoryMeta(expense.category)
-          const splitItems = resolveSplitAmounts(expense)
+          const splitItems = resolveSplitAmounts({ ...expense, currency })
           const creator = resolveExpenseCreator(expense, membersMap, creationActivityMap)
 
           return (

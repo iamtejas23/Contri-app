@@ -9,7 +9,7 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react'
-import { Suspense, lazy, useMemo, useState } from 'react'
+import { Suspense, lazy, useMemo, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import toast from 'react-hot-toast'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -35,6 +35,7 @@ import { useAuth } from '../context/useAuth'
 import { buildDashboardMetrics, buildMembersMap } from '../lib/balances'
 import { formatCurrency } from '../lib/currency'
 import { isDateOutsideRange } from '../lib/date'
+import { validateSettlementForWrite } from '../lib/financialValidation.js'
 import { buildHisabMessage, buildInviteMessage, openWhatsApp } from '../lib/share'
 import { buildActor, copyToClipboard } from '../lib/utils'
 import { useTripData } from '../hooks/useTripData'
@@ -72,6 +73,7 @@ export const TripPage = () => {
   const [showTripModal, setShowTripModal] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
+  const settlementSubmitLock = useRef(false)
 
   const actor = buildActor(user, profile)
   const members = trip?.members ?? EMPTY_MEMBERS
@@ -196,6 +198,11 @@ export const TripPage = () => {
       return
     }
 
+    if (values.currency !== trip.currency && (expenses.length || settlements.length)) {
+      toast.error('Trip currency cannot be changed after financial records exist. Existing amounts have no saved conversion rate.')
+      return false
+    }
+
     await updateTrip(trip.id, values)
     toast.success('Trip updated.')
   }
@@ -228,6 +235,8 @@ export const TripPage = () => {
         values,
         actor,
         existingExpense: editingExpense,
+        memberIds: trip.memberIds || members.map((member) => member.uid),
+        currency: trip.currency,
       })
       toast.success('Expense updated.')
       setEditingExpense(null)
@@ -237,7 +246,7 @@ export const TripPage = () => {
     await createExpense({
       tripId: trip.id,
       tripName: trip.name,
-      memberIds: trip.memberIds,
+      memberIds: trip.memberIds || members.map((member) => member.uid),
       currency: trip.currency,
       values,
       actor,
@@ -264,8 +273,11 @@ export const TripPage = () => {
   }
 
   const handleSettlementSubmit = async (values) => {
-    if (!values.from || !values.to || values.from === values.to || Number(values.amount) <= 0) {
-      toast.error('Enter a valid settlement with different payer and receiver.')
+    if (settlementSubmitLock.current) return
+    const tripMemberIds = trip.memberIds || members.map((member) => member.uid)
+    const validation = validateSettlementForWrite({ values, currency: trip.currency, memberIds: tripMemberIds })
+    if (!validation.valid) {
+      toast.error(validation.message)
       return
     }
 
@@ -279,12 +291,19 @@ export const TripPage = () => {
       return
     }
 
-    await createSettlement({
-      tripId: trip.id,
-      values,
-      actor,
-    })
-    toast.success('Settlement recorded.')
+    settlementSubmitLock.current = true
+    try {
+      await createSettlement({
+        tripId: trip.id,
+        values,
+        actor,
+        memberIds: tripMemberIds,
+        currency: trip.currency,
+      })
+      toast.success('Settlement recorded.')
+    } finally {
+      settlementSubmitLock.current = false
+    }
   }
 
   const handleRoleChange = async (member, role) => {
@@ -456,7 +475,7 @@ export const TripPage = () => {
                 <h2 className="font-display text-xl font-bold text-ink">Who owes whom</h2>
               </div>
               <p className="text-right text-sm font-medium text-dusk">
-                {Math.abs(metrics.yourNet) < 0.01
+                {metrics.yourNet === 0
                   ? 'You are settled'
                   : metrics.yourNet > 0
                     ? `You get ${formatCurrency(metrics.yourNet, trip.currency)}`
@@ -524,7 +543,9 @@ export const TripPage = () => {
             <h2 className="font-display text-lg font-semibold text-ink">Members</h2>
             <p className="mt-1 text-sm text-dusk">Manage roles for everyone in this trip.</p>
             <div className="mt-5 space-y-2">
-              {displayMembers.map((member) => (
+              {displayMembers.map((member) => {
+                const finances = metrics.balances.find((entry) => entry.uid === member.uid)
+                return (
                 <div
                   key={member.uid}
                   className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
@@ -534,8 +555,11 @@ export const TripPage = () => {
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}</p>
                       {member.email ? <p className="break-all text-xs text-dusk">{member.email}</p> : null}
-                      <p className="mt-1 text-xs text-dusk">
-                        Contributed {formatCurrency(metrics.balances.find((entry) => entry.uid === member.uid)?.paid || 0, trip.currency)}
+                      <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-dusk">
+                        <span>Paid {formatCurrency(finances?.paid || 0, trip.currency)}</span>
+                        <span>Share {formatCurrency(finances?.share || 0, trip.currency)}</span>
+                        <span>Settled: {formatCurrency(finances?.settledOut || 0, trip.currency)} paid / {formatCurrency(finances?.settledIn || 0, trip.currency)} received</span>
+                        <span>Net {formatCurrency(finances?.net || 0, trip.currency)}</span>
                       </p>
                     </div>
                   </div>
@@ -567,7 +591,7 @@ export const TripPage = () => {
                     ) : null}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </Card>
 
@@ -654,6 +678,7 @@ export const TripPage = () => {
       {showExpenseModal ? (
         <ExpenseFormModal
           currency={trip.currency}
+          currentUserId={user?.uid}
           initialExpense={editingExpense || expensePrefill}
           members={displayMembers}
           onClose={() => {
@@ -669,6 +694,7 @@ export const TripPage = () => {
 
       {showTripModal ? (
         <TripFormModal
+          currencyLocked={Boolean(expenses.length || settlements.length)}
           initialValues={trip}
           onClose={() => setShowTripModal(false)}
           onSubmit={handleTripUpdate}

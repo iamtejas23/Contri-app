@@ -11,6 +11,7 @@ import './index.css'
 import App from './App.jsx'
 
 if (Capacitor.isNativePlatform()) {
+  document.documentElement.classList.add('native-app')
   StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {})
   StatusBar.setBackgroundColor({ color: '#F8FAFC' }).catch(() => {})
   StatusBar.setStyle({ style: Style.Dark }).catch(() => {})

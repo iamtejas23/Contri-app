@@ -3,7 +3,7 @@ import toast from 'react-hot-toast'
 
 import { CURRENCIES, DEFAULT_TRIP_FORM, TRIP_EMOJIS } from '../../lib/constants'
 import { isDateAfter, isDateBefore } from '../../lib/date'
-import { roundCurrency, toNumber } from '../../lib/utils'
+import { fromMinorUnits, getCurrencyFractionDigits, parseMinorUnits } from '../../lib/money.js'
 import { Button } from '../ui/Button'
 import { DatePicker } from '../ui/DatePicker'
 import { Input } from '../ui/Input'
@@ -31,6 +31,7 @@ export const TripFormModal = ({
   initialValues = DEFAULT_TRIP_FORM,
   title,
   submitLabel,
+  currencyLocked = false,
 }) => {
   const [form, setForm] = useState(() => buildTripFormState(initialValues))
   const [loading, setLoading] = useState(false)
@@ -68,13 +69,19 @@ export const TripFormModal = ({
 
     try {
       const budgetValue = String(form.budget).trim()
+      const budgetMinor = budgetValue ? parseMinorUnits(budgetValue, form.currency) : null
+      if (budgetValue && (budgetMinor === null || budgetMinor < 0)) {
+        toast.error('Enter a valid non-negative budget amount.')
+        return
+      }
 
-      await onSubmit({
+      const result = await onSubmit({
         ...form,
         name: form.name.trim(),
         description: form.description.trim(),
-        budget: budgetValue ? roundCurrency(toNumber(budgetValue)) : null,
+        budget: budgetValue ? fromMinorUnits(budgetMinor, form.currency) : null,
       })
+      if (result === false) return
       onClose()
     } catch {
       // Parent/service layer already shows a toast for Firebase failures.
@@ -132,25 +139,31 @@ export const TripFormModal = ({
           hint="Optional. We’ll show how much of the trip budget is left."
           label="Trip budget"
           min="0"
+          inputMode="decimal"
           name="budget"
           onChange={handleChange}
           placeholder="20000"
-          step="1"
+          step={1 / (10 ** getCurrencyFractionDigits(form.currency))}
           type="number"
           value={form.budget}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Select
-            label="Currency"
-            name="currency"
-            onChange={handleChange}
-            options={CURRENCIES.map((item) => ({
-              value: item.code,
-              label: `${item.code} · ${item.label}`,
-            }))}
-            value={form.currency}
-          />
+          <div className="space-y-2">
+            <Select
+              aria-describedby={currencyLocked ? 'trip-currency-lock-note' : undefined}
+              disabled={currencyLocked}
+              label="Currency"
+              name="currency"
+              onChange={handleChange}
+              options={CURRENCIES.map((item) => ({
+                value: item.code,
+                label: `${item.code} · ${item.label}`,
+              }))}
+              value={form.currency}
+            />
+            {currencyLocked ? <p className="text-xs text-dusk" id="trip-currency-lock-note">Currency is locked because saved expenses and settlements do not contain conversion rates.</p> : null}
+          </div>
 
           <div className="space-y-2">
             <span className="text-sm font-medium text-dusk">Cover icon</span>
