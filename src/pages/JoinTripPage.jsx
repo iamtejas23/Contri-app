@@ -40,6 +40,7 @@ export const JoinTripPage = () => {
             uid: user.uid,
             name: profile?.name || user.displayName || 'Traveler',
             email: profile?.email || user.email || '',
+            photoURL: profile?.photoURL || user.photoURL || '',
             upiId: profile?.upiId || '',
             isAnonymous: user.isAnonymous,
           },
@@ -80,6 +81,7 @@ export const JoinTripPage = () => {
             uid: guest.uid,
             name: guest.displayName || name.trim(),
             email: guest.email || '',
+            photoURL: guest.photoURL || '',
             isAnonymous: guest.isAnonymous,
           },
         })

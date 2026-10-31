@@ -41,6 +41,7 @@ export const buildMemberFromIdentity = (identity, role = 'member') => ({
   uid: identity.uid,
   name: getDisplayName(identity),
   email: identity.email || '',
+  ...(identity.photoURL ? { photoURL: identity.photoURL } : {}),
   role,
   upiId: identity.upiId || '',
   ...(identity.isAnonymous || identity.isGuest ? { isGuest: true } : {}),
@@ -50,6 +51,7 @@ export const buildActor = (user, profile) => ({
   uid: user?.uid,
   name: getDisplayName(profile || user),
   email: profile?.email || user?.email || '',
+  photoURL: profile?.photoURL || user?.photoURL || '',
   upiId: profile?.upiId || '',
   ...(user?.isAnonymous || profile?.isGuest ? { isGuest: true } : {}),
 })

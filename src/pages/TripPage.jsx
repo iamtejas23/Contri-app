@@ -21,7 +21,7 @@ import { QuickAddSheet } from '../components/expenses/QuickAddSheet'
 import { SettlementPanel } from '../components/settlements/SettlementPanel'
 import { WhoOwesWhom } from '../components/settlements/WhoOwesWhom'
 import { TripFormModal } from '../components/trips/TripFormModal'
-import { Avatar } from '../components/ui/Avatar'
+import { MemberAvatar } from '../components/ui/MemberAvatar'
 import { Badge } from '../components/ui/Badge'
 import { BudgetBar } from '../components/ui/BudgetBar'
 import { Button } from '../components/ui/Button'
@@ -391,8 +391,9 @@ export const TripPage = () => {
             <div aria-label={`${displayMembers.length} trip members`} className="flex min-w-0 items-center gap-3" role="group">
               <div className="flex flex-shrink-0 items-center -space-x-2.5">
                 {displayMembers.slice(0, 5).map((member) => (
-                  <Avatar
+                  <MemberAvatar
                     key={member.uid}
+                    member={member}
                     label={`${member.name || 'Member'} avatar`}
                     name={member.name}
                     size="sm"
@@ -551,10 +552,9 @@ export const TripPage = () => {
                   className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
                 >
                   <div className="flex min-w-0 items-center gap-3">
-                    <Avatar name={member.name} size="sm" src={member.photoURL} uid={member.uid} />
+                    <MemberAvatar member={member} name={member.name} size="sm" src={member.photoURL} uid={member.uid} />
                     <div className="min-w-0 flex-1">
                       <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}</p>
-                      {member.email ? <p className="break-all text-xs text-dusk">{member.email}</p> : null}
                       <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-dusk">
                         <span>Paid {formatCurrency(finances?.paid || 0, trip.currency)}</span>
                         <span>Share {formatCurrency(finances?.share || 0, trip.currency)}</span>

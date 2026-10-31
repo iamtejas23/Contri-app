@@ -1,4 +1,4 @@
-import { LogOut, Map, Settings2, UserCircle2 } from 'lucide-react'
+import { Map, Settings2, UserCircle2 } from 'lucide-react'
 import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../../context/useAuth'
@@ -6,7 +6,6 @@ import { getDisplayName } from '../../lib/utils'
 import { Avatar } from '../ui/Avatar'
 import { BrandMark } from '../BrandMark'
 import { Badge } from '../ui/Badge'
-import { Button } from '../ui/Button'
 import { NotificationCenter } from '../notifications/NotificationCenter'
 
 const navItems = [
@@ -16,7 +15,7 @@ const navItems = [
 ]
 
 export const AppShell = () => {
-  const { profile, user, logout } = useAuth()
+  const { profile, user } = useAuth()
   const displayName = getDisplayName(profile || user)
 
   return (
@@ -73,10 +72,6 @@ export const AppShell = () => {
             >
               <Avatar name={displayName} size="sm" src={profile?.photoURL || user?.photoURL} uid={user?.uid} />
             </NavLink>
-            <Button aria-label="Sign out" onClick={logout} size="sm" type="button" variant="secondary">
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
-            </Button>
           </div>
         </div>
       </header>

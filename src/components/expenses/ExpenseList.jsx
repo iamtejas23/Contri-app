@@ -8,7 +8,7 @@ import { formatDate } from '../../lib/date'
 import { buildExpenseCreationActivityMap, resolveExpenseCreator } from '../../lib/expenseCreators'
 import { sortExpensesNewestFirst } from '../../lib/expenseSorting'
 import { resolveSplitAmounts } from '../../lib/splits'
-import { Avatar } from '../ui/Avatar'
+import { MemberAvatar } from '../ui/MemberAvatar'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
@@ -101,7 +101,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
 
                   <div className="mt-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
                     <span className="inline-flex min-w-0 items-center gap-2 text-sm text-dusk">
-                      <Avatar label={`${creator.name}, expense creator`} name={creator.name} size="xs" src={creator.photoURL} uid={creator.uid} />
+                      <MemberAvatar label={`${creator.name}, expense creator`} member={{ ...membersMap[creator.uid], ...creator }} name={creator.name} size="xs" src={creator.photoURL} uid={creator.uid} />
                       <span className="min-w-0">Added by <span className="break-words font-semibold text-ink">{creator.name}</span></span>
                     </span>
                     <span className="text-slate-300" aria-hidden="true">·</span>
@@ -122,7 +122,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {splitItems.map((item) => (
                         <span key={item.uid} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-dusk">
-                          <Avatar label={`${membersMap[item.uid]?.name || 'Member'} avatar`} name={membersMap[item.uid]?.name} size="xs" src={membersMap[item.uid]?.photoURL} uid={item.uid} />
+                          <MemberAvatar label={`${membersMap[item.uid]?.name || 'Member'} avatar`} member={membersMap[item.uid]} name={membersMap[item.uid]?.name} size="xs" src={membersMap[item.uid]?.photoURL} uid={item.uid} />
                           <span className="min-w-0 break-words">{membersMap[item.uid]?.name || 'Unknown member'}: <span className="font-semibold text-ink">{formatCurrency(item.amount, currency)}</span></span>
                         </span>
                       ))}

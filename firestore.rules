@@ -47,7 +47,8 @@ service cloud.firestore {
         && data.members.size() == 1
         && creator.uid == request.auth.uid
         && creator.role == 'admin'
-        && creator.keys().hasOnly(['uid', 'name', 'email', 'role', 'upiId', 'isGuest'])
+        && creator.keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'role', 'upiId', 'isGuest'])
+        && (!('photoURL' in creator) || (creator.photoURL is string && creator.photoURL.size() <= 2048))
         && validGuestFlag(creator)
         && ((request.auth.token.firebase.sign_in_provider == 'anonymous' && creator.isGuest == true)
           || (request.auth.token.firebase.sign_in_provider != 'anonymous' && !('isGuest' in creator)))
@@ -90,7 +91,8 @@ service cloud.firestore {
         && addedMembers.size() == 1
         && addedMembers[0].uid == addedIds[0]
         && addedMembers[0].role == 'member'
-        && addedMembers[0].keys().hasOnly(['uid', 'name', 'email', 'role', 'upiId', 'isGuest'])
+        && addedMembers[0].keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'role', 'upiId', 'isGuest'])
+        && (!('photoURL' in addedMembers[0]) || (addedMembers[0].photoURL is string && addedMembers[0].photoURL.size() <= 2048))
         && validGuestFlag(addedMembers[0])
         && request.resource.data.updatedAt == request.time;
     }
@@ -140,7 +142,8 @@ service cloud.firestore {
         && removedMembers.size() == 1
         && addedMembers[0].uid == request.auth.uid
         && removedMembers[0].uid == request.auth.uid
-        && addedMembers[0].diff(removedMembers[0]).affectedKeys().hasOnly(['name', 'upiId']);
+        && addedMembers[0].diff(removedMembers[0]).affectedKeys().hasOnly(['name', 'upiId', 'photoURL'])
+        && (!('photoURL' in addedMembers[0]) || (addedMembers[0].photoURL is string && addedMembers[0].photoURL.size() <= 2048));
     }
 
     function canCreateExpenseNotification(recipientUid, notificationId) {
@@ -151,11 +154,15 @@ service cloud.firestore {
       return signedIn()
         && request.resource.data.keys().hasOnly([
           'type', 'tripId', 'tripName', 'expenseId', 'recipientUid', 'actorUid',
-          'actorName', 'expenseTitle', 'amount', 'currency', 'read', 'createdAt'
+          'actorName', 'actorPhotoURL', 'expenseTitle', 'amount', 'currency', 'read', 'createdAt'
         ])
         && request.resource.data.type == 'expense_created'
         && request.resource.data.recipientUid == recipientUid
         && request.resource.data.actorUid == request.auth.uid
+        && (!('actorPhotoURL' in request.resource.data)
+          || (request.resource.data.actorPhotoURL is string
+            && request.resource.data.actorPhotoURL.size() <= 2048
+            && request.resource.data.actorPhotoURL == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.photoURL))
         && request.resource.data.read == false
         && request.resource.data.createdAt == request.time
         && notificationId == tripId + '_' + expenseId
@@ -184,7 +191,8 @@ service cloud.firestore {
         && addedMembers.size() == 1
         && addedMembers[0].uid == request.auth.uid
         && addedMembers[0].role == 'member'
-        && addedMembers[0].keys().hasOnly(['uid', 'name', 'email', 'role', 'upiId', 'isGuest'])
+        && addedMembers[0].keys().hasOnly(['uid', 'name', 'email', 'photoURL', 'role', 'upiId', 'isGuest'])
+        && (!('photoURL' in addedMembers[0]) || (addedMembers[0].photoURL is string && addedMembers[0].photoURL.size() <= 2048))
         && (
           (request.auth.token.firebase.sign_in_provider == 'anonymous' && addedMembers[0].isGuest == true)
           || (request.auth.token.firebase.sign_in_provider != 'anonymous' && !('isGuest' in addedMembers[0]))

@@ -17,7 +17,7 @@ import { Button } from '../ui/Button'
 import { EmptyState } from '../ui/EmptyState'
 import { Modal } from '../ui/Modal'
 import { Skeleton } from '../ui/Skeleton'
-import { Avatar } from '../ui/Avatar'
+import { MemberAvatar } from '../ui/MemberAvatar'
 
 export const NotificationCenter = ({ uid, currentUserPhotoURL }) => {
   const navigate = useNavigate()
@@ -151,26 +151,29 @@ export const NotificationCenter = ({ uid, currentUserPhotoURL }) => {
               const isOwnNotification = notification.actorUid === uid
               const amount = formatCurrency(notification.amount, notification.currency)
               return (
-              <button
-                className={`flex min-h-20 w-full min-w-0 items-start gap-3 rounded-2xl border p-3 text-left transition hover:border-teal/30 hover:bg-teal/5 disabled:opacity-60 sm:p-4 ${notification.read ? 'border-slate-200 bg-white' : 'border-teal/20 bg-teal/5'}`}
-                disabled={pendingId === notification.id}
+              <div
+                className={`flex min-h-20 w-full min-w-0 items-start gap-3 rounded-2xl border p-3 text-left transition hover:border-teal/30 hover:bg-teal/5 sm:p-4 ${notification.read ? 'border-slate-200 bg-white' : 'border-teal/20 bg-teal/5'}`}
                 key={notification.id}
-                onClick={() => openTrip(notification)}
-                type="button"
               >
                 <span className="relative mt-1 flex-shrink-0">
-                  <Avatar
+                  <MemberAvatar
                     label={`${notification.actorName || 'Trip member'} avatar`}
+                    member={{ uid: notification.actorUid, name: notification.actorName || 'Trip member', photoURL: notification.actorPhotoURL || (notification.actorUid === uid ? currentUserPhotoURL : '') }}
                     name={notification.actorName || 'Trip member'}
                     size="sm"
-                    src={notification.actorUid === uid ? currentUserPhotoURL : ''}
+                    src={notification.actorPhotoURL || (notification.actorUid === uid ? currentUserPhotoURL : '')}
                     uid={notification.actorUid}
                   />
                   <span className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-sand ${notification.read ? 'bg-slate-300 text-slate-700' : 'bg-amber-500 text-black'}`}>
                     {notification.read ? <Check aria-hidden="true" className="h-2.5 w-2.5" /> : <Bell aria-hidden="true" className="h-2.5 w-2.5" />}
                   </span>
                 </span>
-                <span className="min-w-0 flex-1">
+                <button
+                  className="min-w-0 flex-1 text-left disabled:opacity-60"
+                  disabled={pendingId === notification.id}
+                  onClick={() => openTrip(notification)}
+                  type="button"
+                >
                   <span className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                     <span className="font-semibold text-ink">
                       {isOwnNotification ? `You added ${amount} for ${notification.expenseTitle}` : `${notification.actorName} added an expense`}
@@ -180,9 +183,9 @@ export const NotificationCenter = ({ uid, currentUserPhotoURL }) => {
                   <span className="mt-1 block break-words text-sm text-dusk">
                     {isOwnNotification ? `in ${notification.tripName}` : `${notification.expenseTitle} · ${amount} in ${notification.tripName}`}
                   </span>
-                </span>
+                </button>
                 <ExternalLink aria-hidden="true" className="mt-1 h-4 w-4 flex-shrink-0 text-slate-400" />
-              </button>
+              </div>
               )
             })}
           </div>

@@ -25,7 +25,7 @@ import { DatePicker } from '../ui/DatePicker'
 import { Input } from '../ui/Input'
 import { Modal } from '../ui/Modal'
 import { Select } from '../ui/Select'
-import { Avatar } from '../ui/Avatar'
+import { MemberAvatar } from '../ui/MemberAvatar'
 import { Textarea } from '../ui/Textarea'
 
 const buildInitialForm = (members, initialExpense, trip, currentUserId) => ({
@@ -236,17 +236,17 @@ export const ExpenseFormModal = ({
             {members.map((member) => {
               const active = selectedMemberIds.includes(member.uid)
               return (
-                <button
+                <div
                   key={member.uid}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-2 text-sm font-medium transition ${
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-full pl-2 pr-3 py-2 text-sm font-medium transition ${
                     active ? 'bg-ink text-white' : 'bg-sand text-dusk'
                   }`}
-                  onClick={() => toggleMember(member.uid)}
-                  type="button"
                 >
-                  <Avatar label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
-                  {member.name || 'Member'}
-                </button>
+                  <MemberAvatar member={member} label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
+                  <button className="min-h-8" onClick={() => toggleMember(member.uid)} type="button">
+                    {member.name || 'Member'}
+                  </button>
+                </div>
               )
             })}
           </div>

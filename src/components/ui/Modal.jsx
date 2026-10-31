@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { X } from 'lucide-react'
 
-export const Modal = ({ open, onClose, title, description, children }) => {
+export const Modal = ({ open, onClose, title, description, children, fullScreen = false }) => {
   useEffect(() => {
     if (!open) return undefined
 
@@ -21,12 +21,12 @@ export const Modal = ({ open, onClose, title, description, children }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden overscroll-contain bg-ink/40 px-[max(1rem,env(safe-area-inset-left))] py-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))] backdrop-blur-sm"
+      className={`fixed inset-0 z-50 flex items-center justify-center overflow-hidden overscroll-contain bg-ink/40 ${fullScreen ? 'p-0' : 'px-[max(1rem,env(safe-area-inset-left))] py-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pr-[max(1rem,env(safe-area-inset-right))]'} backdrop-blur-sm`}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="my-auto flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-modal" style={{ maxHeight: 'calc(100dvh - max(2rem, env(safe-area-inset-top)) - max(2rem, env(safe-area-inset-bottom)))' }}>
+      <div className={`my-auto flex w-full flex-col overflow-hidden border border-slate-200 bg-white shadow-modal ${fullScreen ? 'h-full max-w-none rounded-none' : 'max-w-2xl rounded-2xl'}`} style={fullScreen ? undefined : { maxHeight: 'calc(100dvh - max(2rem, env(safe-area-inset-top)) - max(2rem, env(safe-area-inset-bottom)))' }}>
         {/* Header */}
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+        <div className={`flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 ${fullScreen ? 'pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))]' : ''}`}>
           <div>
             <h2 className="font-display text-xl font-semibold text-ink">{title}</h2>
             {description ? (
@@ -43,7 +43,7 @@ export const Modal = ({ open, onClose, title, description, children }) => {
           </button>
         </div>
         {/* Body */}
-        <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">{children}</div>
+        <div className={`min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 ${fullScreen ? 'flex-1 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[calc(1rem+env(safe-area-inset-bottom))]' : ''}`}>{children}</div>
       </div>
     </div>
   )

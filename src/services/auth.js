@@ -16,12 +16,33 @@ import { auth, db, googleProvider } from '../firebase/config'
 import { notifyFirebaseError } from '../lib/errors'
 import { createGuestSession } from '../lib/guestAuth'
 import { getDisplayName } from '../lib/utils'
+import { syncTripMemberProfile } from './memberProfiles.js'
+
+const syncGooglePhotoIntoTripsOnce = async ({ uid, name, photoURL, upiId }) => {
+  if (!photoURL) return
+  const key = `contri:trip-member-photo:${uid}`
+  try {
+    if (window.localStorage.getItem(key) === photoURL) return
+  } catch {
+    // Storage can be unavailable in private browsing; continue with Firestore sync.
+  }
+
+  await syncTripMemberProfile({ database: db, uid, name, photoURL, upiId })
+  try {
+    window.localStorage.setItem(key, photoURL)
+  } catch {
+    // Keep auth usable if browser storage is unavailable.
+  }
+}
 
 export const ensureUserProfile = async (user) => {
   const userRef = doc(db, 'users', user.uid)
 
   try {
     const snapshot = await getDoc(userRef)
+
+    const isGoogleUser = user.providerData?.some(({ providerId }) => providerId === 'google.com')
+    const googlePhotoURL = isGoogleUser ? user.photoURL || '' : ''
 
     if (!snapshot.exists()) {
       // Wait for the guest to choose a name before creating their profile.
@@ -33,17 +54,37 @@ export const ensureUserProfile = async (user) => {
         ...(user.isAnonymous ? { isGuest: true } : {}),
         createdAt: serverTimestamp(),
       }, { merge: true })
+      try {
+        await syncGooglePhotoIntoTripsOnce({
+          uid: user.uid,
+          name: getDisplayName(user),
+          photoURL: googlePhotoURL,
+        })
+      } catch (syncError) {
+        notifyFirebaseError(syncError, 'Your profile photo synced, but could not yet be updated across your trips.')
+      }
       return
     }
 
+    const profilePhotoURL = googlePhotoURL || snapshot.data().photoURL || user.photoURL || ''
     await updateDoc(userRef, {
       name: user.displayName || snapshot.data().name || getDisplayName(user),
       email: user.email?.toLowerCase() || '',
-      photoURL: user.photoURL || '',
+      photoURL: profilePhotoURL,
       ...(user.isAnonymous || snapshot.data().isGuest
         ? { isGuest: Boolean(user.isAnonymous) }
         : {}),
     })
+    try {
+      await syncGooglePhotoIntoTripsOnce({
+        uid: user.uid,
+        name: user.displayName || snapshot.data().name || getDisplayName(user),
+        photoURL: googlePhotoURL,
+        upiId: snapshot.data().upiId || '',
+      })
+    } catch (syncError) {
+      notifyFirebaseError(syncError, 'Your profile photo synced, but could not yet be updated across your trips.')
+    }
   } catch (error) {
     notifyFirebaseError(error, 'We could not sync your profile right now.')
     throw error

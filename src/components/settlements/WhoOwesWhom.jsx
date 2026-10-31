@@ -6,7 +6,7 @@ import { formatCurrency } from '../../lib/currency'
 import { buildPaymentMessage, openWhatsApp } from '../../lib/share'
 import { buildUpiLink, openUpiPayment } from '../../lib/upi'
 import { Button } from '../ui/Button'
-import { Avatar } from '../ui/Avatar'
+import { MemberAvatar } from '../ui/MemberAvatar'
 
 export const WhoOwesWhom = ({
   suggestions = [],
@@ -63,12 +63,12 @@ export const WhoOwesWhom = ({
                 <p className="text-sm font-medium text-dusk">{label}</p>
                 <div className="mt-2 flex min-w-0 flex-wrap items-center gap-2">
                   <span className="inline-flex min-w-0 items-center gap-2">
-                    <Avatar label={`${from?.name || 'Unknown member'}, payer`} name={from?.name || 'Unknown member'} size="sm" src={from?.photoURL} uid={item.from} />
+                    <MemberAvatar label={`${from?.name || 'Unknown member'}, payer`} member={from || { uid: item.from }} name={from?.name || 'Unknown member'} size="sm" src={from?.photoURL} uid={item.from} />
                     <span className="max-w-[9rem] break-words text-sm font-semibold text-ink">{from?.name || 'Unknown member'}</span>
                   </span>
                   <ArrowRight aria-label="pays" className="h-4 w-4 flex-shrink-0 text-blue-500" />
                   <span className="inline-flex min-w-0 items-center gap-2">
-                    <Avatar label={`${to?.name || 'Unknown member'}, receiver`} name={to?.name || 'Unknown member'} size="sm" src={to?.photoURL} uid={item.to} />
+                    <MemberAvatar label={`${to?.name || 'Unknown member'}, receiver`} member={to || { uid: item.to }} name={to?.name || 'Unknown member'} size="sm" src={to?.photoURL} uid={item.to} />
                     <span className="max-w-[9rem] break-words text-sm font-semibold text-ink">{to?.name || 'Unknown member'}</span>
                   </span>
                 </div>

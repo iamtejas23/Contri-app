@@ -8,6 +8,7 @@ const sizes = {
   md: 'h-10 w-10 text-sm',
   lg: 'h-14 w-14 text-base',
   xl: 'h-20 w-20 text-xl',
+  '2xl': 'h-32 w-32 text-3xl',
 }
 
 const fallbackColors = [

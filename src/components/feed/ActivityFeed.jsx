@@ -2,7 +2,7 @@ import { Activity } from 'lucide-react'
 
 import { getActivityText } from '../../lib/activity'
 import { timeAgo } from '../../lib/date'
-import { Avatar } from '../ui/Avatar'
+import { MemberAvatar } from '../ui/MemberAvatar'
 import { EmptyState } from '../ui/EmptyState'
 
 export const ActivityFeed = ({ activity, membersMap, currency }) => {
@@ -25,8 +25,9 @@ export const ActivityFeed = ({ activity, membersMap, currency }) => {
           ) : null}
 
           <div className="relative z-10 mt-1 flex-shrink-0">
-            <Avatar
+            <MemberAvatar
               label={`${item.actorName || membersMap?.[item.actorUid]?.name || 'Unknown member'} avatar`}
+              member={{ ...membersMap?.[item.actorUid], uid: item.actorUid, name: item.actorName || membersMap?.[item.actorUid]?.name }}
               name={item.actorName || membersMap?.[item.actorUid]?.name || 'Unknown member'}
               size="sm"
               src={membersMap?.[item.actorUid]?.photoURL}

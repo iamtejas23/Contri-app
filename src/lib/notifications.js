@@ -15,6 +15,7 @@ export const buildExpenseNotification = ({
   recipientUid,
   actorUid: actor.uid,
   actorName: actor.name || 'A trip member',
+  ...(actor.photoURL ? { actorPhotoURL: actor.photoURL } : {}),
   expenseTitle: expense.title,
   amount: expense.amount,
   currency: expense.currency,

@@ -15,7 +15,7 @@ import { DatePicker } from '../ui/DatePicker'
 import { EmptyState } from '../ui/EmptyState'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
-import { Avatar } from '../ui/Avatar'
+import { MemberAvatar } from '../ui/MemberAvatar'
 
 const buildInitialForm = (trip) => ({
   from: '',
@@ -115,7 +115,7 @@ export const SettlementPanel = ({
                 className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <Avatar label={`${entry.name || 'Member'} avatar`} name={entry.name} size="sm" src={membersMap[entry.uid]?.photoURL} uid={entry.uid} />
+                  <MemberAvatar member={membersMap[entry.uid] || { uid: entry.uid, name: entry.name }} label={`${entry.name || 'Member'} avatar`} name={entry.name} size="sm" src={membersMap[entry.uid]?.photoURL} uid={entry.uid} />
                   <div className="min-w-0">
                     <p className="break-words font-semibold text-ink">{entry.name || 'Unknown member'}</p>
                     <p className="text-xs text-dusk">
@@ -216,10 +216,10 @@ export const SettlementPanel = ({
               <div key={s.id} className="flex min-w-0 flex-col justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center">
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <Avatar label={`${membersMap[s.from]?.name || 'Payer'} payer`} name={membersMap[s.from]?.name} size="sm" src={membersMap[s.from]?.photoURL} uid={s.from} />
+                    <MemberAvatar member={membersMap[s.from] || { uid: s.from }} label={`${membersMap[s.from]?.name || 'Payer'} payer`} name={membersMap[s.from]?.name} size="sm" src={membersMap[s.from]?.photoURL} uid={s.from} />
                     <span className="max-w-[10rem] break-words text-sm font-semibold text-ink">{membersMap[s.from]?.name || 'Unknown member'}</span>
                     <span className="text-xs text-dusk">paid</span>
-                    <Avatar label={`${membersMap[s.to]?.name || 'Receiver'} receiver`} name={membersMap[s.to]?.name} size="sm" src={membersMap[s.to]?.photoURL} uid={s.to} />
+                    <MemberAvatar member={membersMap[s.to] || { uid: s.to }} label={`${membersMap[s.to]?.name || 'Receiver'} receiver`} name={membersMap[s.to]?.name} size="sm" src={membersMap[s.to]?.photoURL} uid={s.to} />
                     <span className="max-w-[10rem] break-words text-sm font-semibold text-ink">{membersMap[s.to]?.name || 'Unknown member'}</span>
                   </div>
                   <p className="text-xs text-dusk">

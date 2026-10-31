@@ -1,9 +1,9 @@
 import { updateProfile } from 'firebase/auth'
-import { collection, doc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore'
 
 import { auth, db } from '../firebase/config'
 import { notifyFirebaseError } from '../lib/errors'
-import { buildMemberFromIdentity } from '../lib/utils'
+import { syncTripMemberProfile } from './memberProfiles.js'
 
 export const findUserByEmail = async (email) => {
   try {
@@ -25,6 +25,8 @@ export const findUserByEmail = async (email) => {
     throw error
   }
 }
+
+export { syncTripMemberProfile } from './memberProfiles.js'
 
 export const updateUserProfileDoc = async ({ uid, name, photoURL = '', upiId = '' }) => {
   try {
@@ -48,30 +50,7 @@ export const updateUserProfileDoc = async ({ uid, name, photoURL = '', upiId = '
       })
     }
 
-    const tripsSnapshot = await getDocs(
-      query(collection(db, 'trips'), where('memberIds', 'array-contains', uid)),
-    )
-
-    await Promise.all(
-      tripsSnapshot.docs.map(async (tripDoc) => {
-        const currentMembers = tripDoc.data().members
-        const currentMember = currentMembers.find((member) => member.uid === uid)
-        if (!currentMember || (currentMember.name === safeName && (currentMember.upiId || '') === safeUpi)) {
-          return
-        }
-
-        const members = currentMembers.map((member) =>
-          member.uid === uid
-            ? buildMemberFromIdentity({ ...member, uid, name: safeName, upiId: safeUpi }, member.role)
-            : member,
-        )
-
-        await updateDoc(doc(db, 'trips', tripDoc.id), {
-          members,
-          updatedAt: serverTimestamp(),
-        })
-      }),
-    )
+    await syncTripMemberProfile({ database: db, uid, name: safeName, photoURL, upiId: safeUpi })
   } catch (error) {
     notifyFirebaseError(error, 'We could not save your profile changes.')
     throw error

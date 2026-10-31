@@ -11,12 +11,14 @@ import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
+import { ProfilePreviewDialog } from '../components/ui/ProfilePreviewDialog'
 
 export const ProfilePage = () => {
   const { user, profile, updateProfileDetails, loginWithGoogle, loginWithNativeGoogle } = useAuth()
   const [draft, setDraft] = useState(null)
   const [loading, setLoading] = useState(false)
   const [linking, setLinking] = useState(false)
+  const [showProfilePreview, setShowProfilePreview] = useState(false)
 
   const liveValues = {
     name: profile?.name || user?.displayName || '',
@@ -80,12 +82,17 @@ export const ProfilePage = () => {
       <div className="grid gap-6 lg:grid-cols-[300px,1fr]">
         {/* Identity card */}
         <Card className="flex flex-col items-center gap-4 p-8 text-center">
-          <div className="relative">
-            <Avatar name={form.name || getDisplayName(profile || user)} size="lg" src={form.photoURL} />
+          <button
+            aria-label="Open full-screen profile preview"
+            className="relative rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-teal"
+            onClick={() => setShowProfilePreview(true)}
+            type="button"
+          >
+            <Avatar name={form.name || getDisplayName(profile || user)} size="lg" src={form.photoURL} uid={user?.uid} />
             <div className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-teal shadow-md">
               <Camera className="h-3 w-3 text-white" />
             </div>
-          </div>
+          </button>
 
           <div>
             <p className="font-display text-xl font-bold text-ink">
@@ -187,6 +194,14 @@ export const ProfilePage = () => {
           </div>
         </Card>
       ) : null}
+
+      <ProfilePreviewDialog
+        accountType={accountType}
+        isSelf
+        member={{ ...user, ...profile, name: form.name || getDisplayName(profile || user), photoURL: form.photoURL }}
+        onClose={() => setShowProfilePreview(false)}
+        open={showProfilePreview}
+      />
     </div>
   )
 }

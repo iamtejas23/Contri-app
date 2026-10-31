@@ -9,7 +9,7 @@ import { getCurrencyFractionDigits } from '../../lib/money.js'
 import { buildSplitAmongPayload, resolveSplitAmounts, validateSplitConfig } from '../../lib/splits'
 import { getDisplayName } from '../../lib/utils'
 import { ReceiptScanButton } from './ReceiptScanButton'
-import { Avatar } from '../ui/Avatar'
+import { MemberAvatar } from '../ui/MemberAvatar'
 import { Button } from '../ui/Button'
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000]
@@ -224,17 +224,17 @@ export const QuickAddSheet = ({
             <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Paid by</p>
             <div className="mt-2 flex gap-2 overflow-x-auto scrollbar-none">
               {members.map((member) => (
-                <button
+                <div
                   key={member.uid}
-                  className={`inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition active:scale-95 ${
+                  className={`inline-flex min-h-11 flex-shrink-0 items-center gap-2 rounded-full pl-2 pr-3 py-1.5 text-sm font-medium transition ${
                     paidBy === member.uid ? 'bg-ink text-white' : 'bg-slate-100 text-dusk'
                   }`}
-                  onClick={() => setPaidBy(member.uid)}
-                  type="button"
                 >
-                  <Avatar label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
-                  {member.uid === currentUserId ? 'You' : member.name || 'Member'}
-                </button>
+                  <MemberAvatar member={member} label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
+                  <button className="min-h-8" onClick={() => setPaidBy(member.uid)} type="button">
+                    {member.uid === currentUserId ? 'You' : member.name || 'Member'}
+                  </button>
+                </div>
               ))}
             </div>
           </div>
@@ -245,17 +245,17 @@ export const QuickAddSheet = ({
               {members.map((member) => {
                 const active = selectedIds.includes(member.uid)
                 return (
-                  <button
+                  <div
                     key={member.uid}
-                    className={`inline-flex min-h-11 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium transition active:scale-95 ${
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-full pl-2 pr-3 py-1.5 text-sm font-medium transition ${
                       active ? 'bg-teal text-white' : 'bg-slate-100 text-dusk'
                     }`}
-                    onClick={() => toggleMember(member.uid)}
-                    type="button"
                   >
-                    <Avatar label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
-                    {member.uid === currentUserId ? 'You' : member.name || 'Member'}
-                  </button>
+                    <MemberAvatar member={member} label={`${member.name || 'Member'} avatar`} name={member.name} size="xs" src={member.photoURL} uid={member.uid} />
+                    <button className="min-h-8" onClick={() => toggleMember(member.uid)} type="button">
+                      {member.uid === currentUserId ? 'You' : member.name || 'Member'}
+                    </button>
+                  </div>
                 )
               })}
             </div>

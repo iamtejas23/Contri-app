@@ -45,6 +45,7 @@ import {
   getNotificationTrips,
 } from '../src/services/notificationClearing.js'
 import { createTripDocument, deleteTripDocuments } from '../src/services/tripDocuments.js'
+import { syncTripMemberProfile } from '../src/services/memberProfiles.js'
 
 const projectId = 'demo-contri-notifications'
 let environment
@@ -866,7 +867,7 @@ test('unauthenticated clients cannot add themselves to a trip', async () => {
 })
 
 test('a normal authenticated invitee can still join without a guest label', async () => {
-  const joiningMember = { uid: 'member-e', name: 'E Traveler', email: 'e@example.test' }
+  const joiningMember = { uid: 'member-e', name: 'E Traveler', email: 'e@example.test', photoURL: 'https://images.example.test/e.jpg' }
   const database = environment.authenticatedContext(joiningMember.uid, {
     firebase: { sign_in_provider: 'google.com' },
   }).firestore()
@@ -875,6 +876,93 @@ test('a normal authenticated invitee can still join without a guest label', asyn
   const joinedTrip = await getDoc(doc(database, 'trips', tripId))
   assert.equal(joinedTrip.data().memberIds.includes(joiningMember.uid), true)
   assert.equal(joinedTrip.data().members.find((member) => member.uid === joiningMember.uid).isGuest, undefined)
+  assert.equal(joinedTrip.data().members.find((member) => member.uid === joiningMember.uid).photoURL, joiningMember.photoURL)
+})
+
+test('a member can sync their own photo to trip membership while outsiders cannot edit another member photo', async () => {
+  const database = environment.authenticatedContext(actor.uid, {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const photoURL = 'https://images.example.test/member-a.jpg'
+
+  await assertSucceeds(syncTripMemberProfile({
+    database,
+    uid: actor.uid,
+    name: actor.name,
+    photoURL,
+  }))
+
+  const tripSnapshot = await getDoc(doc(database, 'trips', tripId))
+  assert.equal(tripSnapshot.data().members.find((member) => member.uid === actor.uid).photoURL, photoURL)
+
+  const otherTripMemberDb = environment.authenticatedContext('member-b', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const visibleTrip = await assertSucceeds(getDoc(doc(otherTripMemberDb, 'trips', tripId)))
+  assert.equal(visibleTrip.data().members.find((member) => member.uid === actor.uid).photoURL, photoURL)
+
+  const forgedMembers = tripSnapshot.data().members.map((member) =>
+    member.uid === 'member-b' ? { ...member, photoURL: 'https://images.example.test/forged.jpg' } : member,
+  )
+  await assertFails(updateDoc(doc(database, 'trips', tripId), {
+    members: forgedMembers,
+    updatedAt: serverTimestamp(),
+  }))
+
+  const outsiderDb = environment.authenticatedContext('member-outsider').firestore()
+  await assertFails(getDoc(doc(outsiderDb, 'trips', tripId)))
+})
+
+test('expense notifications can include only the authenticated actor profile photo for trip members', async () => {
+  const photoURL = 'https://images.example.test/member-a.jpg'
+  const database = environment.authenticatedContext(actor.uid, {
+    name: actor.name,
+    email: actor.email,
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  await assertSucceeds(setDoc(doc(database, 'users', actor.uid), {
+    name: actor.name,
+    email: actor.email,
+    photoURL,
+  }))
+
+  const validActor = { ...actor, photoURL }
+  const validBatch = buildCreateExpenseBatch({
+    database,
+    tripId,
+    tripName: trip.name,
+    memberIds: trip.memberIds,
+    currency: trip.currency,
+    values: { ...expenseValues, title: 'Profile photo expense' },
+    actor: validActor,
+  })
+  await assertSucceeds(validBatch.batch.commit())
+
+  const recipientDb = environment.authenticatedContext('member-b', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const ownNotification = await assertSucceeds(getDoc(doc(
+    recipientDb,
+    'users',
+    'member-b',
+    'notifications',
+    `${tripId}_${validBatch.expenseId}`,
+  )))
+  assert.equal(ownNotification.data().actorPhotoURL, photoURL)
+
+  const outsiderDb = environment.authenticatedContext('member-outsider').firestore()
+  await assertFails(getDoc(doc(outsiderDb, 'users', 'member-b', 'notifications', `${tripId}_${validBatch.expenseId}`)))
+
+  const forgedBatch = buildCreateExpenseBatch({
+    database,
+    tripId,
+    tripName: trip.name,
+    memberIds: trip.memberIds,
+    currency: trip.currency,
+    values: { ...expenseValues, title: 'Forged photo expense' },
+    actor: { ...actor, photoURL: 'https://images.example.test/not-the-profile.jpg' },
+  })
+  await assertFails(forgedBatch.batch.commit())
 })
 
 test('joining an unknown trip code fails without creating a trip', async () => {
