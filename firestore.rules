@@ -24,9 +24,73 @@ service cloud.firestore {
     function isTripAdmin(tripId) {
       let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
       return signedIn() && (
-        (('adminIds' in trip) && trip.adminIds is list && request.auth.uid in trip.adminIds)
-        || (!('adminIds' in trip) && ('createdBy' in trip) && trip.createdBy == request.auth.uid)
+        (('createdBy' in trip) && trip.createdBy == request.auth.uid)
+        || (('memberIds' in trip) && trip.memberIds is list
+          && request.auth.uid in trip.memberIds
+          && ('adminIds' in trip) && trip.adminIds is list
+          && request.auth.uid in trip.adminIds)
       );
+    }
+
+    function isTripClearing(tripId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      return 'clearOperation' in trip;
+    }
+
+    function canManageTripRecords(tripId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      return isTripAdmin(tripId)
+        && (!('clearOperation' in trip)
+          || (trip.clearOperation is map
+            && trip.clearOperation.ownerUid == request.auth.uid));
+    }
+
+    function isTripParticipant(tripId, uid) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      return (('memberIds' in trip) && trip.memberIds is list && uid in trip.memberIds)
+        || (('createdBy' in trip) && trip.createdBy == uid);
+    }
+
+    function isValidClearLockUpdate(tripId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      let nextLock = request.resource.data.get('clearOperation', null);
+      return isTripAdmin(tripId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clearOperation'])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.members == resource.data.members
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.adminIds == resource.data.adminIds
+        && (
+          (!('clearOperation' in trip)
+            && nextLock is map
+            && nextLock.keys().hasOnly(['ownerUid', 'operationId', 'lockedAt'])
+            && nextLock.ownerUid == request.auth.uid
+            && nextLock.operationId is string
+            && nextLock.operationId.size() > 0
+            && nextLock.lockedAt == request.time)
+          || ('clearOperation' in trip
+            && trip.clearOperation is map
+            && trip.clearOperation.ownerUid == request.auth.uid
+            && nextLock is map
+            && nextLock.ownerUid == request.auth.uid
+            && nextLock.operationId == trip.clearOperation.operationId
+            && nextLock.lockedAt == request.time)
+          || ('clearOperation' in trip
+            && trip.clearOperation is map
+            && trip.clearOperation.lockedAt is timestamp
+            && trip.clearOperation.lockedAt < request.time - duration.value(5, 'm')
+            && nextLock is map
+            && nextLock.keys().hasOnly(['ownerUid', 'operationId', 'lockedAt'])
+            && nextLock.ownerUid == request.auth.uid
+            && nextLock.operationId is string
+            && nextLock.operationId.size() > 0
+            && nextLock.lockedAt == request.time)
+          || ('clearOperation' in trip
+            && trip.clearOperation is map
+            && trip.clearOperation.ownerUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clearOperation'])
+            && !('clearOperation' in request.resource.data))
+        );
     }
 
     function validGuestFlag(member) {
@@ -61,6 +125,7 @@ service cloud.firestore {
 
     function isAdminTripDetailsUpdate(tripId) {
       return isTripAdmin(tripId)
+        && !isTripClearing(tripId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'name', 'description', 'emoji', 'startDate', 'endDate', 'currency', 'budget', 'updatedAt'
         ])
@@ -78,6 +143,7 @@ service cloud.firestore {
       let addedIds = request.resource.data.memberIds.removeAll(resource.data.memberIds);
       let addedMembers = request.resource.data.members.removeAll(resource.data.members);
       return isTripAdmin(tripId)
+        && !isTripClearing(tripId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'members', 'memberIds', 'updatedAt'
         ])
@@ -105,6 +171,7 @@ service cloud.firestore {
       let changedMember = addedMembers[0];
       let previousMember = removedMembers[0];
       return isTripAdmin(tripId)
+        && !isTripClearing(tripId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'members', 'adminIds', 'updatedAt'
         ])
@@ -152,6 +219,7 @@ service cloud.firestore {
       let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
       let expense = getAfter(/databases/$(database)/documents/trips/$(tripId)/expenses/$(expenseId)).data;
       return signedIn()
+        && !('clearOperation' in trip)
         && request.resource.data.keys().hasOnly([
           'type', 'tripId', 'tripName', 'expenseId', 'recipientUid', 'actorUid',
           'actorName', 'actorPhotoURL', 'expenseTitle', 'amount', 'currency', 'read', 'createdAt'
@@ -177,10 +245,11 @@ service cloud.firestore {
         && request.resource.data.currency == trip.currency;
     }
 
-    function isSelfJoin() {
+    function isSelfJoin(tripId) {
       let addedMemberIds = request.resource.data.memberIds.removeAll(resource.data.memberIds);
       let addedMembers = request.resource.data.members.removeAll(resource.data.members);
       return signedIn()
+        && !isTripClearing(tripId)
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(['members', 'memberIds', 'updatedAt'])
         && request.resource.data.memberIds.size() == resource.data.memberIds.size() + 1
         && request.resource.data.memberIds.hasAll(resource.data.memberIds)
@@ -209,13 +278,20 @@ service cloud.firestore {
       allow delete: if false;
 
       match /notifications/{notificationId} {
-        allow get, list: if isSelf(uid);
+        allow get: if isSelf(uid);
+        allow list: if isSelf(uid)
+          || (resource.data.tripId is string
+            && isTripAdmin(resource.data.tripId)
+            && isTripParticipant(resource.data.tripId, uid));
         allow create: if canCreateExpenseNotification(uid, notificationId);
         allow update: if isSelf(uid)
           && resource.data.read == false
           && request.resource.data.read == true
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-        allow delete: if isSelf(uid);
+        allow delete: if isSelf(uid)
+          || (resource.data.tripId is string
+            && isTripAdmin(resource.data.tripId)
+            && isTripParticipant(resource.data.tripId, uid));
       }
     }
 
@@ -231,13 +307,15 @@ service cloud.firestore {
       allow update: if isAdminTripDetailsUpdate(tripId)
         || isAdminInviteUpdate(tripId)
         || isAdminRoleUpdate(tripId)
-        || isSelfJoin()
+        || isSelfJoin(tripId)
+        || isValidClearLockUpdate(tripId)
         || isSelfMemberProfileUpdate();
-      allow delete: if isTripAdmin(tripId);
+      allow delete: if isTripAdmin(tripId) && !isTripClearing(tripId);
 
       match /expenses/{expenseId} {
         allow read: if isTripMember(tripId);
         allow create: if isTripMember(tripId)
+          && !isTripClearing(tripId)
           && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.createdAt == request.time
           && request.resource.data.updatedAt == request.time
@@ -246,13 +324,14 @@ service cloud.firestore {
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.paidBy in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
-        allow update, delete: if isTripAdmin(tripId);
+        allow update, delete: if canManageTripRecords(tripId);
 
       }
 
       match /settlements/{settlementId} {
         allow read: if isTripMember(tripId);
         allow create: if isTripAdmin(tripId)
+          && !isTripClearing(tripId)
           && request.resource.data.keys().hasOnly([
             'from', 'to', 'amount', 'method', 'settledAt', 'note', 'createdBy'
           ])
@@ -263,14 +342,16 @@ service cloud.firestore {
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.method in ['cash', 'upi', 'online'];
-        allow update, delete: if isTripAdmin(tripId);
+        allow update, delete: if canManageTripRecords(tripId);
       }
 
       match /activity/{activityId} {
         allow read: if isTripMember(tripId);
-        allow create: if isTripMember(tripId) && request.resource.data.actorUid == request.auth.uid;
+        allow create: if isTripMember(tripId)
+          && !isTripClearing(tripId)
+          && request.resource.data.actorUid == request.auth.uid;
         allow update: if false;
-        allow delete: if isTripAdmin(tripId);
+        allow delete: if canManageTripRecords(tripId);
       }
     }
   }

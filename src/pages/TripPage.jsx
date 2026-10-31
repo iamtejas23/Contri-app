@@ -21,6 +21,7 @@ import { QuickAddSheet } from '../components/expenses/QuickAddSheet'
 import { SettlementPanel } from '../components/settlements/SettlementPanel'
 import { WhoOwesWhom } from '../components/settlements/WhoOwesWhom'
 import { TripFormModal } from '../components/trips/TripFormModal'
+import { ClearTripDataDialog } from '../components/trips/ClearTripDataDialog'
 import { TripMembersIndicator } from '../components/trips/TripMembersIndicator'
 import { MemberAvatar } from '../components/ui/MemberAvatar'
 import { Badge } from '../components/ui/Badge'
@@ -44,6 +45,8 @@ import { createExpense, deleteExpense, updateExpense } from '../services/expense
 import { createSettlement } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
 import { deleteTrip, inviteMemberToTrip, updateTrip, updateTripMemberRole } from '../services/trips'
+import { clearTripDataFromDatabase } from '../services/clearTripData'
+import { db } from '../firebase/config'
 
 const TripDashboard = lazy(() =>
   import('../components/dashboard/TripDashboard').then((module) => ({
@@ -72,6 +75,8 @@ export const TripPage = () => {
   const [expensePrefill, setExpensePrefill] = useState(null)
   const [editingExpense, setEditingExpense] = useState(null)
   const [showTripModal, setShowTripModal] = useState(false)
+  const [showClearTripData, setShowClearTripData] = useState(false)
+  const [clearTripLoading, setClearTripLoading] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const settlementSubmitLock = useRef(false)
@@ -99,7 +104,11 @@ export const TripPage = () => {
       }),
     [expenses, settlements, trip, user?.uid],
   )
-  const isAdmin = trip?.adminIds?.includes(user?.uid)
+  const isAdmin = Boolean(user?.uid && trip && (
+    trip.createdBy === user.uid || (
+      trip.memberIds?.includes(user.uid) && trip.adminIds?.includes(user.uid)
+    )
+  ))
   const canManageTrip = Boolean(isAdmin)
   const inviteOrigin = Capacitor.isNativePlatform()
     ? (import.meta.env.VITE_MOBILE_AUTH_URL || 'https://contri-app.vercel.app')
@@ -221,6 +230,26 @@ export const TripPage = () => {
     await deleteTrip(trip.id)
     toast.success('Trip deleted.')
     navigate('/')
+  }
+
+  const handleClearTripData = async () => {
+    if (!canManageTrip || !user?.uid || clearTripLoading) return
+    setClearTripLoading(true)
+    try {
+      const result = await clearTripDataFromDatabase({
+        database: db,
+        tripId: trip.id,
+        uid: user.uid,
+      })
+      toast.success(`Trip data cleared. ${result.deletedCount} record(s) removed; trip members and settings remain.`)
+      setShowClearTripData(false)
+      return true
+    } catch (error) {
+      toast.error(error?.message || 'Trip data could not be fully cleared. Retry after checking your connection.')
+      return false
+    } finally {
+      setClearTripLoading(false)
+    }
   }
 
   const handleExpenseSubmit = async (values) => {
@@ -609,9 +638,11 @@ export const TripPage = () => {
 
                 <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
                   <p className="text-sm font-semibold text-red-600">Danger zone</p>
-                  <p className="mt-1 text-xs text-red-500">
-                    Permanently removes all expenses, settlements, and activity.
-                  </p>
+                  <p className="mt-1 text-xs text-red-500">Clear trip records while keeping the trip, members, roles, invitations and settings.</p>
+                  <Button className="mt-3" onClick={() => setShowClearTripData(true)} size="sm" type="button" variant="danger">
+                    <Trash2 className="h-4 w-4" />
+                    Clear trip data
+                  </Button>
                   <Button className="mt-3" onClick={handleTripDelete} size="sm" type="button" variant="danger">
                     <Trash2 className="h-4 w-4" />
                     Delete trip
@@ -683,6 +714,14 @@ export const TripPage = () => {
           title="Edit trip"
         />
       ) : null}
+
+      <ClearTripDataDialog
+        loading={clearTripLoading}
+        onClose={() => setShowClearTripData(false)}
+        onConfirm={handleClearTripData}
+        open={showClearTripData && canManageTrip}
+        tripName={trip.name}
+      />
     </div>
   )
 }

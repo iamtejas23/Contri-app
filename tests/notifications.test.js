@@ -46,6 +46,11 @@ import {
   getNotificationTrips,
 } from '../src/services/notificationClearing.js'
 import { createTripDocument, deleteTripDocuments } from '../src/services/tripDocuments.js'
+import {
+  acquireTripClearLock,
+  clearTripDataFromDatabase,
+  releaseTripClearLock,
+} from '../src/services/clearTripData.js'
 import { syncTripMemberProfile } from '../src/services/memberProfiles.js'
 
 const projectId = 'demo-contri-notifications'
@@ -166,6 +171,210 @@ test('trip admins can remove all trip subcollection documents and the parent tri
   const adminDb = environment.authenticatedContext(actor.uid).firestore()
   await assertSucceeds(deleteTripDocuments({ database: adminDb, tripId }))
   assert.equal((await getDoc(doc(adminDb, 'trips', tripId))).exists(), false)
+})
+
+test('trip owner can clear only scoped trip records and notifications while preserving trip and membership', async () => {
+  const database = environment.authenticatedContext(actor.uid).firestore()
+  const otherTripId = 'trip-that-must-remain'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const adminDb = context.firestore()
+    await Promise.all([
+      setDoc(doc(adminDb, 'trips', tripId, 'expenses', 'expense-clear'), { title: 'Dinner', amount: 500, createdBy: actor.uid }),
+      setDoc(doc(adminDb, 'trips', tripId, 'settlements', 'settlement-clear'), { from: 'member-a', to: 'member-b', amount: 100 }),
+      setDoc(doc(adminDb, 'trips', tripId, 'activity', 'activity-clear'), { actorUid: actor.uid, type: 'expense_created' }),
+      setDoc(doc(adminDb, 'users', 'member-a', 'notifications', 'same-trip-owner'), { tripId, tripName: trip.name }),
+      setDoc(doc(adminDb, 'users', 'member-b', 'notifications', 'same-trip-member'), { tripId, tripName: trip.name }),
+      setDoc(doc(adminDb, 'users', 'member-c', 'notifications', 'other-trip-user'), { tripId: otherTripId, tripName: 'Other' }),
+      setDoc(doc(adminDb, 'users', 'member-a', 'notifications', 'legacy-no-trip-id'), { tripName: trip.name }),
+      setDoc(doc(adminDb, 'trips', otherTripId), { ...trip, name: 'Other trip', memberIds: [actor.uid], members: [trip.members[0]] }),
+      setDoc(doc(adminDb, 'trips', otherTripId, 'expenses', 'keep-expense'), { title: 'Other dinner', amount: 20 }),
+      setDoc(doc(adminDb, 'trips', otherTripId, 'settlements', 'keep-settlement'), { from: actor.uid, to: 'member-b', amount: 10 }),
+      setDoc(doc(adminDb, 'trips', otherTripId, 'activity', 'keep-activity'), { actorUid: actor.uid }),
+    ])
+  })
+
+  const beforeTrip = await getDoc(doc(database, 'trips', tripId))
+  const beforeData = beforeTrip.data()
+  const result = await assertSucceeds(clearTripDataFromDatabase({ database, tripId, uid: actor.uid, operationId: 'clear-owner-run' }))
+  assert.equal(result.deletedCount, 5)
+
+  const afterTrip = await getDoc(doc(database, 'trips', tripId))
+  assert.deepEqual(afterTrip.data(), beforeData)
+  assert.deepEqual(afterTrip.data().memberIds, trip.memberIds)
+  assert.deepEqual(afterTrip.data().adminIds, trip.adminIds)
+  assert.deepEqual(afterTrip.data().members, trip.members)
+  for (const collectionName of ['expenses', 'settlements', 'activity']) {
+    assert.equal((await getDocs(collection(database, 'trips', tripId, collectionName))).size, 0)
+  }
+  assert.equal((await getDocs(query(collection(database, 'users', 'member-b', 'notifications'), where('tripId', '==', tripId)))).size, 0)
+  assert.equal((await getDoc(doc(database, 'users', 'member-a', 'notifications', 'legacy-no-trip-id'))).exists(), true)
+  let otherTripNotification
+  await environment.withSecurityRulesDisabled(async (context) => {
+    otherTripNotification = await getDoc(doc(context.firestore(), 'users', 'member-c', 'notifications', 'other-trip-user'))
+  })
+  assert.equal(otherTripNotification.exists(), true)
+  assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'expenses', 'keep-expense'))).exists(), true)
+  assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'settlements', 'keep-settlement'))).exists(), true)
+  assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'activity', 'keep-activity'))).exists(), true)
+
+  const repeatedClear = await assertSucceeds(clearTripDataFromDatabase({
+    database,
+    tripId,
+    uid: actor.uid,
+    operationId: 'clear-owner-repeat',
+  }))
+  assert.equal(repeatedClear.deletedCount, 0)
+
+  const recreateExpense = buildCreateExpenseBatch({
+    database,
+    tripId,
+    tripName: trip.name,
+    memberIds: trip.memberIds,
+    currency: trip.currency,
+    values: expenseValues,
+    actor,
+  })
+  await assertSucceeds(recreateExpense.batch.commit())
+})
+
+test('an explicitly listed trip admin can clear trip data', async () => {
+  const secondAdminId = 'member-b'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      adminIds: ['member-a', secondAdminId],
+      members: trip.members.map((member) => member.uid === secondAdminId ? { ...member, role: 'admin' } : member),
+    })
+    await setDoc(doc(context.firestore(), 'trips', tripId, 'expenses', 'admin-clear'), { title: 'Snack', amount: 5 })
+  })
+  const database = environment.authenticatedContext(secondAdminId).firestore()
+  await assertSucceeds(clearTripDataFromDatabase({ database, tripId, uid: secondAdminId, operationId: 'clear-admin-run' }))
+  const remainingTrip = await getDoc(doc(database, 'trips', tripId))
+  assert.equal(remainingTrip.exists(), true)
+  assert.ok(remainingTrip.data().memberIds.includes(secondAdminId))
+  assert.ok(remainingTrip.data().adminIds.includes(secondAdminId))
+})
+
+test('members, guests, unauthenticated users and outsiders cannot start a trip clear', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      adminIds: ['member-a', 'unlisted-admin'],
+      members: trip.members.map((member) => member.uid === 'member-c' ? { ...member, isGuest: true } : member),
+    })
+    await setDoc(doc(context.firestore(), 'trips', tripId, 'expenses', 'protected-expense'), {
+      title: 'Protected', amount: 25, createdBy: actor.uid,
+    })
+  })
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  const guestDb = environment.authenticatedContext('member-c', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  const outsiderDb = environment.authenticatedContext('outside-trip').firestore()
+  const unlistedAdminDb = environment.authenticatedContext('unlisted-admin').firestore()
+  const unauthenticatedDb = environment.unauthenticatedContext().firestore()
+
+  for (const [database, uid] of [
+    [memberDb, 'member-b'],
+    [guestDb, 'member-c'],
+    [outsiderDb, 'outside-trip'],
+    [unlistedAdminDb, 'unlisted-admin'],
+    [unauthenticatedDb, 'outside-trip'],
+  ]) {
+    await assertFails(clearTripDataFromDatabase({ database, tripId, uid, operationId: `denied-${Math.random()}` }))
+    await assertFails(deleteDoc(doc(database, 'trips', tripId, 'expenses', 'protected-expense')))
+  }
+  assert.equal((await getDoc(doc(memberDb, 'trips', tripId))).exists(), true)
+})
+
+test('clear lock prevents concurrent admin operations and financial writes until release', async () => {
+  const secondAdminId = 'member-b'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      adminIds: ['member-a', secondAdminId],
+      members: trip.members.map((member) => member.uid === secondAdminId ? { ...member, role: 'admin' } : member),
+    })
+  })
+  const ownerDb = environment.authenticatedContext(actor.uid).firestore()
+  const secondAdminDb = environment.authenticatedContext(secondAdminId).firestore()
+  const lock = await assertSucceeds(acquireTripClearLock({ database: ownerDb, tripId, uid: actor.uid, operationId: 'active-clear' }))
+  await assert.rejects(
+    acquireTripClearLock({ database: secondAdminDb, tripId, uid: secondAdminId, operationId: 'parallel-clear' }),
+    /already clearing this trip/,
+  )
+  await assertFails(updateDoc(doc(secondAdminDb, 'trips', tripId), {
+    clearOperation: { ownerUid: secondAdminId, operationId: 'forged-parallel', lockedAt: serverTimestamp() },
+  }))
+
+  const expenseWrite = buildCreateExpenseBatch({
+    database: ownerDb,
+    tripId,
+    tripName: trip.name,
+    memberIds: trip.memberIds,
+    currency: trip.currency,
+    values: expenseValues,
+    actor,
+  })
+  await assertFails(expenseWrite.batch.commit())
+  await assertSucceeds(releaseTripClearLock({ database: ownerDb, tripRef: doc(ownerDb, 'trips', tripId), uid: actor.uid, operationId: lock.operationId }))
+  const retryWrite = buildCreateExpenseBatch({
+    database: ownerDb,
+    tripId,
+    tripName: trip.name,
+    memberIds: trip.memberIds,
+    currency: trip.currency,
+    values: expenseValues,
+    actor,
+  })
+  await assertSucceeds(retryWrite.batch.commit())
+})
+
+test('failed unauthorized clear never reports success or changes trip records', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', tripId, 'expenses', 'still-here'), { title: 'Safe', amount: 1 })
+  })
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  await assertFails(clearTripDataFromDatabase({ database: memberDb, tripId, uid: 'member-b', operationId: 'member-cannot-clear' }))
+  assert.equal((await getDoc(doc(memberDb, 'trips', tripId, 'expenses', 'still-here'))).exists(), true)
+  assert.equal((await getDoc(doc(memberDb, 'trips', tripId))).data().clearOperation, undefined)
+})
+
+test('partial batch failure is reported, leaves members intact, and a retry safely finishes', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const database = context.firestore()
+    const writes = Array.from({ length: 401 }, (_, index) => setDoc(
+      doc(database, 'trips', tripId, 'expenses', `partial-${index}`),
+      { title: `Expense ${index}`, amount: 1, createdBy: actor.uid },
+    ))
+    await Promise.all(writes)
+  })
+  const database = environment.authenticatedContext(actor.uid).firestore()
+  let commitCount = 0
+  await assert.rejects(
+    clearTripDataFromDatabase({
+      database,
+      tripId,
+      uid: actor.uid,
+      operationId: 'clear-with-failure',
+      commitBatch: async (batch) => {
+        commitCount += 1
+        if (commitCount === 2) throw new Error('Simulated temporary network failure.')
+        await batch.commit()
+      },
+    }),
+    /Simulated temporary network failure/,
+  )
+  assert.equal((await getDocs(collection(database, 'trips', tripId, 'expenses'))).size, 1)
+  assert.equal((await getDoc(doc(database, 'trips', tripId))).exists(), true)
+  assert.equal((await getDoc(doc(database, 'trips', tripId))).data().clearOperation, undefined)
+  assert.equal((await getDoc(doc(database, 'trips', tripId))).data().memberIds.length, trip.memberIds.length)
+
+  const retry = await assertSucceeds(clearTripDataFromDatabase({
+    database,
+    tripId,
+    uid: actor.uid,
+    operationId: 'clear-retry',
+  }))
+  assert.equal(retry.deletedCount, 1)
+  assert.equal((await getDocs(collection(database, 'trips', tripId, 'expenses'))).size, 0)
 })
 
 test('legacy owner trips and child records without optional metadata remain readable and count toward balances', async () => {
