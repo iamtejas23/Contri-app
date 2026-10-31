@@ -20,7 +20,7 @@ export const AppShell = () => {
   const displayName = getDisplayName(profile || user)
 
   return (
-      <div className="min-h-dvh bg-sand text-ink">
+      <div className="min-h-dvh text-ink">
       {/* Top header */}
       <header className="app-topbar sticky top-0 z-30 border-b border-slate-200 bg-white pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] py-3 sm:gap-4 sm:px-6 lg:px-8">

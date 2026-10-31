@@ -39,6 +39,8 @@
     min-height: 100vh;
     min-height: 100dvh;
     background-color: rgb(var(--color-sand));
+    position: relative;
+    isolation: isolate;
     overscroll-behavior-y: contain;
     overflow-x: clip;
     -webkit-tap-highlight-color: transparent;
@@ -46,7 +48,7 @@
 
   a { color: inherit; text-decoration: none; }
   button, input, select, textarea { font: inherit; }
-  #root { min-height: 100vh; min-height: 100dvh; min-width: 0; }
+  #root { min-height: 100vh; min-height: 100dvh; min-width: 0; position: relative; z-index: 1; background: transparent; }
 
   input, select, textarea { scroll-margin-block: 1rem 6rem; scroll-margin-inline: 1rem; }
   select { min-width: 0; max-width: 100%; touch-action: manipulation; }
@@ -70,6 +72,24 @@ html[data-theme='dark'] {
 }
 
 html[data-theme='dark'] body { background-color: rgb(var(--color-sand)); }
+/* One fixed atmospheric layer sits behind the transparent page shell. Solid UI surfaces
+   stay opaque, while the mesh remains stable during scrolling and cannot intercept taps. */
+body::before {
+  content: '';
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background: transparent;
+}
+html[data-theme='dark'] body::before {
+  background:
+    radial-gradient(ellipse 74% 52% at 93% 6%, rgb(72 55 126 / 27%), transparent 74%),
+    radial-gradient(ellipse 62% 56% at 5% 31%, rgb(30 51 103 / 25%), transparent 76%),
+    radial-gradient(ellipse 75% 58% at 78% 91%, rgb(61 38 103 / 22%), transparent 73%),
+    radial-gradient(ellipse 48% 42% at 46% 56%, rgb(26 39 77 / 15%), transparent 78%),
+    #000000;
+}
 html[data-theme='dark'] .bg-white,
 html[data-theme='dark'] .bg-cream { background-color: var(--surface-color) !important; }
 html[data-theme='dark'] .bg-slate-50 { background-color: var(--surface-muted) !important; }
@@ -128,36 +148,34 @@ html[data-theme='dark'] select,
 html[data-theme='dark'] textarea { color-scheme: dark; }
 html[data-theme='dark'] input::placeholder,
 html[data-theme='dark'] textarea::placeholder { color: #94a3b8; }
+html[data-theme='dark'] .bg-white\/65,
+html[data-theme='dark'] .bg-white\/70,
+html[data-theme='dark'] .bg-white\/80,
+html[data-theme='dark'] .bg-white\/95 { background-color: #101010 !important; }
+html[data-theme='dark'] .bg-sand\/70 { background-color: #080808 !important; }
+html[data-theme='dark'] .bg-amber-50\/70 { background-color: #241f13 !important; }
+html[data-theme='dark'] .bg-teal\/5 { background-color: #101d1b !important; }
+html[data-theme='dark'] .bg-ink\/5 { background-color: #1b1b1b !important; }
 
 .settings-hero {
-  background:
-    radial-gradient(ellipse at 92% 0%, rgb(94 234 212 / 16%), transparent 42%),
-    radial-gradient(ellipse at 2% 100%, rgb(13 148 136 / 8%), transparent 38%),
-    linear-gradient(135deg, var(--surface-color), var(--surface-muted));
+  background: var(--surface-color);
 }
 
 .settings-info-surface {
-  background:
-    radial-gradient(ellipse at 100% 0%, rgb(94 234 212 / 10%), transparent 46%),
-    var(--surface-color);
+  background: var(--surface-color);
 }
 
 .settings-builder__terminal { background-color: var(--surface-muted); }
 html[data-theme='dark'] .settings-hero {
   border-color: #242424;
-  background:
-    radial-gradient(ellipse at 92% 0%, rgb(255 255 255 / 5%), transparent 42%),
-    linear-gradient(135deg, #080808, #111111);
+  background: #080808;
 }
 html[data-theme='dark'] .settings-info-surface {
-  background: radial-gradient(ellipse at 100% 0%, rgb(255 255 255 / 4%), transparent 46%), #141414;
+  background: #101010;
 }
 html[data-theme='dark'] .settings-builder__terminal { background-color: #080808; }
 .mesh-brand-panel {
-  background:
-    radial-gradient(ellipse at 88% 4%, rgb(139 92 246 / 13%), transparent 38%),
-    radial-gradient(ellipse at 8% 100%, rgb(16 185 129 / 10%), transparent 44%),
-    linear-gradient(135deg, #000000 0%, #080808 100%);
+  background: #080808;
   border: 1px solid #252525;
 }
 
@@ -228,9 +246,9 @@ html[data-keyboard-open='true'] .app-main { padding-bottom: max(1rem, env(safe-a
   padding: max(2rem, env(safe-area-inset-top, 0px)) max(1.25rem, env(safe-area-inset-right, 0px)) max(2rem, env(safe-area-inset-bottom, 0px)) max(1.25rem, env(safe-area-inset-left, 0px));
   color: var(--text-primary);
   background:
-    radial-gradient(ellipse at 88% 12%, rgb(94 234 212 / 20%), transparent 36%),
-    radial-gradient(ellipse at 8% 92%, rgb(13 148 136 / 10%), transparent 40%),
-    radial-gradient(ellipse at 50% 44%, var(--surface-color) 0%, rgb(var(--color-sand)) 72%);
+    radial-gradient(ellipse at 88% 12%, rgb(72 55 126 / 24%), transparent 38%),
+    radial-gradient(ellipse at 8% 92%, rgb(30 51 103 / 20%), transparent 42%),
+    radial-gradient(ellipse at 50% 44%, var(--surface-color) 0%, rgb(var(--color-sand)) 74%);
 }
 
 .contri-splash__content {

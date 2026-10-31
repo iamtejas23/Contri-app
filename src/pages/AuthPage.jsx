@@ -48,7 +48,7 @@ export const AuthPage = () => {
   }
 
   return (
-    <div className="min-h-dvh bg-sand">
+    <div className="min-h-dvh">
       <div className="mx-auto flex min-h-dvh max-w-6xl flex-col lg:flex-row">
 
         {/* Left panel — brand */}
