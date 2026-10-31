@@ -13,7 +13,6 @@ import {
 import {
   arrayUnion,
   collection,
-  collectionGroup,
   connectFirestoreEmulator,
   deleteDoc,
   doc,
@@ -48,7 +47,6 @@ import {
 } from '../src/services/notificationClearing.js'
 import { createTripDocument, deleteTripDocuments } from '../src/services/tripDocuments.js'
 import { syncTripMemberProfile } from '../src/services/memberProfiles.js'
-import { recordExpenseView, sortExpenseViews, subscribeToTripExpenseViews } from '../src/services/expenseViews.js'
 
 const projectId = 'demo-contri-notifications'
 let environment
@@ -969,75 +967,6 @@ test('two Google-authenticated trip members can see current photos and refresh l
 
   const outsiderDb = environment.authenticatedContext('member-outsider').firestore()
   await assertFails(syncTripMemberProfile({ database: outsiderDb, uid: 'member-a', name: 'Forged', photoURL: 'https://images.example.test/forged.jpg' }))
-})
-
-test('an expense creator sees one authorized view receipt when another trip member opens its details', async () => {
-  const { expenseId } = await createExpenseAsActor()
-  const viewerDb = environment.authenticatedContext('member-b', {
-    firebase: { sign_in_provider: 'google.com' },
-  }).firestore()
-  const view = { database: viewerDb, tripId, expenseId, viewerUid: 'member-b', creatorUid: 'member-a' }
-
-  assert.equal(await recordExpenseView(view), true)
-  assert.equal(await recordExpenseView(view), false)
-  assert.equal(await recordExpenseView({ ...view, viewerUid: 'member-a', creatorUid: 'member-a' }), false)
-  assert.equal(await recordExpenseView({ ...view, creatorUid: '' }), false)
-
-  const creatorDb = environment.authenticatedContext('member-a').firestore()
-  const receipt = await assertSucceeds(getDoc(doc(creatorDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-b')))
-  assert.equal(receipt.data().uid, 'member-b')
-  assert.equal(receipt.data().tripId, tripId)
-  assert.equal(receipt.data().expenseId, expenseId)
-  assert.ok(receipt.data().viewedAt.toDate() instanceof Date)
-
-  const groupSnapshot = await assertSucceeds(getDocs(query(collectionGroup(creatorDb, 'seenBy'), where('tripId', '==', tripId))))
-  assert.equal(groupSnapshot.size, 1)
-  assert.deepEqual(sortExpenseViews(groupSnapshot.docs.map((item) => item.data())).map(({ uid }) => uid), ['member-b'])
-
-  const outsiderDb = environment.authenticatedContext('member-outsider').firestore()
-  await assertFails(getDocs(query(collectionGroup(outsiderDb, 'seenBy'), where('tripId', '==', tripId))))
-  await assertFails(setDoc(doc(viewerDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-a'), {
-    tripId, expenseId, uid: 'member-a', viewedAt: serverTimestamp(),
-  }))
-  await assertFails(updateDoc(doc(viewerDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-b'), {
-    viewedAt: serverTimestamp(),
-  }))
-})
-
-test('anonymous trip members can record a view without photos and the one trip listener receives it', async () => {
-  const { expenseId } = await createExpenseAsActor()
-  const guestDb = environment.authenticatedContext('member-c', {
-    firebase: { sign_in_provider: 'anonymous' },
-  }).firestore()
-  const creatorDb = environment.authenticatedContext('member-a').firestore()
-  const change = new Promise((resolve, reject) => {
-    let unsubscribe = () => {}
-    const timeout = setTimeout(() => {
-      unsubscribe()
-      reject(new Error('Timed out waiting for the trip view listener.'))
-    }, 5000)
-    unsubscribe = subscribeToTripExpenseViews({
-      database: creatorDb,
-      tripId,
-      onViews: (views) => {
-        if (!views[expenseId]?.length) return
-        clearTimeout(timeout)
-        unsubscribe()
-        resolve(views[expenseId][0])
-      },
-      onError: reject,
-    })
-  })
-
-  assert.equal(await recordExpenseView({ database: guestDb, tripId, expenseId, viewerUid: 'member-c', creatorUid: 'member-a' }), true)
-  const seenBy = await change
-  assert.equal(seenBy.uid, 'member-c')
-  const guestRecord = await assertSucceeds(getDoc(doc(creatorDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-c')))
-  assert.equal(guestRecord.data().uid, 'member-c')
-  const tripSnapshot = await assertSucceeds(getDoc(doc(creatorDb, 'trips', tripId)))
-  const guest = tripSnapshot.data().members.find(({ uid }) => uid === 'member-c')
-  assert.equal(guest.name, 'C Traveler')
-  assert.equal(guest.photoURL, undefined)
 })
 
 test('expense notifications can include only the authenticated actor profile photo for trip members', async () => {

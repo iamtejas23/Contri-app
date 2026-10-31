@@ -12,7 +12,7 @@ export const MemberAvatar = ({ member, name, uid, src, size = 'md', className = 
     <>
       <button
         aria-label={`View ${displayName}'s profile`}
-        className={`inline-flex flex-shrink-0 rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal ${className}`}
+        className={`inline-flex flex-shrink-0 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal ${className}`}
         onClick={() => setOpen(true)}
         title={`View ${displayName}'s profile`}
         type="button"

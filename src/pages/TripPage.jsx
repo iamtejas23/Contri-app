@@ -17,11 +17,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ActivityFeed } from '../components/feed/ActivityFeed'
 import { ExpenseFormModal } from '../components/expenses/ExpenseFormModal'
 import { ExpenseList } from '../components/expenses/ExpenseList'
-import { useExpenseViews } from '../hooks/useExpenseViews'
 import { QuickAddSheet } from '../components/expenses/QuickAddSheet'
 import { SettlementPanel } from '../components/settlements/SettlementPanel'
 import { WhoOwesWhom } from '../components/settlements/WhoOwesWhom'
 import { TripFormModal } from '../components/trips/TripFormModal'
+import { TripMembersIndicator } from '../components/trips/TripMembersIndicator'
 import { MemberAvatar } from '../components/ui/MemberAvatar'
 import { Badge } from '../components/ui/Badge'
 import { BudgetBar } from '../components/ui/BudgetBar'
@@ -33,7 +33,6 @@ import { ErrorState } from '../components/ui/ErrorState'
 import { Input } from '../components/ui/Input'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useAuth } from '../context/useAuth'
-import { db } from '../firebase/config'
 import { buildDashboardMetrics, buildMembersMap } from '../lib/balances'
 import { formatCurrency } from '../lib/currency'
 import { isDateOutsideRange } from '../lib/date'
@@ -43,7 +42,6 @@ import { buildActor, copyToClipboard } from '../lib/utils'
 import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement } from '../services/settlements'
-import { recordExpenseView } from '../services/expenseViews.js'
 import { findUserByEmail } from '../services/users'
 import { deleteTrip, inviteMemberToTrip, updateTrip, updateTripMemberRole } from '../services/trips'
 
@@ -67,7 +65,6 @@ export const TripPage = () => {
   const navigate = useNavigate()
   const { trip, expenses, settlements, activity, loading, notFound, error, retry } = useTripData(tripId)
   const { user, profile } = useAuth()
-  const viewsByExpense = useExpenseViews(tripId)
 
   const [activeTab, setActiveTab] = useState('overview')
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -276,21 +273,6 @@ export const TripPage = () => {
     toast.success('Expense deleted.')
   }
 
-  const handleExpenseViewed = async (expense, creatorUid) => {
-    if (!user?.uid || user.uid === creatorUid) return
-    try {
-      await recordExpenseView({
-        database: db,
-        tripId: trip.id,
-        expenseId: expense.id,
-        viewerUid: user.uid,
-        creatorUid,
-      })
-    } catch {
-      toast.error('Your view could not sync while offline. You can keep browsing.')
-    }
-  }
-
   const handleSettlementSubmit = async (values) => {
     if (settlementSubmitLock.current) return
     const tripMemberIds = trip.memberIds || members.map((member) => member.uid)
@@ -407,29 +389,7 @@ export const TripPage = () => {
         <div className="flex min-w-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           {/* Members row */}
           <div className="flex flex-wrap items-center gap-2">
-            <div aria-label={`${displayMembers.length} trip members`} className="flex min-w-0 items-center gap-3" role="group">
-              <div className="flex flex-shrink-0 items-center -space-x-2.5">
-                {displayMembers.slice(0, 5).map((member) => (
-                  <MemberAvatar
-                    key={member.uid}
-                    member={member}
-                    label={`${member.name || 'Member'} avatar`}
-                    name={member.name}
-                    size="sm"
-                    src={member.photoURL}
-                    uid={member.uid}
-                  />
-                ))}
-                {displayMembers.length > 5 ? (
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 text-[11px] font-bold text-dusk ring-2 ring-sand">
-                    +{displayMembers.length - 5}
-                  </span>
-                ) : null}
-              </div>
-              <span className="text-sm font-medium text-dusk">
-                {displayMembers.length} {displayMembers.length === 1 ? 'member' : 'members'}
-              </span>
-            </div>
+            <TripMembersIndicator className="bg-slate-50" members={displayMembers} maxVisible={5} size="regular" />
           </div>
 
           {/* Action buttons */}
@@ -530,8 +490,6 @@ export const TripPage = () => {
           expenses={expenses}
           membersMap={membersMap}
           currentUserId={user?.uid}
-          onView={handleExpenseViewed}
-          viewsByExpense={viewsByExpense}
           onCreate={() => setShowQuickAdd(true)}
           onDelete={handleExpenseDelete}
           onEdit={(expense) => {

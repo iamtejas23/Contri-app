@@ -14,14 +14,11 @@ import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
 import { Select } from '../ui/Select'
 import { ExpenseDetailDialog } from './ExpenseDetailDialog'
-import { SeenByDialog } from './SeenByDialog'
-import { SeenByIndicator } from './SeenByIndicator'
 
-export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onEdit, onDelete, onCreate, onView, currentUserId, viewsByExpense = {}, canManage = false }) => {
+export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onEdit, onDelete, onCreate, currentUserId, canManage = false }) => {
   const [search, setSearch]               = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [selectedExpense, setSelectedExpense] = useState(null)
-  const [selectedViews, setSelectedViews] = useState(null)
   const creationActivityMap = useMemo(() => buildExpenseCreationActivityMap(activity), [activity])
 
   const categories = useMemo(() => [...new Set(expenses.map((e) => e.category))].sort(), [expenses])
@@ -140,10 +137,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
                     {formatCurrency(expense.amount, currency)}
                   </p>
                   <div className="flex min-w-0 flex-wrap justify-end gap-2">
-                    <Button onClick={() => {
-                      setSelectedExpense(expense)
-                      onView?.(expense, creator.uid)
-                    }} size="sm" type="button" variant="secondary">
+                    <Button onClick={() => setSelectedExpense(expense)} size="sm" type="button" variant="secondary">
                       <Eye className="h-3.5 w-3.5" />
                       Details
                     </Button>
@@ -172,12 +166,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
                   </div>
                 </div>
               </div>
-              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-3 py-1.5 sm:px-4">
-                <SeenByIndicator
-                  membersMap={membersMap}
-                  onClick={() => setSelectedViews({ expense, views: viewsByExpense[expense.id] || [] })}
-                  views={viewsByExpense[expense.id] || []}
-                />
+              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-3 py-1.5 sm:px-4">
                 {currentUserId === creator.uid ? <span className="text-[11px] text-dusk">You added this</span> : null}
               </div>
             </Card>
@@ -192,13 +181,6 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
         membersMap={membersMap}
         onClose={() => setSelectedExpense(null)}
         open={Boolean(selectedExpense)}
-        views={selectedExpense ? viewsByExpense[selectedExpense.id] || [] : []}
-      />
-      <SeenByDialog
-        membersMap={membersMap}
-        onClose={() => setSelectedViews(null)}
-        open={Boolean(selectedViews)}
-        views={selectedViews?.views || []}
       />
     </div>
   )
