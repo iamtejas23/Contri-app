@@ -17,6 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ActivityFeed } from '../components/feed/ActivityFeed'
 import { ExpenseFormModal } from '../components/expenses/ExpenseFormModal'
 import { ExpenseList } from '../components/expenses/ExpenseList'
+import { useExpenseViews } from '../hooks/useExpenseViews'
 import { QuickAddSheet } from '../components/expenses/QuickAddSheet'
 import { SettlementPanel } from '../components/settlements/SettlementPanel'
 import { WhoOwesWhom } from '../components/settlements/WhoOwesWhom'
@@ -32,6 +33,7 @@ import { ErrorState } from '../components/ui/ErrorState'
 import { Input } from '../components/ui/Input'
 import { Skeleton } from '../components/ui/Skeleton'
 import { useAuth } from '../context/useAuth'
+import { db } from '../firebase/config'
 import { buildDashboardMetrics, buildMembersMap } from '../lib/balances'
 import { formatCurrency } from '../lib/currency'
 import { isDateOutsideRange } from '../lib/date'
@@ -41,6 +43,7 @@ import { buildActor, copyToClipboard } from '../lib/utils'
 import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement } from '../services/settlements'
+import { recordExpenseView } from '../services/expenseViews.js'
 import { findUserByEmail } from '../services/users'
 import { deleteTrip, inviteMemberToTrip, updateTrip, updateTripMemberRole } from '../services/trips'
 
@@ -64,6 +67,7 @@ export const TripPage = () => {
   const navigate = useNavigate()
   const { trip, expenses, settlements, activity, loading, notFound, error, retry } = useTripData(tripId)
   const { user, profile } = useAuth()
+  const viewsByExpense = useExpenseViews(tripId)
 
   const [activeTab, setActiveTab] = useState('overview')
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -272,6 +276,21 @@ export const TripPage = () => {
     toast.success('Expense deleted.')
   }
 
+  const handleExpenseViewed = async (expense, creatorUid) => {
+    if (!user?.uid || user.uid === creatorUid) return
+    try {
+      await recordExpenseView({
+        database: db,
+        tripId: trip.id,
+        expenseId: expense.id,
+        viewerUid: user.uid,
+        creatorUid,
+      })
+    } catch {
+      toast.error('Your view could not sync while offline. You can keep browsing.')
+    }
+  }
+
   const handleSettlementSubmit = async (values) => {
     if (settlementSubmitLock.current) return
     const tripMemberIds = trip.memberIds || members.map((member) => member.uid)
@@ -364,10 +383,10 @@ export const TripPage = () => {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5 pb-16 sm:pb-0">
       {/* Trip header */}
       <Card className="p-0 overflow-hidden">
-        <div className="flex items-center gap-4 border-b border-slate-100 bg-slate-50 px-6 py-5">
+        <div className="flex min-w-0 items-start gap-3 border-b border-slate-100 bg-slate-50 px-4 py-4 sm:items-center sm:gap-4 sm:px-6 sm:py-5">
           {trip.emoji === 'shivneri-fort' ? (
             <img alt="Shivneri Fort" className="h-12 w-12 object-contain" src="/shivneri-fort.png" />
           ) : (
@@ -385,7 +404,7 @@ export const TripPage = () => {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           {/* Members row */}
           <div className="flex flex-wrap items-center gap-2">
             <div aria-label={`${displayMembers.length} trip members`} className="flex min-w-0 items-center gap-3" role="group">
@@ -448,11 +467,11 @@ export const TripPage = () => {
       </Card>
 
       {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 scrollbar-none">
+      <div aria-label="Trip sections" className="grid grid-cols-3 gap-1 rounded-xl border border-slate-200 bg-white p-1 sm:flex sm:flex-wrap">
         {tabs.map((tab) => (
           <button
             key={tab.value}
-            className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+            className={`inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-medium transition-all min-[400px]:px-3 sm:flex-shrink-0 sm:px-4 sm:text-sm ${
               activeTab === tab.value
                 ? 'bg-teal text-white shadow-sm'
                 : 'text-dusk hover:bg-slate-100 hover:text-ink'
@@ -510,6 +529,9 @@ export const TripPage = () => {
           currency={trip.currency}
           expenses={expenses}
           membersMap={membersMap}
+          currentUserId={user?.uid}
+          onView={handleExpenseViewed}
+          viewsByExpense={viewsByExpense}
           onCreate={() => setShowQuickAdd(true)}
           onDelete={handleExpenseDelete}
           onEdit={(expense) => {
@@ -649,7 +671,7 @@ export const TripPage = () => {
 
       <div className="sm:hidden">
         <button
-          className="fixed bottom-20 right-4 z-20 inline-flex h-14 items-center gap-2 rounded-full bg-teal px-5 text-sm font-semibold text-white shadow-elevated transition active:scale-95"
+          className="trip-expense-fab fixed bottom-[calc(4.25rem+env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] z-20 inline-flex h-14 items-center gap-2 rounded-full bg-teal px-5 text-sm font-semibold text-white shadow-elevated transition active:scale-95"
           onClick={() => setShowQuickAdd(true)}
           type="button"
         >

@@ -20,9 +20,10 @@ export const ProfilePreviewDialog = ({ member, open, onClose, isSelf = false, ac
       fullScreen={isSelf}
       onClose={onClose}
       open={open}
+      size="profile"
       title={isSelf ? 'Profile preview' : 'Member profile'}
     >
-      <div className={`flex min-h-full flex-col items-center justify-center text-center ${isSelf ? 'py-10' : 'py-4'}`}>
+      <div className={`mx-auto flex w-full min-w-0 flex-col items-center text-center ${isSelf ? 'py-6 sm:py-8' : 'py-4 sm:py-6'}`}>
         <Avatar
           label={`${name} profile photo`}
           name={name}
@@ -30,7 +31,7 @@ export const ProfilePreviewDialog = ({ member, open, onClose, isSelf = false, ac
           src={member.photoURL || ''}
           uid={member.uid}
         />
-        <h2 className="mt-6 max-w-full break-words font-display text-2xl font-bold text-ink [overflow-wrap:anywhere]">
+        <h2 className="mt-4 max-w-full break-words font-display text-2xl font-bold text-ink [overflow-wrap:anywhere] sm:mt-6">
           {name}
         </h2>
 
@@ -40,7 +41,7 @@ export const ProfilePreviewDialog = ({ member, open, onClose, isSelf = false, ac
               {member.email || member.contactEmail || 'No email linked'}
             </p>
             {member.isAnonymous ? <Badge className="mt-3" tone="amber">Guest account</Badge> : null}
-            <div className="mt-8 grid w-full max-w-md gap-3 text-left">
+            <div className="mt-6 grid w-full min-w-0 max-w-md gap-3 text-left sm:mt-8">
               <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <UserRound aria-hidden="true" className="h-5 w-5 flex-shrink-0 text-blue-500" />
                 <div className="min-w-0">

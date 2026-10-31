@@ -219,6 +219,15 @@ service cloud.firestore {
       }
     }
 
+    // Collection-group reads are constrained to one trip by the tripId field.
+    // The nested expense rule below validates that field against the path on write.
+    match /{path=**}/seenBy/{viewerUid} {
+      allow get, list: if signedIn()
+        && resource.data.tripId is string
+        && isTripMember(resource.data.tripId);
+      allow create, update, delete: if false;
+    }
+
     match /trips/{tripId} {
       allow create: if isValidTripCreation();
 
@@ -247,6 +256,21 @@ service cloud.firestore {
           && request.resource.data.amount > 0
           && request.resource.data.paidBy in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
         allow update, delete: if isTripAdmin(tripId);
+
+        match /seenBy/{viewerUid} {
+          allow get, list: if isTripMember(tripId);
+          allow create: if isTripMember(tripId)
+            && request.auth.uid == viewerUid
+            && request.resource.data.keys().hasOnly(['tripId', 'expenseId', 'uid', 'viewedAt'])
+            && request.resource.data.tripId == tripId
+            && request.resource.data.expenseId == expenseId
+            && request.resource.data.uid == request.auth.uid
+            && request.resource.data.viewedAt == request.time
+            && exists(/databases/$(database)/documents/trips/$(tripId)/expenses/$(expenseId))
+            && (!('createdBy' in get(/databases/$(database)/documents/trips/$(tripId)/expenses/$(expenseId)).data)
+              || get(/databases/$(database)/documents/trips/$(tripId)/expenses/$(expenseId)).data.createdBy != request.auth.uid);
+          allow update, delete: if false;
+        }
       }
 
       match /settlements/{settlementId} {

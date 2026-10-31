@@ -13,6 +13,7 @@ import {
 import {
   arrayUnion,
   collection,
+  collectionGroup,
   connectFirestoreEmulator,
   deleteDoc,
   doc,
@@ -32,6 +33,7 @@ import {
 import { countUnreadNotifications, expenseNotificationId } from '../src/lib/notifications.js'
 import { createNotificationArrivalDetector } from '../src/lib/notificationSound.js'
 import { getTripIdFromInvite } from '../src/lib/invites.js'
+import { getGooglePhotoURL, hasGoogleProvider } from '../src/lib/googleProfile.js'
 import { addMemberToTrip } from '../src/lib/joinTrip.js'
 import { computeBalances } from '../src/lib/balances.js'
 import { sortRecordsByDate } from '../src/lib/date.js'
@@ -46,6 +48,7 @@ import {
 } from '../src/services/notificationClearing.js'
 import { createTripDocument, deleteTripDocuments } from '../src/services/tripDocuments.js'
 import { syncTripMemberProfile } from '../src/services/memberProfiles.js'
+import { recordExpenseView, sortExpenseViews, subscribeToTripExpenseViews } from '../src/services/expenseViews.js'
 
 const projectId = 'demo-contri-notifications'
 let environment
@@ -911,6 +914,130 @@ test('a member can sync their own photo to trip membership while outsiders canno
 
   const outsiderDb = environment.authenticatedContext('member-outsider').firestore()
   await assertFails(getDoc(doc(outsiderDb, 'trips', tripId)))
+})
+
+test('Google provider photo takes precedence over a stale Firebase user photo and safely falls back', () => {
+  const user = {
+    photoURL: 'https://images.example.test/stale.jpg',
+    providerData: [
+      { providerId: 'password', photoURL: 'https://images.example.test/password.jpg' },
+      { providerId: 'google.com', photoURL: 'https://images.example.test/current-google.jpg' },
+    ],
+  }
+  assert.equal(hasGoogleProvider(user), true)
+  assert.equal(getGooglePhotoURL(user), 'https://images.example.test/current-google.jpg')
+  assert.equal(getGooglePhotoURL({ ...user, providerData: [{ providerId: 'google.com', photoURL: '' }] }), user.photoURL)
+  assert.equal(hasGoogleProvider({ providerData: [] }), false)
+  assert.equal(getGooglePhotoURL(null), '')
+})
+
+test('two Google-authenticated trip members can see current photos and refresh legacy missing photos without changing each other', async () => {
+  const memberAUrl = 'https://images.example.test/member-a-current.jpg'
+  const memberBUrl = 'https://images.example.test/member-b-current.jpg'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      members: trip.members.map((member) => member.uid === 'member-a'
+        ? { ...member, photoURL: 'https://images.example.test/member-a-stale.jpg' }
+        : { ...member }),
+    })
+  })
+
+  const memberADb = environment.authenticatedContext('member-a', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  await assertSucceeds(syncTripMemberProfile({ database: memberADb, uid: 'member-a', name: 'A Traveler', photoURL: memberAUrl }))
+
+  let tripSnapshot = await getDoc(doc(memberADb, 'trips', tripId))
+  assert.equal(tripSnapshot.data().members.find(({ uid }) => uid === 'member-a').photoURL, memberAUrl)
+  assert.equal(tripSnapshot.data().members.find(({ uid }) => uid === 'member-b').photoURL, undefined)
+
+  const memberBDb = environment.authenticatedContext('member-b', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  await assertSucceeds(syncTripMemberProfile({ database: memberBDb, uid: 'member-b', name: 'B Traveler', photoURL: memberBUrl }))
+  tripSnapshot = await getDoc(doc(memberADb, 'trips', tripId))
+  assert.deepEqual(
+    tripSnapshot.data().members.slice(0, 2).map(({ uid, photoURL }) => ({ uid, photoURL })),
+    [{ uid: 'member-a', photoURL: memberAUrl }, { uid: 'member-b', photoURL: memberBUrl }],
+  )
+
+  const refreshedAUrl = 'https://images.example.test/member-a-updated.jpg'
+  await assertSucceeds(syncTripMemberProfile({ database: memberADb, uid: 'member-a', name: 'A Traveler', photoURL: refreshedAUrl }))
+  const memberBView = await assertSucceeds(getDoc(doc(memberBDb, 'trips', tripId)))
+  assert.equal(memberBView.data().members.find(({ uid }) => uid === 'member-a').photoURL, refreshedAUrl)
+  assert.equal(memberBView.data().members.find(({ uid }) => uid === 'member-b').photoURL, memberBUrl)
+
+  const outsiderDb = environment.authenticatedContext('member-outsider').firestore()
+  await assertFails(syncTripMemberProfile({ database: outsiderDb, uid: 'member-a', name: 'Forged', photoURL: 'https://images.example.test/forged.jpg' }))
+})
+
+test('an expense creator sees one authorized view receipt when another trip member opens its details', async () => {
+  const { expenseId } = await createExpenseAsActor()
+  const viewerDb = environment.authenticatedContext('member-b', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const view = { database: viewerDb, tripId, expenseId, viewerUid: 'member-b', creatorUid: 'member-a' }
+
+  assert.equal(await recordExpenseView(view), true)
+  assert.equal(await recordExpenseView(view), false)
+  assert.equal(await recordExpenseView({ ...view, viewerUid: 'member-a', creatorUid: 'member-a' }), false)
+  assert.equal(await recordExpenseView({ ...view, creatorUid: '' }), false)
+
+  const creatorDb = environment.authenticatedContext('member-a').firestore()
+  const receipt = await assertSucceeds(getDoc(doc(creatorDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-b')))
+  assert.equal(receipt.data().uid, 'member-b')
+  assert.equal(receipt.data().tripId, tripId)
+  assert.equal(receipt.data().expenseId, expenseId)
+  assert.ok(receipt.data().viewedAt.toDate() instanceof Date)
+
+  const groupSnapshot = await assertSucceeds(getDocs(query(collectionGroup(creatorDb, 'seenBy'), where('tripId', '==', tripId))))
+  assert.equal(groupSnapshot.size, 1)
+  assert.deepEqual(sortExpenseViews(groupSnapshot.docs.map((item) => item.data())).map(({ uid }) => uid), ['member-b'])
+
+  const outsiderDb = environment.authenticatedContext('member-outsider').firestore()
+  await assertFails(getDocs(query(collectionGroup(outsiderDb, 'seenBy'), where('tripId', '==', tripId))))
+  await assertFails(setDoc(doc(viewerDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-a'), {
+    tripId, expenseId, uid: 'member-a', viewedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(viewerDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-b'), {
+    viewedAt: serverTimestamp(),
+  }))
+})
+
+test('anonymous trip members can record a view without photos and the one trip listener receives it', async () => {
+  const { expenseId } = await createExpenseAsActor()
+  const guestDb = environment.authenticatedContext('member-c', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  const creatorDb = environment.authenticatedContext('member-a').firestore()
+  const change = new Promise((resolve, reject) => {
+    let unsubscribe = () => {}
+    const timeout = setTimeout(() => {
+      unsubscribe()
+      reject(new Error('Timed out waiting for the trip view listener.'))
+    }, 5000)
+    unsubscribe = subscribeToTripExpenseViews({
+      database: creatorDb,
+      tripId,
+      onViews: (views) => {
+        if (!views[expenseId]?.length) return
+        clearTimeout(timeout)
+        unsubscribe()
+        resolve(views[expenseId][0])
+      },
+      onError: reject,
+    })
+  })
+
+  assert.equal(await recordExpenseView({ database: guestDb, tripId, expenseId, viewerUid: 'member-c', creatorUid: 'member-a' }), true)
+  const seenBy = await change
+  assert.equal(seenBy.uid, 'member-c')
+  const guestRecord = await assertSucceeds(getDoc(doc(creatorDb, 'trips', tripId, 'expenses', expenseId, 'seenBy', 'member-c')))
+  assert.equal(guestRecord.data().uid, 'member-c')
+  const tripSnapshot = await assertSucceeds(getDoc(doc(creatorDb, 'trips', tripId)))
+  const guest = tripSnapshot.data().members.find(({ uid }) => uid === 'member-c')
+  assert.equal(guest.name, 'C Traveler')
+  assert.equal(guest.photoURL, undefined)
 })
 
 test('expense notifications can include only the authenticated actor profile photo for trip members', async () => {

@@ -216,6 +216,7 @@ html.native-app :is([class*='overflow-y-auto'], [class*='overflow-y-scroll'], [c
 
 html[data-keyboard-open='true'] .app-bottom-nav { visibility: hidden; pointer-events: none; }
 html[data-keyboard-open='true'] .app-main { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+html[data-keyboard-open='true'] .trip-expense-fab { visibility: hidden; pointer-events: none; }
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(8px); }

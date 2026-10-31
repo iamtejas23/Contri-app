@@ -5,6 +5,7 @@ import {
   linkWithCredential,
   linkWithPopup,
   GoogleAuthProvider,
+  reload,
   signOut,
   updateProfile,
 } from 'firebase/auth'
@@ -16,79 +17,90 @@ import { auth, db, googleProvider } from '../firebase/config'
 import { notifyFirebaseError } from '../lib/errors'
 import { createGuestSession } from '../lib/guestAuth'
 import { getDisplayName } from '../lib/utils'
+import { getGooglePhotoURL, hasGoogleProvider } from '../lib/googleProfile.js'
 import { syncTripMemberProfile } from './memberProfiles.js'
 
-const syncGooglePhotoIntoTripsOnce = async ({ uid, name, photoURL, upiId }) => {
-  if (!photoURL) return
-  const key = `contri:trip-member-photo:${uid}`
-  try {
-    if (window.localStorage.getItem(key) === photoURL) return
-  } catch {
-    // Storage can be unavailable in private browsing; continue with Firestore sync.
-  }
-
-  await syncTripMemberProfile({ database: db, uid, name, photoURL, upiId })
-  try {
-    window.localStorage.setItem(key, photoURL)
-  } catch {
-    // Keep auth usable if browser storage is unavailable.
-  }
-}
-
-export const ensureUserProfile = async (user) => {
+const ensureUserProfileOnce = async (user) => {
   const userRef = doc(db, 'users', user.uid)
 
   try {
-    const snapshot = await getDoc(userRef)
+    const isGoogleUser = hasGoogleProvider(user)
+    let profileUser = user
+    let refreshedGoogleProfile = false
 
-    const isGoogleUser = user.providerData?.some(({ providerId }) => providerId === 'google.com')
-    const googlePhotoURL = isGoogleUser ? user.photoURL || '' : ''
+    // Firebase persists the last-known photo on User. Refresh it first so an
+    // account photo changed at Google is not propagated from stale Auth state.
+    if (isGoogleUser) {
+      try {
+        await reload(user)
+        profileUser = auth.currentUser?.uid === user.uid ? auth.currentUser : user
+        refreshedGoogleProfile = true
+      } catch {
+        // Keep sign-in usable offline; avoid propagating a potentially stale
+        // cached Google photo when the provider refresh could not complete.
+      }
+    }
+
+    const snapshot = await getDoc(userRef)
+    const googlePhotoURL = isGoogleUser ? getGooglePhotoURL(profileUser) : ''
+    const trustedGooglePhotoURL = refreshedGoogleProfile ? googlePhotoURL : ''
+    const displayName = profileUser.displayName || snapshot.data()?.name || getDisplayName(profileUser)
 
     if (!snapshot.exists()) {
       // Wait for the guest to choose a name before creating their profile.
-      if (user.isAnonymous && !user.displayName) return
+      if (profileUser.isAnonymous && !profileUser.displayName) return
       await setDoc(userRef, {
-        name: getDisplayName(user),
-        email: user.email?.toLowerCase() || '',
-        photoURL: user.photoURL || '',
-        ...(user.isAnonymous ? { isGuest: true } : {}),
+        name: displayName,
+        email: profileUser.email?.toLowerCase() || '',
+        photoURL: googlePhotoURL || profileUser.photoURL || '',
+        ...(profileUser.isAnonymous ? { isGuest: true } : {}),
         createdAt: serverTimestamp(),
       }, { merge: true })
-      try {
-        await syncGooglePhotoIntoTripsOnce({
-          uid: user.uid,
-          name: getDisplayName(user),
-          photoURL: googlePhotoURL,
-        })
-      } catch (syncError) {
-        notifyFirebaseError(syncError, 'Your profile photo synced, but could not yet be updated across your trips.')
-      }
-      return
+    } else {
+      const currentProfile = snapshot.data()
+      await updateDoc(userRef, {
+        name: displayName,
+        email: profileUser.email?.toLowerCase() || '',
+        ...(trustedGooglePhotoURL ? { photoURL: trustedGooglePhotoURL } : {}),
+        ...(profileUser.isAnonymous || currentProfile.isGuest
+          ? { isGuest: Boolean(profileUser.isAnonymous) }
+          : {}),
+      })
     }
 
-    const profilePhotoURL = googlePhotoURL || snapshot.data().photoURL || user.photoURL || ''
-    await updateDoc(userRef, {
-      name: user.displayName || snapshot.data().name || getDisplayName(user),
-      email: user.email?.toLowerCase() || '',
-      photoURL: profilePhotoURL,
-      ...(user.isAnonymous || snapshot.data().isGuest
-        ? { isGuest: Boolean(user.isAnonymous) }
-        : {}),
-    })
-    try {
-      await syncGooglePhotoIntoTripsOnce({
-        uid: user.uid,
-        name: user.displayName || snapshot.data().name || getDisplayName(user),
-        photoURL: googlePhotoURL,
-        upiId: snapshot.data().upiId || '',
-      })
-    } catch (syncError) {
-      notifyFirebaseError(syncError, 'Your profile photo synced, but could not yet be updated across your trips.')
+    // Sync only this authenticated user's embedded member entries. The query
+    // is scoped by memberIds and the Firestore rule permits changing only the
+    // caller's own member profile fields. No profile scan or other-user write.
+    if (isGoogleUser && refreshedGoogleProfile) {
+      try {
+        await syncTripMemberProfile({
+          database: db,
+          uid: user.uid,
+          name: displayName,
+          photoURL: googlePhotoURL,
+          upiId: snapshot.data()?.upiId || '',
+        })
+      } catch (syncError) {
+        notifyFirebaseError(syncError, 'Your Google photo is saved, but some trip member photos could not be refreshed.')
+      }
     }
   } catch (error) {
     notifyFirebaseError(error, 'We could not sync your profile right now.')
     throw error
   }
+}
+
+const profileSyncs = new Map()
+export const ensureUserProfile = (user) => {
+  if (!user?.uid) return Promise.resolve()
+  const existing = profileSyncs.get(user.uid)
+  if (existing) return existing
+
+  const pending = ensureUserProfileOnce(user).finally(() => {
+    if (profileSyncs.get(user.uid) === pending) profileSyncs.delete(user.uid)
+  })
+  profileSyncs.set(user.uid, pending)
+  return pending
 }
 
 export const loginWithGoogle = async () => {
