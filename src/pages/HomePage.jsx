@@ -14,18 +14,12 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Skeleton } from '../components/ui/Skeleton'
 import { TripCard } from '../components/trips/TripCard'
 import { TripFormModal } from '../components/trips/TripFormModal'
-import { Modal } from '../components/ui/Modal'
-import { Input } from '../components/ui/Input'
-import { getTripIdFromInvite } from '../lib/invites'
 
 export const HomePage = () => {
   const navigate = useNavigate()
   const { user, profile } = useAuth()
   const { trips, loading, error, retry } = useUserTrips(user?.uid)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showJoinModal, setShowJoinModal] = useState(false)
-  const [inviteValue, setInviteValue] = useState('')
-  const [inviteError, setInviteError] = useState('')
   const [search, setSearch] = useState('')
 
   const stats = useMemo(() => ({
@@ -56,16 +50,6 @@ export const HomePage = () => {
     navigate(`/trips/${tripId}`)
   }
 
-  const handleJoinTrip = (event) => {
-    event.preventDefault()
-    const tripId = getTripIdFromInvite(inviteValue)
-    if (!tripId) {
-      setInviteError('Enter a valid Contri invite link or trip code.')
-      return
-    }
-    navigate(`/join?tripId=${encodeURIComponent(tripId)}`)
-  }
-
   return (
     <div className="space-y-8">
       {/* Hero banner */}
@@ -94,7 +78,7 @@ export const HomePage = () => {
             </Button>
             <Button
               className="border border-white/30 bg-white/10 text-white hover:bg-white/20"
-              onClick={() => setShowJoinModal(true)}
+              onClick={() => navigate('/join')}
               size="lg"
               type="button"
               variant="ghost"
@@ -160,7 +144,7 @@ export const HomePage = () => {
                 />
               </div>
             )}
-            <Button onClick={() => setShowJoinModal(true)} size="sm" type="button" variant="secondary">
+            <Button onClick={() => navigate('/join')} size="sm" type="button" variant="secondary">
               <Link2 className="h-4 w-4" />
               Join Trip
             </Button>
@@ -224,35 +208,6 @@ export const HomePage = () => {
         />
       ) : null}
 
-      <Modal
-        description="Paste a Contri invite link or enter its trip code."
-        onClose={() => setShowJoinModal(false)}
-        open={showJoinModal}
-        title="Join a trip"
-      >
-        <form className="space-y-4" onSubmit={handleJoinTrip}>
-          <Input
-            autoComplete="off"
-            hint="A trip code is the ID included in the trip’s invite link."
-            label="Invite link or trip code"
-            onChange={(event) => {
-              setInviteValue(event.target.value)
-              setInviteError('')
-            }}
-            placeholder="Paste invite link or trip code"
-            type="text"
-            value={inviteValue}
-          />
-          {inviteError ? <p className="text-sm text-red-600" role="alert">{inviteError}</p> : null}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button onClick={() => setShowJoinModal(false)} type="button" variant="secondary">Cancel</Button>
-            <Button disabled={!inviteValue.trim()} type="submit">
-              <Link2 className="h-4 w-4" />
-              Continue
-            </Button>
-          </div>
-        </form>
-      </Modal>
     </div>
   )
 }

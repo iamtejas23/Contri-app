@@ -6,6 +6,7 @@ import {
   MessageCircle,
   PencilLine,
   Plus,
+  QrCode,
   ShieldCheck,
   Trash2,
 } from 'lucide-react'
@@ -22,6 +23,7 @@ import { SettlementPanel } from '../components/settlements/SettlementPanel'
 import { WhoOwesWhom } from '../components/settlements/WhoOwesWhom'
 import { TripFormModal } from '../components/trips/TripFormModal'
 import { ClearTripDataDialog } from '../components/trips/ClearTripDataDialog'
+import { TripInviteDialog } from '../components/trips/TripInviteDialog'
 import { TripMembersIndicator } from '../components/trips/TripMembersIndicator'
 import { MemberAvatar } from '../components/ui/MemberAvatar'
 import { Badge } from '../components/ui/Badge'
@@ -39,6 +41,7 @@ import { formatCurrency } from '../lib/currency'
 import { isDateOutsideRange } from '../lib/date'
 import { validateSettlementForWrite } from '../lib/financialValidation.js'
 import { buildHisabMessage, buildInviteMessage, openWhatsApp } from '../lib/share'
+import { buildTripInviteLink } from '../lib/invites'
 import { buildActor, copyToClipboard } from '../lib/utils'
 import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
@@ -46,6 +49,7 @@ import { createSettlement } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
 import { deleteTrip, inviteMemberToTrip, updateTrip, updateTripMemberRole } from '../services/trips'
 import { clearTripDataFromDatabase } from '../services/clearTripData'
+import { publishTripInvitationPreview } from '../services/tripInvitationPreview'
 import { db } from '../firebase/config'
 
 const TripDashboard = lazy(() =>
@@ -76,6 +80,7 @@ export const TripPage = () => {
   const [editingExpense, setEditingExpense] = useState(null)
   const [showTripModal, setShowTripModal] = useState(false)
   const [showClearTripData, setShowClearTripData] = useState(false)
+  const [showInviteDialog, setShowInviteDialog] = useState(false)
   const [clearTripLoading, setClearTripLoading] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
@@ -113,7 +118,7 @@ export const TripPage = () => {
   const inviteOrigin = Capacitor.isNativePlatform()
     ? (import.meta.env.VITE_MOBILE_AUTH_URL || 'https://contri-app.vercel.app')
     : window.location.origin
-  const inviteLink = trip ? `${inviteOrigin}/join?tripId=${trip.id}` : ''
+  const inviteLink = trip ? buildTripInviteLink(trip.id, inviteOrigin) : ''
 
   const handlePdfExport = async () => {
     const { exportTripSummaryPdf } = await import('../lib/exports')
@@ -133,12 +138,22 @@ export const TripPage = () => {
   }
 
   const handleCopyInvite = async () => {
-    await copyToClipboard(inviteLink)
-    toast.success('Invite link copied.')
+    try {
+      await publishTripInvitationPreview({ database: db, trip, tripId })
+      await copyToClipboard(inviteLink)
+      toast.success('Invite link copied.')
+    } catch {
+      toast.error('Could not prepare this invitation. Check your connection and try again.')
+    }
   }
 
-  const handleShareInvite = () => {
-    openWhatsApp(buildInviteMessage({ tripName: trip.name, inviteLink }))
+  const handleShareInvite = async () => {
+    try {
+      await publishTripInvitationPreview({ database: db, trip, tripId })
+      await openWhatsApp(buildInviteMessage({ tripName: trip.name, inviteLink }))
+    } catch {
+      toast.error('Could not prepare this invitation. Check your connection and try again.')
+    }
   }
 
   const handleShareHisab = () => {
@@ -611,6 +626,9 @@ export const TripPage = () => {
             {canManageTrip ? (
               <>
                 <div className="mt-5 flex flex-wrap gap-2">
+                  <Button onClick={() => setShowInviteDialog(true)} size="sm" type="button" variant="secondary">
+                    <QrCode className="h-4 w-4" /> Share QR
+                  </Button>
                   <Button onClick={handleCopyInvite} size="sm" type="button" variant="secondary">
                     <Link2 className="h-4 w-4" />
                     Copy link
@@ -721,6 +739,12 @@ export const TripPage = () => {
         onConfirm={handleClearTripData}
         open={showClearTripData && canManageTrip}
         tripName={trip.name}
+      />
+      <TripInviteDialog
+        inviteOrigin={inviteOrigin}
+        onClose={() => setShowInviteDialog(false)}
+        open={showInviteDialog && canManageTrip}
+        trip={trip ? { ...trip, id: tripId } : null}
       />
     </div>
   )

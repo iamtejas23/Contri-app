@@ -28,6 +28,7 @@ function App() {
             <Route element={<SettingsPage />} path="/settings" />
             <Route element={<Navigate replace to="/settings" />} path="/about" />
             <Route element={<JoinTripPage />} path="/join" />
+            <Route element={<JoinTripPage />} path="/join/:tripId" />
             <Route element={<TripPage />} path="/trips/:tripId" />
           </Route>
         </Route>

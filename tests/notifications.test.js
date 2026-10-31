@@ -31,7 +31,7 @@ import {
 
 import { countUnreadNotifications, expenseNotificationId } from '../src/lib/notifications.js'
 import { createNotificationArrivalDetector } from '../src/lib/notificationSound.js'
-import { getTripIdFromInvite } from '../src/lib/invites.js'
+import { buildTripInviteLink, getTripIdFromInvite } from '../src/lib/invites.js'
 import { getGooglePhotoURL, hasGoogleProvider } from '../src/lib/googleProfile.js'
 import { addMemberToTrip } from '../src/lib/joinTrip.js'
 import { computeBalances } from '../src/lib/balances.js'
@@ -52,6 +52,11 @@ import {
   releaseTripClearLock,
 } from '../src/services/clearTripData.js'
 import { syncTripMemberProfile } from '../src/services/memberProfiles.js'
+import {
+  buildTripInvitationPreview,
+  loadTripInvitationPreview,
+  publishTripInvitationPreview,
+} from '../src/services/tripInvitationPreview.js'
 
 const projectId = 'demo-contri-notifications'
 let environment
@@ -949,9 +954,58 @@ test('Firestore notification listener ignores history and plays once for a live 
 test('a valid trip code or invite URL resolves to the existing trip ID', () => {
   assert.equal(getTripIdFromInvite(tripId), tripId)
   assert.equal(getTripIdFromInvite(`https://contri-app.vercel.app/join?tripId=${tripId}`), tripId)
+  assert.equal(getTripIdFromInvite(`https://contri-app.vercel.app/join/${tripId}`), tripId)
   assert.equal(getTripIdFromInvite('/join?tripId=trip-beta'), 'trip-beta')
   assert.equal(getTripIdFromInvite('https://contri-app.vercel.app/join'), '')
   assert.equal(getTripIdFromInvite(''), '')
+  assert.equal(buildTripInviteLink(tripId, 'https://contri-app.vercel.app'), `https://contri-app.vercel.app/join/${tripId}`)
+})
+
+test('trip admins publish a minimal join preview while other users cannot read trip data or write previews', async () => {
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  const preview = await assertSucceeds(publishTripInvitationPreview({ database: adminDb, trip, tripId }))
+  assert.deepEqual(preview, {
+    tripId,
+    tripName: trip.name,
+    description: '',
+    emoji: '🧳',
+    startDate: '',
+    endDate: '',
+    memberCount: trip.memberIds.length,
+  })
+
+  const inviteeDb = environment.authenticatedContext('invitee').firestore()
+  const published = await assertSucceeds(loadTripInvitationPreview({ database: inviteeDb, tripId }))
+  assert.equal(published.tripName, trip.name)
+  assert.equal(published.memberCount, trip.memberIds.length)
+  assert.deepEqual(Object.keys(published).sort(), [
+    'description', 'emoji', 'endDate', 'memberCount', 'startDate', 'tripId', 'tripName', 'updatedAt',
+  ])
+  await assertFails(getDoc(doc(inviteeDb, 'trips', tripId)))
+  await assertFails(getDocs(collection(inviteeDb, 'trips', tripId, 'invitationPreview')))
+  await assertFails(publishTripInvitationPreview({ database: inviteeDb, trip, tripId }))
+
+  const anonymousDb = environment.unauthenticatedContext().firestore()
+  assert.equal((await assertSucceeds(getDoc(doc(anonymousDb, 'trips', tripId, 'invitationPreview', 'current')))).exists(), true)
+
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  await assertFails(publishTripInvitationPreview({ database: memberDb, trip, tripId }))
+  await assertFails(setDoc(doc(adminDb, 'trips', tripId, 'invitationPreview', 'current'), {
+    ...buildTripInvitationPreview({ ...trip, name: 'Forged preview' }, tripId),
+    updatedAt: serverTimestamp(),
+  }))
+})
+
+test('legacy trip preview snapshots use safe defaults without adding trip fields', () => {
+  assert.deepEqual(buildTripInvitationPreview({ name: 'Legacy trip', memberIds: ['owner'] }, 'legacy-trip'), {
+    tripId: 'legacy-trip',
+    tripName: 'Legacy trip',
+    description: '',
+    emoji: '🧳',
+    startDate: '',
+    endDate: '',
+    memberCount: 1,
+  })
 })
 
 test('guest creation uses Firebase Anonymous Auth and saves the provided profile', async () => {

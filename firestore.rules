@@ -312,6 +312,40 @@ service cloud.firestore {
         || isSelfMemberProfileUpdate();
       allow delete: if isTripAdmin(tripId) && !isTripClearing(tripId);
 
+      // This is a deliberately small, invite-link-only projection. It contains
+      // no member identities, expenses, settlements, or other trip document
+      // fields. Knowing the existing trip ID is already the invite mechanism.
+      match /invitationPreview/{previewId} {
+        allow get: if previewId == 'current'
+          && (resource == null || (resource.data.keys().hasOnly([
+            'tripId', 'tripName', 'description', 'emoji', 'startDate', 'endDate', 'memberCount', 'updatedAt'
+          ])
+          && resource.data.tripId == tripId
+          && resource.data.tripName is string
+          && resource.data.description is string
+          && resource.data.emoji is string
+          && resource.data.startDate is string
+          && resource.data.endDate is string
+          && resource.data.memberCount is int
+          && resource.data.memberCount > 0));
+        allow list: if false;
+        allow create, update: if previewId == 'current'
+          && isTripAdmin(tripId)
+          && !isTripClearing(tripId)
+          && request.resource.data.keys().hasOnly([
+            'tripId', 'tripName', 'description', 'emoji', 'startDate', 'endDate', 'memberCount', 'updatedAt'
+          ])
+          && request.resource.data.tripId == tripId
+          && request.resource.data.tripName == get(/databases/$(database)/documents/trips/$(tripId)).data.name
+          && request.resource.data.description == get(/databases/$(database)/documents/trips/$(tripId)).data.get('description', '')
+          && request.resource.data.emoji == get(/databases/$(database)/documents/trips/$(tripId)).data.get('emoji', '🧳')
+          && request.resource.data.startDate == get(/databases/$(database)/documents/trips/$(tripId)).data.get('startDate', '')
+          && request.resource.data.endDate == get(/databases/$(database)/documents/trips/$(tripId)).data.get('endDate', '')
+          && request.resource.data.memberCount == get(/databases/$(database)/documents/trips/$(tripId)).data.get('memberIds', get(/databases/$(database)/documents/trips/$(tripId)).data.get('members', [])).size()
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
+      }
+
       match /expenses/{expenseId} {
         allow read: if isTripMember(tripId);
         allow create: if isTripMember(tripId)

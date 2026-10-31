@@ -1,188 +1,258 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link2, UserRound } from 'lucide-react'
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { CalendarDays, Link2, MapPin, QrCode, Users, UserRound } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import toast from 'react-hot-toast'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { doc, getDoc } from 'firebase/firestore'
 
-import { useAuth } from '../context/useAuth'
-import { getTripIdFromInvite } from '../lib/invites'
-import { createGuestAccount } from '../services/auth'
-import { joinTripByLink } from '../services/trips'
-import { getErrorMessage } from '../lib/errors'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
+import { TripQrScanner } from '../components/trips/TripQrScanner'
+import { useAuth } from '../context/useAuth'
+import { db } from '../firebase/config'
+import { getTripIdFromInvite } from '../lib/invites'
+import { getErrorMessage } from '../lib/errors'
+import { createGuestAccount } from '../services/auth'
+import { joinTripByLink } from '../services/trips'
+import { isValidTripInvitationPreview, loadTripInvitationPreview } from '../services/tripInvitationPreview'
+
+const formatDate = (value) => {
+  if (!value) return ''
+  const parsed = new Date(`${value}T12:00:00`)
+  return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(parsed)
+}
 
 export const JoinTripPage = () => {
+  const { tripId: pathTripId = '' } = useParams()
   const [searchParams] = useSearchParams()
   const location = useLocation()
   const navigate = useNavigate()
   const { user, profile, loading: authLoading } = useAuth()
-  const [joining, setJoining] = useState(false)
-  const [joinAttempt, setJoinAttempt] = useState(0)
+  const requestedTripId = pathTripId || searchParams.get('tripId') || ''
+  const tripId = useMemo(() => getTripIdFromInvite(requestedTripId), [requestedTripId])
+  const invitePath = `${location.pathname}${location.search}`
+  const [manualValue, setManualValue] = useState('')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [inviteValue, setInviteValue] = useState(searchParams.get('tripId') || '')
-  const [error, setError] = useState('')
-  const started = useRef(false)
-
-  const tripId = searchParams.get('tripId')
+  const [preview, setPreview] = useState(null)
+  const [previewState, setPreviewState] = useState('idle')
+  const [previewError, setPreviewError] = useState('')
+  const [joinError, setJoinError] = useState('')
+  const [joining, setJoining] = useState(false)
+  const [alreadyMember, setAlreadyMember] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const [manualError, setManualError] = useState('')
 
   useEffect(() => {
-    if (!tripId || authLoading || !user || started.current) return
-    started.current = true
+    let alive = true
+    if (!tripId) return undefined
 
-    const join = async () => {
-      setJoining(true)
-      setError('')
-      try {
-        await joinTripByLink({
-          tripId,
-          member: {
-            uid: user.uid,
-            name: profile?.name || user.displayName || 'Traveler',
-            email: profile?.email || user.email || '',
-            photoURL: profile?.photoURL || user.photoURL || '',
-            upiId: profile?.upiId || '',
-            isAnonymous: user.isAnonymous,
-          },
-        })
-        navigate(`/trips/${encodeURIComponent(tripId)}`, { replace: true })
-      } catch (joinError) {
-        setError(getErrorMessage(joinError, 'We could not confirm your membership. Check your connection and invite, then try again.'))
-        started.current = false
-      } finally {
-        setJoining(false)
-      }
-    }
+    Promise.resolve()
+      .then(() => {
+        if (alive) {
+          setPreviewState('loading')
+          setPreviewError('')
+          setPreview(null)
+          setAlreadyMember(false)
+        }
+        return loadTripInvitationPreview({ database: db, tripId })
+      })
+      .then((result) => {
+        if (!alive) return
+        if (isValidTripInvitationPreview(result, tripId)) {
+          setPreview(result)
+          setPreviewState('ready')
+        } else {
+          setPreviewState('legacy')
+        }
+      })
+      .catch((error) => {
+        if (!alive) return
+        setPreviewState('error')
+        setPreviewError(getErrorMessage(error, 'We could not load this invite preview. Check your connection and try again.'))
+      })
 
-    join()
-  }, [authLoading, joinAttempt, navigate, profile, tripId, user])
+    return () => { alive = false }
+  }, [tripId])
 
-  const handleGuestJoin = async (event) => {
-    event.preventDefault()
-    if (joining) return
+  useEffect(() => {
+    let alive = true
+    if (!tripId || !user || user.isAnonymous && authLoading) return undefined
+    getDoc(doc(db, 'trips', tripId))
+      .then((snapshot) => {
+        if (!alive || !snapshot.exists()) return
+        const data = snapshot.data()
+        const member = data.memberIds?.includes(user.uid)
+          && data.members?.some((entry) => entry.uid === user.uid)
+        if (member) setAlreadyMember(true)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [authLoading, tripId, user])
 
-    const requestedTripId = getTripIdFromInvite(inviteValue)
-    if (inviteValue.trim() && !requestedTripId) {
-      setError('Enter a valid Contri invite link or trip ID.')
+  const continueToInvite = (value) => {
+    const parsedTripId = getTripIdFromInvite(value)
+    if (!parsedTripId) {
+      setManualError('That does not look like a Contri invite link or trip code.')
       return
     }
+    navigate(`/join/${encodeURIComponent(parsedTripId)}`)
+  }
 
+  const handleScannedCode = useCallback((rawValue) => {
+    setScannerOpen(false)
+    const parsedTripId = getTripIdFromInvite(rawValue)
+    if (!parsedTripId) {
+      setManualError('This QR code is not a valid Contri trip invitation. Try scanning again or enter the code manually.')
+      return
+    }
+    navigate(`/join/${encodeURIComponent(parsedTripId)}`)
+  }, [navigate])
+
+  const performJoin = async (joiningUser, displayName = '', contactEmail = '') => {
+    if (joining || !tripId || !joiningUser) return
     setJoining(true)
-    setError('')
+    setJoinError('')
     try {
-      const guest = user?.isAnonymous
-        ? await createGuestAccount({ name, contactEmail: email })
-        : user || await createGuestAccount({ name, contactEmail: email })
-
-      if (requestedTripId) {
-        await joinTripByLink({
-          tripId: requestedTripId,
-          member: {
-            uid: guest.uid,
-            name: guest.displayName || name.trim(),
-            email: guest.email || '',
-            photoURL: guest.photoURL || '',
-            isAnonymous: guest.isAnonymous,
-          },
-        })
-        navigate(`/trips/${encodeURIComponent(requestedTripId)}`, { replace: true })
-      } else {
-        navigate('/', { replace: true, state: { fromGuestJoin: true } })
-      }
-    } catch (guestError) {
-      setError(guestError instanceof Error ? guestError.message : 'Guest sign-in or trip joining failed. Check your connection and try again.')
+      await joinTripByLink({
+        tripId,
+        member: {
+          uid: joiningUser.uid,
+          name: profile?.name || displayName || joiningUser.displayName || 'Traveler',
+          email: profile?.email || joiningUser.email || contactEmail || '',
+          photoURL: profile?.photoURL || joiningUser.photoURL || '',
+          upiId: profile?.upiId || '',
+          isAnonymous: joiningUser.isAnonymous,
+        },
+      })
+      toast.success(alreadyMember ? 'You are already a trip member.' : 'You joined the trip.')
+      navigate(`/trips/${encodeURIComponent(tripId)}`, { replace: true })
+    } catch (error) {
+      setJoinError(getErrorMessage(error, 'We could not join this trip. Check the invitation and your connection, then try again.'))
     } finally {
       setJoining(false)
     }
   }
 
-  const isWaitingForExistingJoin = Boolean(tripId && (authLoading || (user && joining)))
+  const handleGuestJoin = async (event) => {
+    event.preventDefault()
+    if (!name.trim()) {
+      setJoinError('Enter your display name to continue as a guest.')
+      return
+    }
+    if (joining) return
+    setJoining(true)
+    setJoinError('')
+    try {
+      const guest = user?.isAnonymous
+        ? user
+        : await createGuestAccount({ name: name.trim(), contactEmail: email.trim() })
+      await joinTripByLink({
+        tripId,
+        member: {
+          uid: guest.uid,
+          name: guest.displayName || name.trim(),
+          email: guest.email || email.trim(),
+          photoURL: guest.photoURL || '',
+          isAnonymous: guest.isAnonymous,
+        },
+      })
+      toast.success('You joined the trip as a guest.')
+      navigate(`/trips/${encodeURIComponent(tripId)}`, { replace: true })
+    } catch (error) {
+      setJoinError(getErrorMessage(error, 'We could not create your guest account or join this trip. Try again.'))
+    } finally {
+      setJoining(false)
+    }
+  }
 
-  return (
-    <Card className="mx-auto max-w-2xl p-5 sm:p-8">
-      <div className="mx-auto max-w-lg">
-        <div className="text-center">
-          <p className="text-sm uppercase tracking-[0.18em] text-dusk/55">Trip invite</p>
-          <h1 className="mt-3 font-display text-3xl font-bold text-ink">
-            {isWaitingForExistingJoin ? 'Opening your trip…' : 'Join as Guest'}
-          </h1>
-          <p className="mx-auto mt-3 text-sm text-dusk/75">
-            Use an invite link or trip ID. Guests can view expenses, add expenses, and see trip balances like other members.
-          </p>
-        </div>
+  if (scannerOpen) return <TripQrScanner onClose={() => setScannerOpen(false)} onCode={handleScannedCode} />
 
-        {isWaitingForExistingJoin ? (
-          <p aria-live="polite" className="mt-6 text-center text-sm text-dusk">Joining the trip…</p>
-        ) : tripId && user && error ? (
-          <div className="mt-6 space-y-4" role="alert">
-            <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-800">
-              Your membership was not confirmed, so this trip has not been opened. {error}
-            </p>
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <Button
-                disabled={joining}
-                onClick={() => setJoinAttempt((attempt) => attempt + 1)}
-                type="button"
-              >
-                Try joining again
-              </Button>
-              <Button onClick={() => navigate('/')} type="button" variant="secondary">
-                Back to trips
-              </Button>
+  if (!tripId) {
+    return (
+      <div className="mx-auto max-w-2xl space-y-5">
+        <Card className="overflow-hidden p-0">
+          <div className="mesh-brand-panel px-5 py-7 text-white sm:px-8 sm:py-9">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/65">Trip invitations</p>
+            <h1 className="mt-2 font-display text-3xl font-bold sm:text-4xl">Join your group</h1>
+            <p className="mt-2 max-w-lg text-sm text-white/75">Scan a Contri QR code or enter the invitation code shared by a trip admin. You’ll review the trip before joining.</p>
+          </div>
+          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-6">
+            <button className="flex min-h-28 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-teal/50 hover:bg-slate-50" onClick={() => { setManualError(''); setScannerOpen(true) }} type="button">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-700"><QrCode className="h-6 w-6" /></span>
+              <span><strong className="block text-sm text-ink">Scan QR code</strong><span className="mt-1 block text-xs leading-5 text-dusk">Use your device camera to scan a trip invitation.</span></span>
+            </button>
+            <div className="flex min-h-28 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-teal/10 text-teal"><Link2 className="h-6 w-6" /></span>
+              <div className="min-w-0 flex-1">
+                <strong className="block text-sm text-ink">Enter invite code</strong>
+                <form className="mt-2 flex gap-2" onSubmit={(event) => { event.preventDefault(); continueToInvite(manualValue) }}>
+                  <Input aria-label="Invitation link or trip code" autoComplete="off" className="min-w-0" onChange={(event) => { setManualValue(event.target.value); setManualError('') }} placeholder="Paste link or code" value={manualValue} />
+                  <Button aria-label="Continue with invite code" className="min-h-11 min-w-11 px-3" disabled={!manualValue.trim()} type="submit"><Link2 className="h-4 w-4" /></Button>
+                </form>
+              </div>
             </div>
           </div>
-        ) : (
-          <form className="mt-6 space-y-4" onSubmit={handleGuestJoin}>
-            <Input
-              autoComplete="name"
-              label="Display name"
-              maxLength={80}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="How should the group see you?"
-              required
-              value={name}
-            />
-            <Input
-              autoComplete="email"
-              hint="Optional and not verified; it is saved as contact information only."
-              label="Email (optional)"
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              type="email"
-              value={email}
-            />
-            <Input
-              autoCapitalize="none"
-              autoComplete="off"
-              hint="Use the trip ID from a Contri invite link, or paste the full link. Leave blank to join first and choose a trip later."
-              label="Invite link or trip ID (optional)"
-              onChange={(event) => setInviteValue(event.target.value)}
-              placeholder="Paste invite link or trip ID"
-              value={inviteValue}
-            />
-
-            {error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{error}</p> : null}
-
-            <Button className="w-full" loading={joining} size="lg" type="submit">
-              {inviteValue.trim() ? <Link2 className="h-4 w-4" /> : <UserRound className="h-4 w-4" />}
-              {inviteValue.trim() ? 'Create guest account and join' : 'Continue as guest'}
-            </Button>
-            <p className="text-xs leading-relaxed text-dusk/70">
-              Your guest account uses Firebase Anonymous Authentication. If you sign out or lose this device, recovery may be difficult. Link Google from your profile to keep your existing account and trip data.
-            </p>
-          </form>
-        )}
-
-        <div className="mt-5 text-center">
-          {error && tripId ? (
-            <Button onClick={() => navigate('/')} type="button" variant="secondary">Back to trips</Button>
-          ) : (
-            <Button onClick={() => navigate(location.state?.from?.startsWith('/') ? location.state.from : '/')} type="button" variant="secondary">
-              Back
-            </Button>
-          )}
-        </div>
+          {manualError ? <p className="px-5 pb-4 text-sm text-red-600" role="alert">{manualError}</p> : null}
+        </Card>
+        <p className="text-center text-xs text-dusk">Camera access is requested only when you start scanning. Manual entry works without a camera.</p>
       </div>
-    </Card>
+    )
+  }
+
+  const dateRange = [formatDate(preview?.startDate), formatDate(preview?.endDate)].filter(Boolean).join(' – ')
+
+  return (
+    <div className="mx-auto w-full max-w-xl">
+      <Card className="overflow-hidden p-0">
+        <div className="mesh-brand-panel px-5 py-7 text-white sm:px-8 sm:py-9">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/65">Trip invitation</p>
+          {previewState === 'loading' ? <div aria-label="Loading trip preview" className="mt-3 h-8 w-3/4 animate-pulse rounded-lg bg-white/15" /> : (
+            <h1 className="mt-2 break-words font-display text-3xl font-bold sm:text-4xl">{preview ? `${preview.emoji || '🧳'} ${preview.tripName}` : 'You’re invited to a Contri trip'}</h1>
+          )}
+          {preview?.description ? <p className="mt-3 max-w-lg break-words text-sm text-white/75">{preview.description}</p> : null}
+          {dateRange ? <p className="mt-3 inline-flex items-center gap-2 text-sm text-white/75"><CalendarDays className="h-4 w-4" />{dateRange}</p> : null}
+        </div>
+
+        <div className="space-y-5 p-5 sm:p-8">
+          {previewState === 'loading' ? <p aria-live="polite" className="text-sm text-dusk">Checking this invitation…</p> : null}
+          {previewState === 'error' ? <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{previewError}</div> : null}
+          {previewState === 'legacy' ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-dusk">
+              This is an older Contri invitation. Its trip details are not available in a safe preview. You can still confirm and try joining; Contri will verify membership before opening the trip.
+            </div>
+          ) : null}
+          {preview ? <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-dusk">
+            {preview.memberCount ? <span className="inline-flex items-center gap-2"><Users className="h-4 w-4 text-cyan-600" />{preview.memberCount} {preview.memberCount === 1 ? 'member' : 'members'}</span> : null}
+            {preview.description ? <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4 text-violet-600" />Trip details</span> : null}
+          </div> : null}
+          <p className="text-sm leading-6 text-dusk">Joining lets you view this trip’s expenses and balances and add expenses according to trip membership rules.</p>
+
+          {alreadyMember ? <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">You’re already a member of this trip.</div> : null}
+          {joinError ? <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{joinError}</div> : null}
+
+          {user ? (
+            <div className="space-y-3">
+              <Button className="min-h-12 w-full" disabled={previewState === 'loading'} loading={joining} onClick={() => alreadyMember ? navigate(`/trips/${encodeURIComponent(tripId)}`) : void performJoin(user)} type="button">
+                {alreadyMember ? 'Open trip' : 'Join Trip'}
+              </Button>
+              <Button className="w-full" onClick={() => navigate('/join')} type="button" variant="ghost">Use another invitation</Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <Button className="min-h-12 w-full" onClick={() => navigate('/login', { state: { from: invitePath } })} type="button" variant="secondary"><UserRound className="h-4 w-4" />Sign in to join</Button>
+              <div className="relative py-1 text-center text-xs text-dusk"><span className="bg-white px-2">or continue as guest</span><span aria-hidden="true" className="absolute inset-x-0 top-1/2 -z-10 border-t border-slate-200" /></div>
+              <form className="space-y-3" onSubmit={handleGuestJoin}>
+                <Input autoComplete="name" label="Display name" onChange={(event) => setName(event.target.value)} placeholder="Your name" required value={name} />
+                <Input autoComplete="email" label="Email (optional)" onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" type="email" value={email} />
+                <Button className="min-h-12 w-full" disabled={previewState === 'loading'} loading={joining} type="submit">Create guest account & join</Button>
+                <p className="text-xs leading-5 text-dusk">Guest accounts are anonymous and may be difficult to recover if you sign out or change devices.</p>
+              </form>
+            </div>
+          )}
+          <Link className="block text-center text-sm text-dusk underline decoration-slate-300 underline-offset-4" to="/">Back to trips</Link>
+        </div>
+      </Card>
+    </div>
   )
 }

@@ -11,7 +11,8 @@ export const ProtectedRoute = () => {
     return <LoadingScreen />
   }
 
-  if (!user && location.pathname !== '/join') {
+  const isJoinRoute = location.pathname === '/join' || location.pathname.startsWith('/join/')
+  if (!user && !isJoinRoute) {
     return (
       <Navigate
         replace

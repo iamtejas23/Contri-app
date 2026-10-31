@@ -4,6 +4,37 @@
 @tailwind components;
 @tailwind utilities;
 
+.scanner-corner {
+  position: absolute;
+  z-index: 2;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-color: #fff;
+  border-style: solid;
+  border-width: 3px 0 0 3px;
+  border-radius: 0.8rem 0 0 0;
+}
+
+.scanner-line {
+  position: absolute;
+  z-index: 2;
+  top: 12%;
+  left: 8%;
+  right: 8%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #49e0bd, transparent);
+  box-shadow: 0 0 16px #49e0bd;
+  animation: scanner-sweep 2.2s ease-in-out infinite alternate;
+}
+
+@keyframes scanner-sweep {
+  to { transform: translateY(28dvh); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scanner-line { animation: none; }
+}
+
 @layer base {
   :root {
     --color-ink: 15 23 42;
