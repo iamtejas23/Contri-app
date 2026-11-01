@@ -1,17 +1,19 @@
-const getFreshToken = async (user) => {
+const getToken = async (user, forceRefresh = false) => {
   if (!user) throw new Error('Sign in before managing receipts.')
 
   try {
-    // Force Firebase Auth to refresh the token instead of reusing its cached ID token.
-    return await user.getIdToken(true)
+    return await user.getIdToken(forceRefresh)
   } catch {
-    throw new Error('Your sign-in session could not be refreshed. Check your connection and retry; you only need to sign in again if the session has expired.')
+    throw new Error(forceRefresh
+      ? 'Firebase could not refresh this session. Check your connection and retry.'
+      : 'Firebase could not read the current session. Wait for sign-in to finish, then retry.')
   }
 }
 
 export const requestReceiptApiWithAuth = async ({ user, url, payload, fetchImpl = fetch }) => {
+  const refreshableAuthCodes = new Set(['FIREBASE_TOKEN_EXPIRED', 'FIREBASE_TOKEN_INVALID'])
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const token = await getFreshToken(user)
+    const token = await getToken(user, attempt === 1)
     let response
     try {
       response = await fetchImpl(url, {
@@ -27,8 +29,15 @@ export const requestReceiptApiWithAuth = async ({ user, url, payload, fetchImpl 
     }
 
     const result = await response.json().catch(() => ({}))
-    if (response.status === 401 && attempt === 0) continue
-    if (!response.ok) throw new Error(result.error || 'The receipt request failed. Please try again.')
+    if (response.status === 401 && attempt === 0 && refreshableAuthCodes.has(result.code)) continue
+    if (!response.ok) {
+      const message = result.error || 'The receipt request failed. Please try again.'
+      const diagnostic = [result.code, result.requestId].filter(Boolean).join(' · ')
+      const error = new Error(diagnostic ? `${message} (${diagnostic})` : message)
+      error.code = result.code
+      error.requestId = result.requestId
+      throw error
+    }
     return result
   }
 

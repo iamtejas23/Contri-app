@@ -54,39 +54,67 @@ export const encodeFirestoreFields = (fields = {}) => Object.fromEntries(
 
 export const getBearerToken = (req) => {
   const value = req.headers?.authorization || req.headers?.Authorization || ''
+  if (!value) throw Object.assign(new Error('The receipt request is missing authentication.'), { statusCode: 401, code: 'AUTH_MISSING' })
   const match = /^Bearer\s+(.+)$/i.exec(value)
-  if (!match) throw Object.assign(new Error('Sign in to continue.'), { statusCode: 401 })
-  return match[1].trim()
+  const token = match?.[1]?.trim()
+  if (!token || /\s/.test(token)) {
+    throw Object.assign(new Error('The receipt request has an invalid authentication header.'), { statusCode: 401, code: 'AUTH_MALFORMED' })
+  }
+  return token
 }
 
 export const verifyFirebaseIdentity = async (idToken, fetchImpl = fetch) => {
   const projectId = PROJECT_ID()
   const apiKey = API_KEY()
-  if (!projectId || !apiKey) throw Object.assign(new Error('Firebase project or API configuration is missing on the server.'), { statusCode: 503 })
+  if (!projectId || !apiKey) throw Object.assign(new Error('Receipt authentication is not configured on the server.'), { statusCode: 503, code: 'FIREBASE_CONFIG_ERROR' })
   const claims = readFirebaseTokenClaims(idToken)
   if (!claims?.sub || claims.aud !== projectId || claims.iss !== `https://securetoken.google.com/${projectId}`) {
-    throw Object.assign(new Error('This Firebase session belongs to a different or invalid project. Refresh the app session and retry.'), { statusCode: 401 })
+    throw Object.assign(new Error('The Firebase session does not match this app project.'), { statusCode: 401, code: 'FIREBASE_PROJECT_MISMATCH' })
   }
+  const authEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST
   const base = firebaseHost('FIREBASE_AUTH_EMULATOR_HOST', 'https://identitytoolkit.googleapis.com')
-  const response = await fetchImpl(`${base}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken }),
-  })
+  let response
+  try {
+    // Production host already includes identitytoolkit.googleapis.com. The duplicate
+    // hostname in the old path caused Identity Toolkit lookups to fail on Vercel.
+    const endpointPath = authEmulator ? '/identitytoolkit.googleapis.com/v1/accounts:lookup' : '/v1/accounts:lookup'
+    response = await fetchImpl(`${base}${endpointPath}?key=${encodeURIComponent(apiKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    })
+  } catch {
+    throw Object.assign(new Error('Firebase verification is temporarily unavailable.'), { statusCode: 503, code: 'FIREBASE_VERIFY_UNAVAILABLE' })
+  }
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({}))
+    let payload = {}
+    try { payload = await response.json() } catch { /* safely classify by HTTP status below */ }
     const reason = String(payload.error?.message || '').toUpperCase()
-    if (['API_KEY_INVALID', 'API_KEY_SERVICE_BLOCKED', 'PROJECT_NOT_FOUND'].includes(reason)) {
-      throw Object.assign(new Error('Receipt authentication is misconfigured on the server. Contact the app administrator.'), { statusCode: 503 })
+    if (['API_KEY_INVALID', 'API_KEY_SERVICE_BLOCKED', 'PROJECT_NOT_FOUND', 'INVALID_PROJECT_ID'].includes(reason)) {
+      throw Object.assign(new Error('Receipt authentication is misconfigured on the server.'), { statusCode: 503, code: 'FIREBASE_CONFIG_ERROR', diagnosticCategory: reason })
     }
     if (['INVALID_ID_TOKEN', 'TOKEN_EXPIRED', 'USER_NOT_FOUND', 'USER_DISABLED', 'INVALID_LOGIN_CREDENTIALS'].includes(reason)) {
-      throw Object.assign(new Error('Firebase rejected the ID token. Refresh the app session and retry.'), { statusCode: 401 })
+      const expired = reason === 'TOKEN_EXPIRED'
+      throw Object.assign(new Error(expired ? 'The Firebase ID token expired.' : 'Firebase rejected the ID token.'), {
+        statusCode: 401,
+        code: expired ? 'FIREBASE_TOKEN_EXPIRED' : 'FIREBASE_TOKEN_INVALID',
+        diagnosticCategory: reason,
+      })
     }
-    throw Object.assign(new Error('Firebase could not verify this session right now. Retry the receipt request.'), { statusCode: response.status >= 500 ? 503 : 401 })
+    if (response.status >= 500) {
+      throw Object.assign(new Error('Firebase verification is temporarily unavailable.'), { statusCode: 503, code: 'FIREBASE_VERIFY_UNAVAILABLE', diagnosticCategory: `HTTP_${response.status}` })
+    }
+    throw Object.assign(new Error('Firebase could not verify this ID token.'), {
+      statusCode: 401,
+      code: 'FIREBASE_VERIFICATION_REJECTED',
+      diagnosticCategory: `HTTP_${response.status}`,
+    })
   }
   const payload = await response.json()
   const user = payload.users?.[0]
-  if (!user?.localId || user.disabled) throw Object.assign(new Error('Your session is no longer valid.'), { statusCode: 401 })
+  if (!user?.localId || user.disabled || user.localId !== claims.sub) {
+    throw Object.assign(new Error('Firebase rejected the authenticated account identity.'), { statusCode: 401, code: 'FIREBASE_TOKEN_INVALID' })
+  }
   return {
     uid: user.localId,
     email: String(user.email || '').trim().toLowerCase(),
@@ -97,7 +125,7 @@ export const verifyFirebaseIdentity = async (idToken, fetchImpl = fetch) => {
 
 export const getFirestoreDocument = async (path, idToken, fetchImpl = fetch) => {
   const projectId = PROJECT_ID()
-  if (!projectId) throw Object.assign(new Error('Firebase project configuration is missing on the server.'), { statusCode: 503 })
+  if (!projectId) throw Object.assign(new Error('Firebase project configuration is missing on the server.'), { statusCode: 503, code: 'FIREBASE_CONFIG_ERROR' })
   const host = firebaseHost('FIRESTORE_EMULATOR_HOST', 'https://firestore.googleapis.com')
   const encodedPath = path.split('/').map(encodeURIComponent).join('/')
   const response = await fetchImpl(`${host}/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/${encodedPath}`, {
@@ -108,7 +136,7 @@ export const getFirestoreDocument = async (path, idToken, fetchImpl = fetch) => 
     const statusCode = response.status === 403 ? 403 : response.status === 401 ? 401 : 502
     throw Object.assign(new Error(statusCode === 403
       ? 'You do not have access to this trip or expense.'
-      : 'Trip data could not be verified right now.'), { statusCode })
+      : 'Trip data could not be verified right now.'), { statusCode, code: statusCode === 403 ? 'TRIP_AUTHORIZATION_FAILED' : 'FIRESTORE_LOOKUP_FAILED' })
   }
   const document = await response.json()
   return {
@@ -122,20 +150,20 @@ export const getFirestoreDocument = async (path, idToken, fetchImpl = fetch) => 
 export const assertTripMember = (trip, uid) => {
   const fromIds = Array.isArray(trip?.memberIds) && trip.memberIds.includes(uid)
   if (!trip || !(fromIds || trip.createdBy === uid)) {
-    throw Object.assign(new Error('You must be a current trip member to view this receipt.'), { statusCode: 403 })
+    throw Object.assign(new Error('You must be a current trip member to view this receipt.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
   }
 }
 
 export const assertAuthorizedCreator = (trip, identity) => {
   if (identity.email !== 'tsmane8787@gmail.com' || !identity.emailVerified || !trip?.createdBy || trip.createdBy !== identity.uid) {
-    throw Object.assign(new Error('Receipt uploads are only available to the verified trip creator account.'), { statusCode: 403 })
+    throw Object.assign(new Error('Receipt uploads are only available to the verified trip creator account.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
   }
 }
 
 export const assertTripAdmin = (trip, uid) => {
   const isMember = Array.isArray(trip?.memberIds) && trip.memberIds.includes(uid)
   const isAdmin = trip?.createdBy === uid || (isMember && Array.isArray(trip?.adminIds) && trip.adminIds.includes(uid))
-  if (!isAdmin) throw Object.assign(new Error('Only a trip admin can remove a receipt.'), { statusCode: 403 })
+  if (!isAdmin) throw Object.assign(new Error('Only a trip admin can remove a receipt.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
 }
 
 export const validateDocumentId = (value, name) => {

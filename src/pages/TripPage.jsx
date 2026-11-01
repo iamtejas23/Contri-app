@@ -678,19 +678,18 @@ export const TripPage = () => {
         </div>
       ) : null}
 
-      <div
-        className="trip-expense-fab-dock fixed inset-x-0 z-20 flex justify-end border-t border-slate-200 bg-sand px-[max(1rem,env(safe-area-inset-left))] py-2 pr-[max(1rem,env(safe-area-inset-right))] shadow-sm sm:hidden"
-        style={{ bottom: 'var(--app-bottom-nav-height, calc(4.5rem + env(safe-area-inset-bottom)))' }}
+      <button
+        className="trip-expense-fab fixed z-20 inline-flex h-14 items-center gap-2 rounded-full bg-teal px-5 text-sm font-semibold text-white shadow-elevated transition active:scale-95 sm:hidden"
+        onClick={() => setShowQuickAdd(true)}
+        style={{
+          bottom: 'calc(var(--app-bottom-nav-height, calc(4.5rem + env(safe-area-inset-bottom))) + 0.75rem)',
+          right: 'max(1rem, env(safe-area-inset-right))',
+        }}
+        type="button"
       >
-        <button
-          className="trip-expense-fab inline-flex h-14 items-center gap-2 rounded-full bg-teal px-5 text-sm font-semibold text-white shadow-elevated transition active:scale-95"
-          onClick={() => setShowQuickAdd(true)}
-          type="button"
-        >
-          <Plus className="h-5 w-5" />
-          Add kharcha
-        </button>
-      </div>
+        <Plus className="h-5 w-5" />
+        Add kharcha
+      </button>
 
       {showQuickAdd ? (
         <QuickAddSheet

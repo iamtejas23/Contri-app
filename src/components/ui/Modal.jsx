@@ -27,7 +27,7 @@ export const Modal = ({ open, onClose, title, description, children, fullScreen 
     >
       <div className={`my-auto flex w-full min-w-0 flex-col overflow-hidden border border-slate-200 bg-white shadow-modal ${fullScreen ? 'h-full max-h-dvh max-w-none rounded-none sm:h-auto sm:max-w-md sm:rounded-2xl' : bottomSheet ? 'mb-0 max-w-none rounded-t-3xl sm:my-auto sm:max-w-sm sm:rounded-2xl' : `${size === 'profile' ? 'max-w-sm' : size === 'compact' ? 'max-w-sm' : 'max-w-2xl'} rounded-2xl`}`} style={{ maxHeight: fullScreen ? 'var(--app-viewport-height, 100dvh)' : 'calc(var(--app-viewport-height, 100dvh) - max(1rem, env(safe-area-inset-top)) - max(1rem, env(safe-area-inset-bottom)))' }}>
         {/* Header */}
-        <div className={`flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 ${fullScreen ? 'pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))]' : ''}`}>
+        <div className={`flex shrink-0 items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 ${fullScreen ? 'pt-[calc(1.25rem+env(safe-area-inset-top))] pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))]' : ''}`}>
           <div>
             <h2 className="font-display text-xl font-semibold text-ink">{title}</h2>
             {description ? (

@@ -12,7 +12,7 @@ const safeFileName = (value) => String(value || 'receipt')
   .slice(0, 160) || 'receipt'
 
 export default async function handler(req, res, dependencies = {}) {
-  return withReceiptApi(req, res, async ({ res: response, body, idToken, identity, dependencies: deps }) => {
+  return withReceiptApi(req, res, async ({ res: response, body, idToken, identity, dependencies: deps, setStage }) => {
     const tripId = validateDocumentId(body.tripId, 'trip ID')
     const expenseId = validateDocumentId(body.expenseId, 'expense ID')
     const mimeType = String(body.mimeType || '').toLowerCase()
@@ -21,8 +21,10 @@ export default async function handler(req, res, dependencies = {}) {
     if (!Number.isFinite(size) || size <= 0 || size > MAX_RECEIPT_BYTES) return respond(response, 400, { error: 'Receipt images must be 5 MB or smaller.' })
 
     const fetchImpl = deps.fetchImpl || fetch
+    setStage('trip_authorization')
     const trip = await getFirestoreDocument(`trips/${tripId}`, idToken, fetchImpl)
     assertAuthorizedCreator(trip, identity)
+    setStage('expense_lookup')
     const expense = await getFirestoreDocument(`trips/${tripId}/expenses/${expenseId}`, idToken, fetchImpl)
     if (!expense) return respond(response, 404, { error: 'This expense could not be found.' })
 
@@ -32,6 +34,7 @@ export default async function handler(req, res, dependencies = {}) {
     }
     const path = `trips/${tripId}/expenses/${expenseId}/${fileId}.${extensions[mimeType]}`
     const storage = (deps.createStorage || createReceiptStorage)({ fetchImpl: deps.supabaseFetchImpl })
+    setStage('supabase_existing_object_check')
     const existing = await storage.info(path)
     if (!existing.error && existing.data) {
       const actualType = String(existing.data.contentType || '').toLowerCase()
@@ -45,10 +48,11 @@ export default async function handler(req, res, dependencies = {}) {
       })
     }
     if (existing.error && Number(existing.error.statusCode) !== 404 && Number(existing.error.status) !== 404) {
-      throw Object.assign(new Error('Supabase could not check whether this retry already uploaded the image.'), { statusCode: 502 })
+      throw Object.assign(new Error('Supabase could not check whether this retry already uploaded the image.'), { statusCode: 502, code: 'SUPABASE_UPLOAD_FAILED' })
     }
+    setStage('supabase_signed_upload_creation')
     const { data, error } = await storage.createSignedUploadUrl(path, { upsert: false })
-    if (error || !data?.token) throw Object.assign(new Error('Supabase could not create a secure upload token.'), { statusCode: 502 })
+    if (error || !data?.token) throw Object.assign(new Error('Supabase could not create a secure upload token.'), { statusCode: 502, code: 'SUPABASE_UPLOAD_FAILED' })
 
     return respond(response, 200, {
       bucket: RECEIPT_BUCKET,
