@@ -1,4 +1,5 @@
 import { Map, Settings2, UserCircle2 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 
 import { useAuth } from '../../context/useAuth'
@@ -15,8 +16,25 @@ const navItems = [
 ]
 
 export const AppShell = () => {
+  const bottomNavRef = useRef(null)
   const { profile, user } = useAuth()
   const displayName = getDisplayName(profile || user)
+
+  useEffect(() => {
+    const nav = bottomNavRef.current
+    if (!nav) return undefined
+    const root = document.documentElement
+    const updateHeight = () => root.style.setProperty('--app-bottom-nav-height', `${Math.ceil(nav.getBoundingClientRect().height)}px`)
+    updateHeight()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateHeight)
+    observer?.observe(nav)
+    window.addEventListener('resize', updateHeight)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updateHeight)
+      root.style.removeProperty('--app-bottom-nav-height')
+    }
+  }, [])
 
   return (
       <div className="min-h-dvh text-ink">
@@ -82,7 +100,7 @@ export const AppShell = () => {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="app-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden">
+      <nav ref={bottomNavRef} className="app-bottom-nav fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:hidden">
         <div className="flex items-center justify-around px-[max(1rem,env(safe-area-inset-left))] py-1 pr-[max(1rem,env(safe-area-inset-right))]">
           {navItems.map(({ to, label, icon: Icon, tint }) => (
             <NavLink

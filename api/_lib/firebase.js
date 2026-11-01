@@ -1,7 +1,18 @@
 import process from 'node:process'
+import { Buffer } from 'node:buffer'
 
 const PROJECT_ID = () => process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT
 const API_KEY = () => process.env.FIREBASE_WEB_API_KEY || process.env.VITE_FIREBASE_API_KEY
+
+const readFirebaseTokenClaims = (idToken) => {
+  const parts = String(idToken || '').split('.')
+  if (parts.length !== 3) return null
+  try {
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
+  } catch {
+    return null
+  }
+}
 
 const firebaseHost = (emulatorHost, productionHost) => {
   const value = process.env[emulatorHost]
@@ -49,15 +60,30 @@ export const getBearerToken = (req) => {
 }
 
 export const verifyFirebaseIdentity = async (idToken, fetchImpl = fetch) => {
+  const projectId = PROJECT_ID()
   const apiKey = API_KEY()
-  if (!apiKey) throw Object.assign(new Error('Firebase API configuration is missing on the server.'), { statusCode: 503 })
+  if (!projectId || !apiKey) throw Object.assign(new Error('Firebase project or API configuration is missing on the server.'), { statusCode: 503 })
+  const claims = readFirebaseTokenClaims(idToken)
+  if (!claims?.sub || claims.aud !== projectId || claims.iss !== `https://securetoken.google.com/${projectId}`) {
+    throw Object.assign(new Error('This Firebase session belongs to a different or invalid project. Refresh the app session and retry.'), { statusCode: 401 })
+  }
   const base = firebaseHost('FIREBASE_AUTH_EMULATOR_HOST', 'https://identitytoolkit.googleapis.com')
   const response = await fetchImpl(`${base}/identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ idToken }),
   })
-  if (!response.ok) throw Object.assign(new Error('Your session could not be verified. Sign in again.'), { statusCode: 401 })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}))
+    const reason = String(payload.error?.message || '').toUpperCase()
+    if (['API_KEY_INVALID', 'API_KEY_SERVICE_BLOCKED', 'PROJECT_NOT_FOUND'].includes(reason)) {
+      throw Object.assign(new Error('Receipt authentication is misconfigured on the server. Contact the app administrator.'), { statusCode: 503 })
+    }
+    if (['INVALID_ID_TOKEN', 'TOKEN_EXPIRED', 'USER_NOT_FOUND', 'USER_DISABLED', 'INVALID_LOGIN_CREDENTIALS'].includes(reason)) {
+      throw Object.assign(new Error('Firebase rejected the ID token. Refresh the app session and retry.'), { statusCode: 401 })
+    }
+    throw Object.assign(new Error('Firebase could not verify this session right now. Retry the receipt request.'), { statusCode: response.status >= 500 ? 503 : 401 })
+  }
   const payload = await response.json()
   const user = payload.users?.[0]
   if (!user?.localId || user.disabled) throw Object.assign(new Error('Your session is no longer valid.'), { statusCode: 401 })

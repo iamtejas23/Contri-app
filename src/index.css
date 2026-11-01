@@ -248,6 +248,14 @@ html.native-app :is([class*='overflow-y-auto'], [class*='overflow-y-scroll'], [c
 html[data-keyboard-open='true'] .app-bottom-nav { visibility: hidden; pointer-events: none; }
 html[data-keyboard-open='true'] .app-main { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 html[data-keyboard-open='true'] .trip-expense-fab { visibility: hidden; pointer-events: none; }
+html[data-keyboard-open='true'] .trip-expense-fab-dock { display: none; }
+
+/* Reserve space using the measured fixed nav height so the last expense card and
+   the floating action remain reachable above both navigation modes and cutouts. */
+.app-main { padding-bottom: calc(var(--app-bottom-nav-height, calc(4.5rem + env(safe-area-inset-bottom))) + 6rem); }
+@media (min-width: 640px) {
+  .app-main { padding-bottom: 6rem; }
+}
 
 @keyframes rise {
   from { opacity: 0; transform: translateY(8px); }

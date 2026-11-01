@@ -2,6 +2,7 @@ import { FieldPath, deleteField, doc, serverTimestamp, updateDoc } from 'firebas
 
 import { auth, db } from '../firebase/config'
 import { createReceiptUploadId, getReceiptMimeType } from '../lib/receiptFile'
+import { requestReceiptApiWithAuth } from '../lib/receiptApiClient'
 
 export const RECEIPT_BUCKET = 'contri-receipts'
 export const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
@@ -10,30 +11,11 @@ const apiBase = configuredBase.replace(/\/$/, '')
 const defaultNativeBase = 'https://contri-app.vercel.app'
 const getApiUrl = (route) => `${apiBase || defaultNativeBase}/api/supabase/${route}`
 
-const getIdToken = async () => {
-  const user = auth.currentUser
-  if (!user) throw new Error('Sign in before managing receipts.')
-  return user.getIdToken()
-}
-
 const requestReceiptApi = async (route, payload) => {
-  let response
-  try {
-    response = await fetch(getApiUrl(route), {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${await getIdToken()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-  } catch {
-    throw new Error('Receipt service is unreachable. Check your connection and try again.')
-  }
-
-  const result = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(result.error || 'The receipt request failed. Please try again.')
-  return result
+  // Read the current Firebase JS SDK user for each request; Capacitor Google sign-in
+  // uses skipNativeAuth and stores the credential in this same Firebase Auth instance.
+  await auth.authStateReady?.()
+  return requestReceiptApiWithAuth({ user: auth.currentUser, url: getApiUrl(route), payload })
 }
 
 const asTypedFile = (file, mimeType) => file.type === mimeType

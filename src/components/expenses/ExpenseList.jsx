@@ -132,18 +132,18 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
                   ) : null}
                 </div>
 
-                <div className="flex min-w-0 items-center justify-between gap-2 sm:flex-col sm:items-end">
+              <div className="flex min-w-0 flex-col items-start gap-3 border-t border-slate-100 pt-3 min-[480px]:flex-row min-[480px]:items-center min-[480px]:justify-between min-[480px]:gap-4 min-[480px]:border-0 min-[480px]:pt-0 sm:flex-col sm:items-end">
                   <p className="shrink-0 font-display text-2xl font-bold text-ink">
                     {formatCurrency(expense.amount, currency)}
                   </p>
-                  <div className="flex min-w-0 flex-wrap justify-end gap-2">
-                    <Button onClick={() => setSelectedExpense(expense)} size="sm" type="button" variant="secondary">
+                <div className="flex w-full min-w-0 flex-wrap justify-start gap-2 min-[480px]:w-auto min-[480px]:justify-end">
+                  <Button className="min-w-[5.5rem] justify-center" onClick={() => setSelectedExpense(expense)} size="sm" type="button" variant="secondary">
                       <Eye className="h-3.5 w-3.5" />
                       Details
                     </Button>
                     {expense.receiptURL ? (
                       <a
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-dusk shadow-sm transition hover:bg-slate-50"
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-dusk shadow-sm transition hover:bg-slate-50"
                         href={expense.receiptURL}
                         rel="noreferrer"
                         target="_blank"
@@ -154,11 +154,11 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
                     ) : null}
                     {canManage ? (
                       <>
-                        <Button onClick={() => onEdit(expense)} size="sm" type="button" variant="secondary">
+                        <Button className="min-w-[5rem] justify-center" onClick={() => onEdit(expense)} size="sm" type="button" variant="secondary">
                           <PencilLine className="h-3.5 w-3.5" />
                           Edit
                         </Button>
-                        <Button onClick={() => onDelete(expense)} size="sm" type="button" variant="danger">
+                        <Button aria-label={`Delete ${expense.title || 'expense'}`} className="min-w-11 justify-center" onClick={() => onDelete(expense)} size="sm" type="button" variant="danger">
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </>
