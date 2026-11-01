@@ -21,16 +21,26 @@ export const useAndroidKeyboard = () => {
 
     let disposed = false
     const subscriptions = []
+    const root = document.documentElement
+    const updateViewportHeight = () => {
+      const height = window.visualViewport?.height || window.innerHeight
+      if (height > 0) root.style.setProperty('--app-viewport-height', `${Math.round(height)}px`)
+    }
     const show = () => {
-      document.documentElement.dataset.keyboardOpen = 'true'
+      root.dataset.keyboardOpen = 'true'
+      updateViewportHeight()
       keepFocusedFieldVisible()
     }
     const hide = () => {
-      delete document.documentElement.dataset.keyboardOpen
+      delete root.dataset.keyboardOpen
+      window.requestAnimationFrame(updateViewportHeight)
     }
     const handleViewportResize = () => {
-      if (document.documentElement.dataset.keyboardOpen) keepFocusedFieldVisible()
+      updateViewportHeight()
+      if (root.dataset.keyboardOpen) keepFocusedFieldVisible()
     }
+
+    updateViewportHeight()
 
     Promise.allSettled([
       Keyboard.addListener('keyboardDidShow', show),
@@ -48,6 +58,7 @@ export const useAndroidKeyboard = () => {
       subscriptions.forEach((handle) => handle.remove())
       window.visualViewport?.removeEventListener('resize', handleViewportResize)
       hide()
+      root.style.removeProperty('--app-viewport-height')
     }
   }, [])
 }

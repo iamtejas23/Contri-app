@@ -6,7 +6,7 @@ Contri keeps Firebase Authentication and Firestore as its identity and trip-data
 
 1. In the Supabase dashboard, open the project intended for Contri and copy its **Project URL** and **anon/public key**. The anon key is a public client key; it is not the service-role key.
 2. Open **Storage → New bucket** and create exactly `contri-receipts`.
-3. Keep **Public bucket** disabled. Set the bucket's maximum file size to **50 MB** and allowed MIME types to `image/jpeg`, `image/png`, and `image/webp`. The app and API also reject a declared file size over 50 MiB; the bucket limit is the storage-side enforcement.
+3. Keep **Public bucket** disabled. Set the bucket's maximum file size to **5 MB** and allowed MIME types to `image/jpeg`, `image/png`, and `image/webp`. The app and API also reject files larger than 5 MiB; the bucket limit is the storage-side enforcement.
 4. In **Project Settings → API Keys** (or the API settings page for the dashboard version), copy the **service_role** secret. Store it only in Vercel's server environment. It bypasses Storage RLS, so the API authorization checks are a critical boundary. Never put this key in `.env`, a `VITE_` variable, GitHub, Firestore, a browser build, or the APK.
 5. Do not add public bucket access or public Storage policies. The app never accesses the bucket directly with the anon key for reads. Uploads use one-object signed resumable upload tokens; reads and downloads use short-lived signed URLs minted after Firebase membership checks.
 
@@ -31,7 +31,7 @@ The default Android API origin is `https://contri-app.vercel.app`. `VITE_RECEIPT
 ## Authorization and stored data
 
 - Upload is allowed only when the server-verified Firebase identity has verified email `tsmane8787@gmail.com`, its UID matches the trip's stored `createdBy`, and the expense exists. Client-supplied UID, email, path and ownership claims are ignored. The server chooses the random object path and issues a token with overwrite disabled.
-- The bucket must enforce the 50 MB limit and MIME allowlist. The upload API checks the file type and declared size before issuing the token; the bucket is authoritative for the actual upload.
+- The bucket must enforce the 5 MB limit and MIME allowlist. The upload API checks the file type and declared size before issuing the token; the bucket is authoritative for the actual upload.
 - Viewing requires the caller's current `memberIds` membership (or `createdBy`) under the existing Firestore rules, and the exact Supabase object metadata must be attached to that trip expense. The function returns 2-minute signed view and download URLs. Those URLs are bearer links while valid, so do not persist or share them.
 - Deletion requires trip admin authorization and an attached Supabase receipt object. The client removes only that receipt's metadata key after the object deletion succeeds. The trip, expense financial fields, and other receipt entries are untouched.
 - New metadata is stored in the existing expense `receiptFiles` map. Existing `receiptURL` fields are unchanged and continue to render. Existing ImageKit records under `receiptFiles` are retained untouched but this Supabase client does not generate ImageKit URLs for them; keep the ImageKit account/assets if they are still needed elsewhere.

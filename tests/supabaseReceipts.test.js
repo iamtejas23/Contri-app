@@ -81,6 +81,7 @@ let otherTripId
 let expenseId
 let memberExpenseId
 let storageCalls
+let storedObjects
 
 const createStorage = () => ({
   async createSignedUploadUrl(path, options) {
@@ -93,7 +94,8 @@ const createStorage = () => ({
   },
   async info(path) {
     storageCalls.push(['info', path])
-    return { data: { contentType: 'image/jpeg', size: 1000 }, error: null }
+    if (!storedObjects.has(path)) return { data: null, error: { statusCode: '404' } }
+    return { data: storedObjects.get(path), error: null }
   },
   async remove(paths) {
     storageCalls.push(['remove', ...paths])
@@ -102,6 +104,7 @@ const createStorage = () => ({
 })
 
 before(async () => {
+  storedObjects = new Map()
   creator = await makeUser('tsmane8787@gmail.com', true)
   member = await makeUser('trip-member@example.test', true)
   outsider = await makeUser('outsider@example.test', true)
@@ -131,17 +134,18 @@ before(async () => {
 
 test('verified authorized trip creator gets one scoped upload token for a valid image', async () => {
   storageCalls = []
+  const fileId = randomUUID()
   const result = await invoke({
     handler: uploadHandler, token: creator.idToken,
-    body: { tripId: ownerTripId, expenseId, mimeType: 'image/jpeg', size: 1024, fileName: 'photo.jpg' },
+    body: { tripId: ownerTripId, expenseId, fileId, mimeType: 'image/jpeg', size: 1024, fileName: 'photo.jpg' },
     dependencies: { createStorage },
   })
   assert.equal(result.statusCode, 200)
   assert.equal(result.body.bucket, 'contri-receipts')
-  assert.match(result.body.path, new RegExp(`^trips/${ownerTripId}/expenses/${expenseId}/[a-f0-9-]+\\.jpg$`))
+  assert.equal(result.body.path, `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.jpg`)
   assert.equal(result.body.token, 'one-object-test-token')
-  assert.equal(storageCalls[0][0], 'upload')
-  assert.deepEqual(storageCalls[0][2], { upsert: false })
+  assert.equal(storageCalls[0][0], 'info')
+  assert.deepEqual(storageCalls[1], ['upload', result.body.path, { upsert: false }])
   assert.equal(Object.hasOwn(result.body, 'serviceRoleKey'), false)
 })
 
@@ -149,13 +153,13 @@ test('non-owner, unverified identity, unsupported type and oversized uploads are
   storageCalls = []
   const nonOwner = await invoke({ handler: uploadHandler, token: member.idToken, body: { tripId: ownerTripId, expenseId, mimeType: 'image/png', size: 1 }, dependencies: { createStorage } })
   const unsupported = await invoke({ handler: uploadHandler, token: creator.idToken, body: { tripId: ownerTripId, expenseId, mimeType: 'application/pdf', size: 1 }, dependencies: { createStorage } })
-  const tooLarge = await invoke({ handler: uploadHandler, token: creator.idToken, body: { tripId: ownerTripId, expenseId, mimeType: 'image/png', size: 50_000_001 }, dependencies: { createStorage } })
+  const tooLarge = await invoke({ handler: uploadHandler, token: creator.idToken, body: { tripId: ownerTripId, expenseId, mimeType: 'image/png', size: 5 * 1024 * 1024 + 1 }, dependencies: { createStorage } })
   const unverifiedUser = await makeUser('unverified-owner@example.test')
   const unverifiedTrip = `receipt-trip-${randomUUID().replaceAll('-', '')}`
   const unverifiedExpense = `expense-${randomUUID().replaceAll('-', '')}`
   await seedDocument(`trips/${unverifiedTrip}`, { createdBy: unverifiedUser.localId, memberIds: [unverifiedUser.localId] })
   await seedDocument(`trips/${unverifiedTrip}/expenses/${unverifiedExpense}`, { title: 'No upload' })
-  const unverified = await invoke({ handler: uploadHandler, token: unverifiedUser.idToken, body: { tripId: unverifiedTrip, expenseId: unverifiedExpense, mimeType: 'image/png', size: 1 }, dependencies: { createStorage } })
+  const unverified = await invoke({ handler: uploadHandler, token: unverifiedUser.idToken, body: { tripId: unverifiedTrip, expenseId: unverifiedExpense, fileId: randomUUID(), mimeType: 'image/png', size: 1 }, dependencies: { createStorage } })
   assert.equal(nonOwner.statusCode, 403)
   assert.equal(unsupported.statusCode, 400)
   assert.equal(tooLarge.statusCode, 400)
@@ -167,6 +171,7 @@ test('creator can attach only a completed storage object with matching type and 
   storageCalls = []
   const fileId = randomUUID()
   const path = `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.jpg`
+  storedObjects.set(path, { contentType: 'image/jpeg', size: 1000 })
   const verified = await invoke({ handler: verifyHandler, token: creator.idToken,
     body: { tripId: ownerTripId, expenseId, fileId, path, mimeType: 'image/jpeg', fileName: 'receipt.jpg' }, dependencies: { createStorage } })
   assert.equal(verified.statusCode, 200)
@@ -176,6 +181,44 @@ test('creator can attach only a completed storage object with matching type and 
     body: { tripId: ownerTripId, expenseId, fileId, path, mimeType: 'image/png' }, dependencies: { createStorage } })
   assert.equal(wrongType.statusCode, 400)
   assert.equal(storageCalls.filter(([kind]) => kind === 'info').length, 1)
+})
+
+test('upload retry reuses its stable path and does not request an overwrite token', async () => {
+  storageCalls = []
+  const fileId = randomUUID()
+  const path = `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.png`
+  const missing = await invoke({ handler: uploadHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId, mimeType: 'image/png', size: 1000, fileName: 'receipt.png' }, dependencies: { createStorage } })
+  assert.equal(missing.statusCode, 200)
+  assert.equal(missing.body.alreadyUploaded, undefined)
+  storedObjects.set(path, { contentType: 'image/png', size: 1000 })
+  const retry = await invoke({ handler: uploadHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId, mimeType: 'image/png', size: 1000, fileName: 'receipt.png' }, dependencies: { createStorage } })
+  assert.equal(retry.statusCode, 200)
+  assert.equal(retry.body.alreadyUploaded, true)
+  assert.equal(retry.body.path, path)
+  assert.equal(storageCalls.filter(([kind]) => kind === 'upload').length, 1)
+})
+
+test('upload rejects declared files over the 5 MiB cap and invalid retry IDs', async () => {
+  storageCalls = []
+  const tooLarge = await invoke({ handler: uploadHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 5 * 1024 * 1024 + 1 }, dependencies: { createStorage } })
+  const invalidId = await invoke({ handler: uploadHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: '../receipt', mimeType: 'image/png', size: 1000 }, dependencies: { createStorage } })
+  assert.equal(tooLarge.statusCode, 400)
+  assert.match(tooLarge.body.error, /5 MB/)
+  assert.equal(invalidId.statusCode, 400)
+  assert.equal(storageCalls.length, 0)
+})
+
+test('the exact 5 MiB boundary remains eligible for a signed upload', async () => {
+  storageCalls = []
+  const result = await invoke({ handler: uploadHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/webp', size: 5 * 1024 * 1024, fileName: 'receipt.webp' }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 200)
+  assert.equal(result.body.size, 5 * 1024 * 1024)
+  assert.equal(storageCalls.filter(([kind]) => kind === 'upload').length, 1)
 })
 
 test('trip members get short-lived private view and download URLs only for attached Supabase receipts', async () => {
@@ -215,7 +258,7 @@ test('missing Supabase server key fails closed without storage access', async ()
   delete process.env.SUPABASE_SERVICE_ROLE_KEY
   try {
     const result = await invoke({ handler: uploadHandler, token: creator.idToken,
-      body: { tripId: ownerTripId, expenseId, mimeType: 'image/png', size: 10 },
+      body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 10 },
     })
     assert.equal(result.statusCode, 503)
   } finally {

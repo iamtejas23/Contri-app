@@ -65,11 +65,11 @@ export const ReceiptScanButton = ({ onResult, compact = false, currency = 'INR' 
         type="button"
       >
         {scanning ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-        {scanning ? `Reading receipt… ${progress}%` : 'Scan receipt'}
+        {scanning ? `Reading receipt… ${progress}%` : 'Scan to autofill'}
       </button>
       {error ? <p className="mt-2 text-xs text-red-600">{error}</p> : null}
       {!error && !scanning ? (
-        <p className="mt-2 text-xs text-dusk">Photo is read on your phone. Nothing is uploaded.</p>
+        <p className="mt-2 text-xs text-dusk">Reads the photo on this device and autofills expense details. Nothing is uploaded.</p>
       ) : null}
     </div>
   )

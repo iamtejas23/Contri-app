@@ -27,7 +27,12 @@ export default async function handler(req, res, dependencies = {}) {
 
     const storage = (deps.createStorage || createReceiptStorage)({ fetchImpl: deps.supabaseFetchImpl })
     const { data, error } = await storage.info(body.path)
-    if (error || !data) return respond(response, 400, { error: 'The upload is incomplete or the file could not be verified.' })
+    if (error || !data) {
+      const statusCode = Number(error?.statusCode || error?.status)
+      if (statusCode === 413) return respond(response, 413, { error: 'Supabase rejected this image because it exceeds the bucket’s 5 MB limit.' })
+      if (statusCode === 400) return respond(response, 400, { error: error.message || 'Supabase rejected this image. Check the bucket’s 5 MB limit and JPEG, PNG or WebP type restrictions.' })
+      return respond(response, 400, { error: 'The upload is incomplete or the file could not be verified. Retry the same image.' })
+    }
     const actualType = String(data.contentType || '').toLowerCase()
     const size = Number(data.size)
     if (actualType !== mimeType || !Number.isFinite(size) || size <= 0 || size > MAX_RECEIPT_BYTES) {

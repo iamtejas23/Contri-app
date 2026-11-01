@@ -75,7 +75,7 @@ flowchart LR
 
 ### Private receipt runtime setup
 
-Create a private Supabase Storage bucket named `contri-receipts` and configure its 50 MB file limit and JPEG/PNG/WebP MIME allowlist. Add `VITE_SUPABASE_URL` and the public `VITE_SUPABASE_ANON_KEY` to the Vercel frontend environment. Add `SUPABASE_SERVICE_ROLE_KEY` as a sensitive server-only Vercel Function variable; never use a `VITE_` prefix for it. The Vercel runtime also needs `FIREBASE_PROJECT_ID` and `FIREBASE_WEB_API_KEY` so the API can verify Firebase sessions and perform Firestore reads under caller rules. See [`docs/supabase-receipts-setup.md`](./docs/supabase-receipts-setup.md) for the exact configuration and test procedure. No Supabase Auth migration or Firestore rules change is required. Repository changes do not deploy Vercel or modify Firestore rules/data.
+Create a private Supabase Storage bucket named `contri-receipts` and configure its 5 MB file limit and JPEG/PNG/WebP MIME allowlist. Add `VITE_SUPABASE_URL` and the public `VITE_SUPABASE_ANON_KEY` to the Vercel frontend environment. Add `SUPABASE_SERVICE_ROLE_KEY` as a sensitive server-only Vercel Function variable; never use a `VITE_` prefix for it. The Vercel runtime also needs `FIREBASE_PROJECT_ID` and `FIREBASE_WEB_API_KEY` so the API can verify Firebase sessions and perform Firestore reads under caller rules. See [`docs/supabase-receipts-setup.md`](./docs/supabase-receipts-setup.md) for the exact configuration and test procedure. No Supabase Auth migration or Firestore rules change is required. Repository changes do not deploy Vercel or modify Firestore rules/data.
 
 ## Prerequisites
 

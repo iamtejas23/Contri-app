@@ -134,10 +134,11 @@ export const QuickAddSheet = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-ink/40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center overflow-hidden overscroll-contain bg-ink/40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:items-center sm:p-4">
       <button aria-label="Close add expense" className="absolute inset-0" onClick={onClose} type="button" />
       <form
-        className="animate-sheet relative flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-modal sm:max-h-[92dvh] sm:rounded-3xl"
+        className="animate-sheet relative flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-modal sm:rounded-3xl"
+        style={{ maxHeight: 'calc(var(--app-viewport-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom))' }}
         onSubmit={handleSubmit}
       >
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">

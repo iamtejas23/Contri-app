@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import process from 'node:process'
 
 export const RECEIPT_BUCKET = 'contri-receipts'
-export const MAX_RECEIPT_BYTES = 50_000_000
+export const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
 export const RECEIPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 const required = (name, value) => {
