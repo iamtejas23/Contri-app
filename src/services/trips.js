@@ -34,6 +34,13 @@ export const updateTrip = async (tripId, values) => {
   }
 }
 
+export const updateReceiptUploadPermission = async (tripId, enabled) => {
+  await updateDoc(doc(db, 'trips', tripId), {
+    allowMemberReceiptUploads: enabled === true,
+    updatedAt: serverTimestamp(),
+  })
+}
+
 export const deleteTrip = async (tripId) => {
   try {
     await deleteTripDocuments({ database: db, tripId })

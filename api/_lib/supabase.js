@@ -3,6 +3,7 @@ import process from 'node:process'
 
 export const RECEIPT_BUCKET = 'contri-receipts'
 export const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
+export const MAX_RECEIPT_THUMBNAIL_BYTES = 256 * 1024
 export const RECEIPT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 const required = (name, value) => {
@@ -36,6 +37,11 @@ export const getReceiptFile = (expense, fileId, tripId, expenseId) => {
   const expectedBase = `trips/${tripId}/expenses/${expenseId}/${fileId}.`
   if (!['jpg', 'png', 'webp'].some((extension) => receipt.path === `${expectedBase}${extension}`)) {
     throw Object.assign(new Error('This receipt is not attached to the selected expense.'), { statusCode: 404 })
+  }
+  // Optional for backward compatibility. Only accept the canonical sidecar path.
+  if (receipt.thumbnailPath !== undefined
+    && receipt.thumbnailPath !== `${expectedBase}thumb.jpg`) {
+    throw Object.assign(new Error('This receipt thumbnail is not attached to the selected expense.'), { statusCode: 404 })
   }
   return receipt
 }

@@ -1,5 +1,5 @@
-import { assertAuthorizedCreator, getFirestoreDocument, validateDocumentId } from '../_lib/firebase.js'
-import { MAX_RECEIPT_BYTES, RECEIPT_BUCKET, RECEIPT_TYPES, createReceiptStorage } from '../_lib/supabase.js'
+import { assertCanUploadReceipt, getFirestoreDocument, validateDocumentId } from '../_lib/firebase.js'
+import { MAX_RECEIPT_BYTES, MAX_RECEIPT_THUMBNAIL_BYTES, RECEIPT_BUCKET, RECEIPT_TYPES, createReceiptStorage } from '../_lib/supabase.js'
 import { respond } from '../_lib/http.js'
 import { withReceiptApi } from '../_lib/receiptApi.js'
 
@@ -21,7 +21,7 @@ export default async function handler(req, res, dependencies = {}) {
       return respond(response, 400, { error: 'The uploaded receipt path or format is invalid.' })
     }
     const trip = await getFirestoreDocument(`trips/${tripId}`, idToken, deps.fetchImpl || fetch)
-    assertAuthorizedCreator(trip, identity)
+    assertCanUploadReceipt(trip, identity)
     const expense = await getFirestoreDocument(`trips/${tripId}/expenses/${expenseId}`, idToken, deps.fetchImpl || fetch)
     if (!expense) return respond(response, 404, { error: 'This expense could not be found.' })
 
@@ -38,10 +38,25 @@ export default async function handler(req, res, dependencies = {}) {
     if (actualType !== mimeType || !Number.isFinite(size) || size <= 0 || size > MAX_RECEIPT_BYTES) {
       return respond(response, 400, { error: 'The uploaded file did not pass the receipt type and size checks.' })
     }
+    let thumbnail
+    if (body.thumbnailPath !== undefined) {
+      const expectedThumbnailPath = `trips/${tripId}/expenses/${expenseId}/${fileId}.thumb.jpg`
+      if (body.thumbnailPath !== expectedThumbnailPath) return respond(response, 400, { error: 'The receipt thumbnail path is invalid.' })
+      const thumbnailResult = await storage.info(expectedThumbnailPath)
+      const thumbnailData = thumbnailResult.data
+      if (thumbnailResult.error || !thumbnailData
+        || String(thumbnailData.contentType || '').toLowerCase() !== 'image/jpeg'
+        || Number(thumbnailData.size) <= 0
+        || Number(thumbnailData.size) > MAX_RECEIPT_THUMBNAIL_BYTES) {
+        return respond(response, 400, { error: 'The receipt thumbnail could not be verified. Retry the same image.' })
+      }
+      thumbnail = { thumbnailPath: expectedThumbnailPath, thumbnailMimeType: 'image/jpeg', thumbnailSize: Number(thumbnailData.size) }
+    }
     return respond(response, 200, {
       receipt: {
         provider: 'supabase', bucket: RECEIPT_BUCKET, fileId, path: body.path,
         fileName: safeFileName(body.fileName), mimeType: actualType, size,
+        ...thumbnail,
       },
     })
   }, dependencies)

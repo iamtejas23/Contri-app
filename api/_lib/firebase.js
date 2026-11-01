@@ -119,7 +119,12 @@ export const verifyFirebaseIdentity = async (idToken, fetchImpl = fetch) => {
     uid: user.localId,
     email: String(user.email || '').trim().toLowerCase(),
     emailVerified: user.emailVerified === true,
-    isAnonymous: user.providerUserInfo?.length === 0 && !user.email,
+    // Identity Toolkit can omit providerUserInfo for anonymous users. The ID-token
+    // claim is trustworthy here because accounts:lookup has just validated the
+    // token and its UID against the returned account.
+    isAnonymous: claims.firebase?.sign_in_provider
+      ? claims.firebase.sign_in_provider === 'anonymous'
+      : (user.providerUserInfo?.length === 0 && !user.email),
   }
 }
 
@@ -148,8 +153,9 @@ export const getFirestoreDocument = async (path, idToken, fetchImpl = fetch) => 
 }
 
 export const assertTripMember = (trip, uid) => {
-  const fromIds = Array.isArray(trip?.memberIds) && trip.memberIds.includes(uid)
-  if (!trip || !(fromIds || trip.createdBy === uid)) {
+  const identity = typeof uid === 'object' ? uid : { uid }
+  const fromIds = Array.isArray(trip?.memberIds) && trip.memberIds.includes(identity.uid)
+  if (!trip || identity.isAnonymous || !(fromIds || trip.createdBy === identity.uid)) {
     throw Object.assign(new Error('You must be a current trip member to view this receipt.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
   }
 }
@@ -157,6 +163,21 @@ export const assertTripMember = (trip, uid) => {
 export const assertAuthorizedCreator = (trip, identity) => {
   if (identity.email !== 'tsmane8787@gmail.com' || !identity.emailVerified || !trip?.createdBy || trip.createdBy !== identity.uid) {
     throw Object.assign(new Error('Receipt uploads are only available to the verified trip creator account.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
+  }
+}
+
+export const assertCanUploadReceipt = (trip, identity) => {
+  if (!trip) throw Object.assign(new Error('This trip could not be found.'), { statusCode: 404, code: 'TRIP_AUTHORIZATION_FAILED' })
+  const isCurrentMember = (Array.isArray(trip.memberIds) && trip.memberIds.includes(identity.uid))
+    || trip.createdBy === identity.uid
+  if (identity.isAnonymous || !isCurrentMember) {
+    throw Object.assign(new Error('Only current, non-guest trip members can upload receipts.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
+  }
+  if (identity.uid === trip.createdBy && identity.email === 'tsmane8787@gmail.com' && identity.emailVerified) return
+  // This optional flag is trusted only because Firestore rules permit changing it
+  // exclusively to the verified authorized creator. Missing/legacy values fail closed.
+  if (trip.allowMemberReceiptUploads !== true) {
+    throw Object.assign(new Error('Receipt uploads are limited to the verified trip creator for this trip.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
   }
 }
 

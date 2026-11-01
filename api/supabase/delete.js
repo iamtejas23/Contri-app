@@ -15,7 +15,8 @@ export default async function handler(req, res, dependencies = {}) {
     const expense = await getFirestoreDocument(`trips/${tripId}/expenses/${expenseId}`, idToken, fetchImpl)
     const receipt = getReceiptFile(expense, fileId, tripId, expenseId)
     const storage = (deps.createStorage || createReceiptStorage)({ fetchImpl: deps.supabaseFetchImpl })
-    const { error } = await storage.remove([receipt.path])
+    const paths = [receipt.path, ...(receipt.thumbnailPath ? [receipt.thumbnailPath] : [])]
+    const { error } = await storage.remove(paths)
     if (error) throw Object.assign(new Error('Supabase could not delete this receipt.'), { statusCode: 502 })
     return respond(response, 200, { deleted: true, fileId })
   }, dependencies)

@@ -558,6 +558,54 @@ test('trip metadata and member role updates are limited to admins and preserve m
   }))
 })
 
+test('only the verified authorized trip creator can change receipt upload permissions', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      adminIds: ['member-a', 'member-b'],
+    })
+  })
+  const verifiedCreatorDb = environment.authenticatedContext(actor.uid, {
+    email: 'tsmane8787@gmail.com',
+    email_verified: true,
+  }).firestore()
+  const ordinaryAdminDb = environment.authenticatedContext('member-b', {
+    email: 'admin@example.test',
+    email_verified: true,
+  }).firestore()
+  const memberDb = environment.authenticatedContext('member-c').firestore()
+  const ref = doc(verifiedCreatorDb, 'trips', tripId)
+
+  await assertSucceeds(updateDoc(ref, {
+    allowMemberReceiptUploads: true,
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(ordinaryAdminDb, 'trips', tripId), {
+    allowMemberReceiptUploads: false,
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    allowMemberReceiptUploads: true,
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(environment.authenticatedContext(actor.uid, {
+    email: 'tsmane8787@gmail.com', email_verified: false,
+  }).firestore(), 'trips', tripId), {
+    allowMemberReceiptUploads: false,
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(environment.authenticatedContext(actor.uid, {
+    email: 'other@example.test', email_verified: true,
+  }).firestore(), 'trips', tripId), {
+    allowMemberReceiptUploads: false,
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(ref, {
+    allowMemberReceiptUploads: false,
+    name: 'Must not edit other trip settings here',
+    updatedAt: serverTimestamp(),
+  }))
+})
+
 test('only an admin can add an existing authenticated member to a trip', async () => {
   const invitedMember = {
     uid: 'member-new',

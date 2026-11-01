@@ -47,7 +47,7 @@ import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
-import { deleteTrip, inviteMemberToTrip, updateTrip, updateTripMemberRole } from '../services/trips'
+import { deleteTrip, inviteMemberToTrip, updateReceiptUploadPermission, updateTrip, updateTripMemberRole } from '../services/trips'
 import { clearTripDataFromDatabase } from '../services/clearTripData'
 import { publishTripInvitationPreview } from '../services/tripInvitationPreview'
 import { db } from '../firebase/config'
@@ -84,6 +84,7 @@ export const TripPage = () => {
   const [clearTripLoading, setClearTripLoading] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
+  const [receiptPermissionSaving, setReceiptPermissionSaving] = useState(false)
   const settlementSubmitLock = useRef(false)
 
   const actor = buildActor(user, profile)
@@ -115,6 +116,14 @@ export const TripPage = () => {
     )
   ))
   const canManageTrip = Boolean(isAdmin)
+  const canManageReceiptPermission = Boolean(
+    canManageTrip
+      && user?.uid
+      && !user.isAnonymous
+      && user.emailVerified === true
+      && user.email?.trim().toLowerCase() === 'tsmane8787@gmail.com'
+      && trip?.createdBy === user.uid,
+  )
   const inviteOrigin = Capacitor.isNativePlatform()
     ? (import.meta.env.VITE_MOBILE_AUTH_URL || 'https://contri-app.vercel.app')
     : window.location.origin
@@ -166,6 +175,26 @@ export const TripPage = () => {
         budget: metrics.budget,
       }),
     )
+  }
+
+  const handleReceiptPermissionChange = async () => {
+    if (!canManageReceiptPermission || receiptPermissionSaving) return
+    const enabled = trip.allowMemberReceiptUploads !== true
+    const action = enabled ? 'allow' : 'stop allowing'
+    const detail = enabled
+      ? 'Current non-guest members will be able to upload receipt images.'
+      : 'Only the verified trip creator will be able to upload receipt images.'
+    if (!window.confirm(`${action === 'allow' ? 'Allow' : 'Stop allowing'} trip members to upload receipts for “${trip.name}”?\n\n${detail}`)) return
+
+    setReceiptPermissionSaving(true)
+    try {
+      await updateReceiptUploadPermission(tripId, enabled)
+      toast.success(enabled ? 'Trip members can now upload receipts.' : 'Member receipt uploads are disabled.')
+    } catch {
+      toast.error('Receipt upload permissions were not changed. Check your connection and try again.')
+    } finally {
+      setReceiptPermissionSaving(false)
+    }
   }
 
   const settleSuggestion = async (item) => {
@@ -618,6 +647,33 @@ export const TripPage = () => {
                   </div>
                 </div>
               )})}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="font-display text-lg font-semibold text-ink">Receipt upload permissions</h2>
+                <p className="mt-1 text-sm text-dusk">When enabled, members of this trip can attach receipt images to expenses.</p>
+                <p className="mt-1 text-xs text-dusk">Guest accounts cannot upload or view private receipts.</p>
+              </div>
+              {canManageReceiptPermission ? (
+                <button
+                  aria-checked={trip.allowMemberReceiptUploads === true}
+                  aria-label="Allow trip members to upload receipts"
+                  className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal ${trip.allowMemberReceiptUploads === true ? 'bg-teal' : 'bg-slate-300'} ${receiptPermissionSaving ? 'cursor-wait opacity-60' : ''}`}
+                  disabled={receiptPermissionSaving}
+                  onClick={handleReceiptPermissionChange}
+                  role="switch"
+                  type="button"
+                >
+                  <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${trip.allowMemberReceiptUploads === true ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              ) : (
+                <span className={`inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium ${trip.allowMemberReceiptUploads === true ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50 text-dusk'}`}>
+                  {trip.allowMemberReceiptUploads === true ? 'Members can upload receipts' : 'Only trip creator can upload'}
+                </span>
+              )}
             </div>
           </Card>
 

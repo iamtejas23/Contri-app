@@ -139,6 +139,22 @@ service cloud.firestore {
         && request.resource.data.currency is string;
     }
 
+    // Receipt sharing is an optional, default-off setting. Only the specific
+    // verified account that owns the trip may change this single field.
+    function isAuthorizedReceiptPermissionUpdate(tripId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      return signedIn()
+        && request.auth.uid == trip.createdBy
+        && request.auth.token.get('email', '') == 'tsmane8787@gmail.com'
+        && request.auth.token.get('email_verified', false) == true
+        && !isTripClearing(tripId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'allowMemberReceiptUploads', 'updatedAt'
+        ])
+        && request.resource.data.get('allowMemberReceiptUploads', false) is bool
+        && request.resource.data.updatedAt == request.time;
+    }
+
     function isAdminInviteUpdate(tripId) {
       let addedIds = request.resource.data.memberIds.removeAll(resource.data.memberIds);
       let addedMembers = request.resource.data.members.removeAll(resource.data.members);
@@ -305,6 +321,7 @@ service cloud.firestore {
         && ('createdBy' in resource.data)
         && resource.data.createdBy == request.auth.uid;
       allow update: if isAdminTripDetailsUpdate(tripId)
+        || isAuthorizedReceiptPermissionUpdate(tripId)
         || isAdminInviteUpdate(tripId)
         || isAdminRoleUpdate(tripId)
         || isSelfJoin(tripId)

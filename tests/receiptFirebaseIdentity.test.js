@@ -84,6 +84,20 @@ test('Firebase lookup UID must match the signed token subject', async () => {
   })), (error) => error.statusCode === 401 && error.code === 'FIREBASE_TOKEN_INVALID')
 })
 
+test('anonymous status is read from the verified ID token when lookup omits provider details', async () => {
+  process.env.FIREBASE_WEB_API_KEY = 'test-web-api-key'
+  const anonymousToken = makeToken({
+    aud: 'demo-contri-notifications',
+    iss: 'https://securetoken.google.com/demo-contri-notifications',
+    sub: 'anonymous-uid',
+    firebase: { sign_in_provider: 'anonymous' },
+  })
+  const identity = await verifyFirebaseIdentity(anonymousToken, async () => mockResponse(200, {
+    users: [{ localId: 'anonymous-uid' }],
+  }))
+  assert.equal(identity.isAnonymous, true)
+})
+
 test('receipt API distinguishes missing and malformed bearer headers', () => {
   assert.throws(() => getBearerToken({ headers: {} }), (error) => error.code === 'AUTH_MISSING')
   assert.throws(() => getBearerToken({ headers: { authorization: 'Basic token' } }), (error) => error.code === 'AUTH_MALFORMED')

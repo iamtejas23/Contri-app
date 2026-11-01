@@ -3,6 +3,8 @@ import { FieldPath, deleteField, doc, serverTimestamp, updateDoc } from 'firebas
 import { auth, db } from '../firebase/config'
 import { createReceiptUploadId, getReceiptMimeType } from '../lib/receiptFile'
 import { requestReceiptApiWithAuth } from '../lib/receiptApiClient'
+import { createReceiptThumbnail } from '../lib/receiptThumbnail'
+import { createReceiptUrlCache } from '../lib/receiptUrlCache'
 
 export const RECEIPT_BUCKET = 'contri-receipts'
 export const MAX_RECEIPT_BYTES = 5 * 1024 * 1024
@@ -17,6 +19,9 @@ const requestReceiptApi = async (route, payload) => {
   await auth.authStateReady?.()
   return requestReceiptApiWithAuth({ user: auth.currentUser, url: getApiUrl(route), payload })
 }
+
+const signedUrls = createReceiptUrlCache()
+const receiptUrlKey = ({ tripId, expenseId, fileId, purpose }) => `${auth.currentUser?.uid || 'signed-out'}:${tripId}:${expenseId}:${fileId}:${purpose || 'full'}`
 
 const asTypedFile = (file, mimeType) => file.type === mimeType
   ? file
@@ -82,7 +87,7 @@ const uploadWithProgress = ({ file, uploadInfo, mimeType, onProgress, signal }) 
   xhr.send(form)
 })
 
-export const uploadSupabaseReceipt = async ({ tripId, expenseId, file, fileId = createReceiptUploadId(), onProgress, signal }) => {
+export const uploadSupabaseReceipt = async ({ tripId, expenseId, file, fileId = createReceiptUploadId(), thumbnailBlob, onProgress, signal }) => {
   if (!String(import.meta.env.VITE_SUPABASE_URL || '').trim()
     || !String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()) {
     throw new Error('Receipt storage is not configured in this app build. Ask the app administrator to finish Supabase setup.')
@@ -92,15 +97,28 @@ export const uploadSupabaseReceipt = async ({ tripId, expenseId, file, fileId = 
   if (file.size > MAX_RECEIPT_BYTES) throw new Error('Receipt images must be 5 MB or smaller.')
   if (!file.size) throw new Error('Choose an image with content.')
 
-  const uploadInfo = await requestReceiptApi('upload', {
-    tripId,
-    expenseId,
-    fileId,
-    mimeType,
-    fileName: file.name,
-    size: file.size,
-  })
-  if (!uploadInfo.alreadyUploaded) await uploadWithProgress({ file, uploadInfo, mimeType, onProgress, signal })
+  const thumbnail = thumbnailBlob === undefined ? await createReceiptThumbnail(file) : thumbnailBlob
+  const uploadAsset = async ({ assetFile, assetType, assetMimeType, progressStart, progressScale }) => {
+    const uploadInfo = await requestReceiptApi('upload', {
+      tripId, expenseId, fileId, mimeType: assetMimeType,
+      fileName: assetType === 'thumbnail' ? 'receipt-thumbnail.jpg' : file.name,
+      size: assetFile.size, assetType,
+    })
+    if (!uploadInfo.alreadyUploaded) {
+      await uploadWithProgress({
+        file: assetFile,
+        uploadInfo,
+        mimeType: assetMimeType,
+        onProgress: (value) => onProgress?.(Math.min(99, progressStart + Math.round(value * progressScale / 100))),
+        signal,
+      })
+    }
+    return uploadInfo
+  }
+
+  const uploadInfo = await uploadAsset({ assetFile: file, assetType: 'original', assetMimeType: mimeType, progressStart: 0, progressScale: thumbnail ? 85 : 100 })
+  let thumbnailInfo = null
+  if (thumbnail) thumbnailInfo = await uploadAsset({ assetFile: thumbnail, assetType: 'thumbnail', assetMimeType: 'image/jpeg', progressStart: 85, progressScale: 14 })
   const verified = await requestReceiptApi('verify', {
     tripId,
     expenseId,
@@ -108,7 +126,9 @@ export const uploadSupabaseReceipt = async ({ tripId, expenseId, file, fileId = 
     path: uploadInfo.path,
     mimeType,
     fileName: uploadInfo.fileName || file.name,
+    ...(thumbnailInfo ? { thumbnailPath: thumbnailInfo.path } : {}),
   })
+  onProgress?.(100)
   return verified.receipt
 }
 
@@ -120,8 +140,16 @@ export const attachReceiptMetadata = async ({ tripId, expenseId, receipt }) => {
   })
 }
 
-export const getSupabaseReceiptUrls = ({ tripId, expenseId, fileId }) =>
-  requestReceiptApi('url', { tripId, expenseId, fileId })
+export const getSupabaseReceiptUrls = async ({ tripId, expenseId, fileId, purpose = 'full', forceRefresh = false }) => {
+  await auth.authStateReady?.()
+  const key = receiptUrlKey({ tripId, expenseId, fileId, purpose })
+  return signedUrls.get(key, () => requestReceiptApi('url', { tripId, expenseId, fileId, purpose }), { forceRefresh })
+}
+
+export const invalidateSupabaseReceiptUrls = ({ tripId, expenseId, fileId }) => {
+  signedUrls.invalidate(receiptUrlKey({ tripId, expenseId, fileId, purpose: 'full' }))
+  signedUrls.invalidate(receiptUrlKey({ tripId, expenseId, fileId, purpose: 'thumbnail' }))
+}
 
 export const deleteSupabaseReceipt = async ({ tripId, expenseId, receipt }) => {
   await requestReceiptApi('delete', { tripId, expenseId, fileId: receipt.fileId })

@@ -53,12 +53,27 @@ const makeUser = async (email, emailVerified = false) => {
   return signedIn.payload
 }
 
+const makeAnonymousUser = async () => {
+  const { response, payload } = await requestJson(`${authBase}/accounts:signUp?key=emulator-test-key`, {
+    body: { returnSecureToken: true },
+  })
+  assert.equal(response.status, 200, JSON.stringify(payload))
+  return payload
+}
+
 const seedDocument = async (path, fields) => {
   const { response, payload } = await requestJson(`${firestoreBase}/${path}`, {
     method: 'PATCH', body: { fields: encodeFirestoreFields(fields) },
   })
   assert.ok(response.ok, `Could not seed emulator fixture: ${JSON.stringify(payload)}`)
 }
+
+const seedMemberUploadPermission = async (enabled) => seedDocument(`trips/${ownerTripId}`, {
+  createdBy: creator.localId,
+  memberIds: [creator.localId, member.localId, guest.localId],
+  adminIds: [creator.localId],
+  allowMemberReceiptUploads: enabled,
+})
 
 const invoke = async ({ handler, token, body, dependencies = {} }) => {
   const req = { method: 'POST', headers: { authorization: token ? `Bearer ${token}` : '' }, body }
@@ -76,6 +91,7 @@ const invoke = async ({ handler, token, body, dependencies = {} }) => {
 let creator
 let member
 let outsider
+let guest
 let ownerTripId
 let otherTripId
 let expenseId
@@ -108,13 +124,14 @@ before(async () => {
   creator = await makeUser('tsmane8787@gmail.com', true)
   member = await makeUser('trip-member@example.test', true)
   outsider = await makeUser('outsider@example.test', true)
+  guest = await makeAnonymousUser()
   ownerTripId = `receipt-trip-${randomUUID().replaceAll('-', '')}`
   otherTripId = `receipt-trip-${randomUUID().replaceAll('-', '')}`
   expenseId = `expense-${randomUUID().replaceAll('-', '')}`
   memberExpenseId = `expense-${randomUUID().replaceAll('-', '')}`
   await seedDocument(`trips/${ownerTripId}`, {
     createdBy: creator.localId,
-    memberIds: [creator.localId, member.localId],
+    memberIds: [creator.localId, member.localId, guest.localId],
     adminIds: [creator.localId],
   })
   await seedDocument(`trips/${ownerTripId}/expenses/${expenseId}`, { title: 'Receipt test', amount: 100 })
@@ -124,7 +141,14 @@ before(async () => {
       supabase_receipt_001: {
         provider: 'supabase', bucket: 'contri-receipts', fileId: 'supabase_receipt_001',
         path: `trips/${ownerTripId}/expenses/${memberExpenseId}/supabase_receipt_001.jpg`,
+        thumbnailPath: `trips/${ownerTripId}/expenses/${memberExpenseId}/supabase_receipt_001.thumb.jpg`,
+        thumbnailMimeType: 'image/jpeg', thumbnailSize: 20_000,
         fileName: 'receipt.jpg', mimeType: 'image/jpeg', size: 1000,
+      },
+      legacy_receipt_002: {
+        provider: 'supabase', bucket: 'contri-receipts', fileId: 'legacy_receipt_002',
+        path: `trips/${ownerTripId}/expenses/${memberExpenseId}/legacy_receipt_002.png`,
+        fileName: 'old.png', mimeType: 'image/png', size: 1500,
       },
     },
   })
@@ -221,16 +245,127 @@ test('the exact 5 MiB boundary remains eligible for a signed upload', async () =
   assert.equal(storageCalls.filter(([kind]) => kind === 'upload').length, 1)
 })
 
-test('trip members get short-lived private view and download URLs only for attached Supabase receipts', async () => {
+test('thumbnail objects use a separate private path and a strict lightweight size limit', async () => {
+  storageCalls = []
+  const fileId = randomUUID()
+  const body = { tripId: ownerTripId, expenseId, fileId, assetType: 'thumbnail', mimeType: 'image/jpeg', size: 120_000, fileName: 'receipt-thumbnail.jpg' }
+  const allowed = await invoke({ handler: uploadHandler, token: creator.idToken, body, dependencies: { createStorage } })
+  assert.equal(allowed.statusCode, 200)
+  assert.equal(allowed.body.path, `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.thumb.jpg`)
+  const tooLarge = await invoke({ handler: uploadHandler, token: creator.idToken,
+    body: { ...body, fileId: randomUUID(), size: 256 * 1024 + 1 }, dependencies: { createStorage } })
+  assert.equal(tooLarge.statusCode, 400)
+})
+
+test('verified receipt metadata includes only a verified canonical thumbnail sidecar', async () => {
+  storageCalls = []
+  const fileId = randomUUID()
+  const path = `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.png`
+  const thumbnailPath = `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.thumb.jpg`
+  storedObjects.set(path, { contentType: 'image/png', size: 2048 })
+  storedObjects.set(thumbnailPath, { contentType: 'image/jpeg', size: 42_000 })
+  const result = await invoke({ handler: verifyHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId, path, mimeType: 'image/png', thumbnailPath }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 200)
+  assert.equal(result.body.receipt.thumbnailPath, thumbnailPath)
+  assert.equal(result.body.receipt.thumbnailSize, 42_000)
+  const forged = await invoke({ handler: verifyHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId, path, mimeType: 'image/png', thumbnailPath: `${thumbnailPath}.other` }, dependencies: { createStorage } })
+  assert.equal(forged.statusCode, 400)
+  storedObjects.delete(path)
+  storedObjects.delete(thumbnailPath)
+})
+
+test('member receipt upload is denied by default for a legacy trip with no permission flag', async () => {
+  storageCalls = []
+  const result = await invoke({ handler: uploadHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 1000, fileName: 'member.png' }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 403)
+  assert.equal(result.body.code, 'TRIP_AUTHORIZATION_FAILED')
+  assert.equal(storageCalls.length, 0)
+})
+
+test('current authenticated member can upload and verify when the trip creator enabled permission', async () => {
+  storageCalls = []
+  const fileId = randomUUID()
+  const path = `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.png`
+  await seedMemberUploadPermission(true)
+  try {
+    const upload = await invoke({ handler: uploadHandler, token: member.idToken,
+      body: { tripId: ownerTripId, expenseId, fileId, mimeType: 'image/png', size: 1200, fileName: 'member.png' }, dependencies: { createStorage } })
+    assert.equal(upload.statusCode, 200)
+    storedObjects.set(path, { contentType: 'image/png', size: 1200 })
+    const verified = await invoke({ handler: verifyHandler, token: member.idToken,
+      body: { tripId: ownerTripId, expenseId, fileId, path, mimeType: 'image/png', fileName: 'member.png' }, dependencies: { createStorage } })
+    assert.equal(verified.statusCode, 200)
+    assert.equal(verified.body.receipt.fileId, fileId)
+  } finally {
+    await seedMemberUploadPermission(false)
+    storedObjects.delete(path)
+  }
+})
+
+test('guest and non-member uploaders are rejected even when member upload is enabled', async () => {
+  await seedMemberUploadPermission(true)
+  storageCalls = []
+  const body = { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 1000 }
+  const guestUpload = await invoke({ handler: uploadHandler, token: guest.idToken, body, dependencies: { createStorage } })
+  const outsiderUpload = await invoke({ handler: uploadHandler, token: outsider.idToken, body, dependencies: { createStorage } })
+  const guestView = await invoke({ handler: urlHandler, token: guest.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(guestUpload.statusCode, 403)
+  assert.equal(outsiderUpload.statusCode, 403)
+  assert.equal(guestView.statusCode, 403)
+  assert.equal(storageCalls.length, 0)
+  await seedMemberUploadPermission(false)
+})
+
+test('a member removed from the trip immediately loses receipt upload access', async () => {
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, guest.localId],
+    adminIds: [creator.localId],
+    allowMemberReceiptUploads: true,
+  })
+  storageCalls = []
+  const result = await invoke({ handler: uploadHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 1000 }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 403)
+  assert.equal(storageCalls.length, 0)
+  await seedMemberUploadPermission(false)
+})
+
+test('trip members receive cached-preview-compatible short-lived URLs for attached original and thumbnail files', async () => {
   storageCalls = []
   const result = await invoke({ handler: urlHandler, token: member.idToken,
     body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
   assert.equal(result.statusCode, 200)
   assert.match(result.body.preview, /short-lived/)
-  assert.equal(result.body.thumbnail, result.body.preview)
+  assert.notEqual(result.body.thumbnail, result.body.preview)
   assert.match(result.body.download, /short-lived/)
-  assert.equal(storageCalls.filter(([kind]) => kind === 'sign').length, 2)
+  assert.equal(storageCalls.filter(([kind]) => kind === 'sign').length, 3)
+  assert.ok(storageCalls.some((call) => call[0] === 'sign' && call[1].endsWith('supabase_receipt_001.thumb.jpg')))
   assert.equal(storageCalls.every((call) => call[2] === 120), true)
+})
+
+test('legacy receipt metadata without a thumbnail remains viewable using its original private file', async () => {
+  storageCalls = []
+  const result = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'legacy_receipt_002' }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 200)
+  assert.equal(result.body.thumbnail, result.body.preview)
+  assert.equal(storageCalls.filter(([kind]) => kind === 'sign').length, 2)
+})
+
+test('receipt list requests sign only the lightweight thumbnail object', async () => {
+  storageCalls = []
+  const result = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001', purpose: 'thumbnail' }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 200)
+  assert.ok(result.body.thumbnail.includes('short-lived'))
+  assert.equal(result.body.download, undefined)
+  assert.equal(storageCalls.filter(([kind]) => kind === 'sign').length, 1)
+  assert.ok(storageCalls.some((call) => call[0] === 'sign' && call[1].endsWith('supabase_receipt_001.thumb.jpg')))
 })
 
 test('outsiders, invalid tokens, unlinked IDs and legacy/non-Supabase metadata cannot read private storage', async () => {
@@ -250,7 +385,7 @@ test('only trip admins can delete attached Supabase receipt objects', async () =
   assert.equal(storageCalls.length, 0)
   const allowed = await invoke({ handler: deleteHandler, token: creator.idToken, body, dependencies: { createStorage } })
   assert.equal(allowed.statusCode, 200)
-  assert.deepEqual(storageCalls.at(-1), ['remove', `trips/${ownerTripId}/expenses/${memberExpenseId}/supabase_receipt_001.jpg`])
+  assert.deepEqual(storageCalls.at(-1), ['remove', `trips/${ownerTripId}/expenses/${memberExpenseId}/supabase_receipt_001.jpg`, `trips/${ownerTripId}/expenses/${memberExpenseId}/supabase_receipt_001.thumb.jpg`])
 })
 
 test('missing Supabase server key fails closed without storage access', async () => {

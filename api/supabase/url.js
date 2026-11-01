@@ -17,17 +17,24 @@ export default async function handler(req, res, dependencies = {}) {
     const fileId = validateDocumentId(body.fileId, 'receipt ID')
     const fetchImpl = deps.fetchImpl || fetch
     const trip = await getFirestoreDocument(`trips/${tripId}`, idToken, fetchImpl)
-    assertTripMember(trip, identity.uid)
+    assertTripMember(trip, identity)
     const expense = await getFirestoreDocument(`trips/${tripId}/expenses/${expenseId}`, idToken, fetchImpl)
     const receipt = getReceiptFile(expense, fileId, tripId, expenseId)
     const storage = (deps.createStorage || createReceiptStorage)({ fetchImpl: deps.supabaseFetchImpl })
-    const [preview, download] = await Promise.all([
+    if (body.purpose === 'thumbnail') {
+      const preview = await signedUrl(storage, receipt.thumbnailPath
+        ? { ...receipt, path: receipt.thumbnailPath, fileName: 'receipt-thumbnail.jpg' }
+        : receipt, false)
+      return respond(response, 200, { thumbnail: preview, preview, mimeType: receipt.thumbnailMimeType || receipt.mimeType, expiresIn: 120 })
+    }
+    const [preview, download, thumbnail] = await Promise.all([
       signedUrl(storage, receipt, false),
       signedUrl(storage, receipt, true),
+      receipt.thumbnailPath ? signedUrl(storage, { ...receipt, path: receipt.thumbnailPath, fileName: 'receipt-thumbnail.jpg' }, false) : Promise.resolve(null),
     ])
     return respond(response, 200, {
       preview,
-      thumbnail: preview,
+      thumbnail: thumbnail || preview,
       original: preview,
       download,
       mimeType: receipt.mimeType,
