@@ -530,10 +530,12 @@ export const TripPage = () => {
       {activeTab === 'expenses' ? (
         <ExpenseList
           activity={activity}
+          trip={trip ? { ...trip, id: tripId } : null}
           currency={trip.currency}
           expenses={expenses}
           membersMap={membersMap}
           currentUserId={user?.uid}
+          currentUser={user}
           onCreate={() => setShowQuickAdd(true)}
           onDelete={handleExpenseDelete}
           onEdit={(expense) => {

@@ -15,7 +15,7 @@ import { EmptyState } from '../ui/EmptyState'
 import { Select } from '../ui/Select'
 import { ExpenseDetailDialog } from './ExpenseDetailDialog'
 
-export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onEdit, onDelete, onCreate, currentUserId, canManage = false }) => {
+export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onEdit, onDelete, onCreate, currentUserId, currentUser, trip, canManage = false }) => {
   const [search, setSearch]               = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [selectedExpense, setSelectedExpense] = useState(null)
@@ -175,12 +175,15 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
       )}
 
       <ExpenseDetailDialog
+        canManage={canManage}
         creationActivityMap={creationActivityMap}
         currency={currency}
+        currentUser={currentUser}
         expense={selectedExpense}
         membersMap={membersMap}
         onClose={() => setSelectedExpense(null)}
         open={Boolean(selectedExpense)}
+        trip={trip}
       />
     </div>
   )

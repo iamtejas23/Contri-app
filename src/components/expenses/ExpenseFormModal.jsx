@@ -321,7 +321,7 @@ export const ExpenseFormModal = ({
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-[1fr,auto] sm:items-end">
             <Input
-              hint="Upload the image to Google Drive, share it with the trip, then paste the link here."
+              hint="Existing external receipt links are still supported. For private image uploads, open the saved expense details."
               name="receiptURL"
               onChange={handleChange}
               placeholder="https://drive.google.com/file/d/..."

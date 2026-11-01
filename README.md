@@ -22,7 +22,8 @@ A standalone, dependency-free GitHub Pages site lives in [`docs/`](./docs/). It 
 | Notifications | Expense notifications appear in the in-app notification center while the app is running. Background Android push notifications are not implemented. |
 | Profile and settings | Edit a display name, photo URL, and UPI ID; choose light, dark, or system appearance. Theme preference is stored on the current device. |
 | Sharing and exports | Share trip invites and balance summaries through WhatsApp; export an expense CSV or trip-summary PDF. Android exports use the native share sheet. |
-| Receipt scanning | OCR reads a selected receipt image on-device and suggests text/amounts. Tesseract.js is loaded from a CDN, so scanning needs network access to load the scanner. Receipt images are not uploaded by the scanner. |
+| Receipt images | Existing receipt links remain supported. On trips created by the verified `tsmane8787@gmail.com` account, that account can upload private JPEG/PNG/WebP receipts to ImageKit. Current trip members can request short-lived signed previews/downloads. |
+| Receipt scanning | OCR reads a selected receipt image on-device and suggests text/amounts. Tesseract.js is loaded from a CDN, so scanning needs network access to load the scanner. Scanning does not upload the scanned image. |
 
 These are capabilities present in the application code, not a claim that a production Firebase project is configured or that every feature has been manually verified on a device.
 
@@ -31,10 +32,11 @@ These are capabilities present in the application code, not a claim that a produ
 - React 18, React Router 6, and Vite 8
 - Capacitor 7 and Capacitor Android plugins
 - Firebase Authentication and Cloud Firestore
+- Vercel Functions for authenticated ImageKit receipt signing, member-gated signed delivery, and admin-authorized deletion
 - Tailwind CSS, Recharts, Lucide icons, and `react-hot-toast`
 - `date-fns`, Papa Parse, jsPDF, and `jspdf-autotable`
 
-The browser and Android app use the same React UI and Firebase data model. Capacitor supplies native Android authentication, sharing, UPI app launch, keyboard behavior, and file sharing for exports. There is no custom API server in this repository.
+The browser and Android app use the same React UI and Firebase data model. Capacitor supplies native Android authentication, sharing, UPI app launch, keyboard behavior, and file sharing for exports. The small Vercel Functions in `api/imagekit/` use Firebase Auth verification and Firestore REST calls with the caller's Firebase ID token, so Firestore rules remain in effect; they do not use Firebase Admin credentials.
 
 ```mermaid
 flowchart LR
@@ -50,6 +52,7 @@ flowchart LR
 ```text
 .
 ├── android/                 Capacitor Android project and Gradle wrapper
+├── api/                     Vercel Functions for private ImageKit receipts
 ├── public/                  Web static assets
 ├── resources/               Source icon and splash images
 ├── shared/                  Separate platform-agnostic TypeScript utility package
@@ -69,6 +72,12 @@ flowchart LR
 ```
 
 `shared/` has its own private package manifest and TypeScript exports; the root app does not declare it as a workspace dependency. The root npm scripts do not build or test that package separately
+
+### Private receipt runtime setup
+
+The ImageKit private key must be configured in the linked Vercel project's serverless runtime, not in Vite or the Android app. GitHub repository secrets are not automatically available to Vercel Functions. Reuse the existing `IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, and `IMAGEKIT_URL_ENDPOINT` secret values when adding those names under Vercel **Settings → Environment Variables**. Also add runtime aliases `FIREBASE_PROJECT_ID` and `FIREBASE_WEB_API_KEY` using the existing Firebase client project ID and public web API key. Mark the ImageKit private key as Sensitive, then deploy through the existing Vercel Git integration. Do not prefix private keys with `VITE_`.
+
+See [`docs/imagekit-receipts-setup.md`](./docs/imagekit-receipts-setup.md) for the authorization model, private URL behavior, local Emulator coverage, and exact setup steps. The repository changes do not deploy Vercel or modify Firestore rules/data.
 
 ## Prerequisites
 
@@ -188,6 +197,7 @@ For sign-in and Firestore, provide the Firebase API key, Auth domain, project ID
 | `VITE_FIREBASE_APP_ID` | Firebase web app ID. |
 | `VITE_FIREBASE_MEASUREMENT_ID` | Optional Analytics configuration; Analytics is dynamically loaded when supported. |
 | `VITE_MOBILE_AUTH_URL` | Optional public web origin used to build Android invite links. If unset, the app falls back to `https://contri-app.vercel.app`. |
+| `VITE_RECEIPT_API_BASE_URL` | Optional trusted HTTPS API origin for receipt requests. Android defaults to `https://contri-app.vercel.app`; web uses the same Vercel receipt API. |
 
 Firebase web configuration is client-side configuration, not a place for service-account credentials or other privileged secrets. Never put service-account keys in `.env` or the app bundle.
 
@@ -235,7 +245,7 @@ npm install -g firebase-tools
 npm test
 ```
 
-The script starts only the Firestore and Auth Emulators, runs `node --test tests/*.test.js`, and stops the emulators afterward. The Auth Emulator port is set to `9099` in `firebase.json`; Firestore uses the Emulator Suite default port `8080`. Rules tests load `firestore.rules` directly and clear emulator test data between cases. No production records are read or modified by this command.
+The script starts only the Firestore and Auth Emulators, runs `node --test --test-concurrency=1 tests/*.test.js`, and stops the emulators afterward. Tests run serially because some Firestore rules tests clear their local emulator fixtures. The Auth Emulator port is set to `9099` in `firebase.json`; Firestore uses the Emulator Suite default port `8080`. Rules tests load `firestore.rules` directly. No production records are read or modified by this command.
 
 The Firebase CLI and a Java runtime are needed to run the Emulator Suite.
 

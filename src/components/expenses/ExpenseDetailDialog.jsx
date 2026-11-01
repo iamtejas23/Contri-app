@@ -6,8 +6,9 @@ import { resolveExpenseCreator } from '../../lib/expenseCreators'
 import { resolveSplitAmounts } from '../../lib/splits'
 import { Avatar } from '../ui/Avatar'
 import { Modal } from '../ui/Modal'
+import { ReceiptAttachments } from './ReceiptAttachments'
 
-export const ExpenseDetailDialog = ({ expense, open, onClose, currency, membersMap, creationActivityMap }) => {
+export const ExpenseDetailDialog = ({ expense, open, onClose, currency, membersMap, creationActivityMap, trip, currentUser, canManage = false }) => {
   if (!expense) return null
 
   const creator = resolveExpenseCreator(expense, membersMap, creationActivityMap)
@@ -63,6 +64,7 @@ export const ExpenseDetailDialog = ({ expense, open, onClose, currency, membersM
             <ExternalLink className="h-4 w-4" /> View receipt
           </a>
         ) : null}
+        <ReceiptAttachments canManage={canManage} currentUser={currentUser} expense={expense} trip={trip} />
       </div>
     </Modal>
   )
