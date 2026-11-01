@@ -3,15 +3,14 @@ import toast from 'react-hot-toast'
 import { Download, FileImage, FileText, ImagePlus, LoaderCircle, Trash2 } from 'lucide-react'
 import {
   attachReceiptMetadata,
-  deleteImageKitReceipt,
-  getImageKitReceiptList,
-  getImageKitReceiptUrls,
-  uploadImageKitReceipt,
+  deleteSupabaseReceipt,
+  getSupabaseReceiptList,
+  getSupabaseReceiptUrls,
+  MAX_RECEIPT_BYTES,
+  uploadSupabaseReceipt,
 } from '../../services/receiptUploads'
 import { Button } from '../ui/Button'
 import { Modal } from '../ui/Modal'
-
-const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 const ReceiptRow = ({ receipt, urls, onOpen, onDelete, deleting }) => {
   const isImage = String(receipt.mimeType || '').startsWith('image/')
@@ -46,7 +45,7 @@ const ReceiptRow = ({ receipt, urls, onOpen, onDelete, deleting }) => {
 }
 
 export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = false }) => {
-  const receipts = useMemo(() => getImageKitReceiptList(expense), [expense])
+  const receipts = useMemo(() => getSupabaseReceiptList(expense), [expense])
   const [progress, setProgress] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [deletingFileId, setDeletingFileId] = useState('')
@@ -55,6 +54,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   const [selectedUrls, setSelectedUrls] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [retryReceipt, setRetryReceipt] = useState(null)
+  const [retryUploadFile, setRetryUploadFile] = useState(null)
   const cameraRef = useRef(null)
   const galleryRef = useRef(null)
   const uploadLock = useRef(false)
@@ -69,7 +69,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
     if (!pending.length || !trip?.id || !expense?.id) return undefined
     Promise.all(pending.map(async (receipt) => {
       try {
-        const urls = await getImageKitReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId })
+        const urls = await getSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId })
         return [receipt.fileId, urls]
       } catch {
         return [receipt.fileId, { error: true }]
@@ -95,23 +95,27 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
       toast.error('Only the verified trip creator account can upload receipts.')
       return
     }
-    const invalid = files.find((file) => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > MAX_FILE_SIZE)
+    const invalid = files.find((file) => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > MAX_RECEIPT_BYTES)
     if (invalid) {
-      toast.error(invalid.size > MAX_FILE_SIZE ? 'Receipt images must be 10 MB or smaller.' : 'Choose a JPEG, PNG or WebP image.')
+      toast.error(invalid.size > MAX_RECEIPT_BYTES ? 'Receipt images must be 50 MB or smaller.' : 'Choose a JPEG, PNG or WebP image.')
       return
     }
 
     uploadLock.current = true
     setUploading(true)
+    setRetryUploadFile(null)
+    let fileInProgress = null
     try {
       for (const file of files) {
+        fileInProgress = file
         setProgress({ name: file.name, value: 0 })
-        const receipt = await uploadImageKitReceipt({
+        const receipt = await uploadSupabaseReceipt({
           tripId: trip.id,
           expenseId: expense.id,
           file,
           onProgress: (value) => setProgress({ name: file.name, value }),
         })
+        fileInProgress = null
         try {
           await attachUploaded(receipt)
         } catch (error) {
@@ -121,6 +125,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
         }
       }
     } catch (error) {
+      if (fileInProgress) setRetryUploadFile(fileInProgress)
       toast.error(error.message || 'Could not upload that receipt.')
     } finally {
       uploadLock.current = false
@@ -134,7 +139,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
     setSelectedUrls(null)
     setPreviewLoading(true)
     try {
-      const urls = await getImageKitReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId })
+      const urls = await getSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId })
       setSelectedUrls(urls)
       setUrlsById((current) => ({ ...current, [receipt.fileId]: urls }))
     } catch (error) {
@@ -150,7 +155,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
     if (!window.confirm('Delete this receipt image? This does not change the expense.')) return
     setDeletingFileId(receipt.fileId)
     try {
-      await deleteImageKitReceipt({ tripId: trip.id, expenseId: expense.id, receipt })
+      await deleteSupabaseReceipt({ tripId: trip.id, expenseId: expense.id, receipt })
       setUrlsById((current) => {
         const next = { ...current }
         delete next[receipt.fileId]
@@ -174,12 +179,40 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
     }
   }
 
+  const retryUpload = async () => {
+    if (!retryUploadFile || uploadLock.current) return
+    uploadLock.current = true
+    setUploading(true)
+    setProgress({ name: retryUploadFile.name, value: 0 })
+    try {
+      const receipt = await uploadSupabaseReceipt({
+        tripId: trip.id,
+        expenseId: expense.id,
+        file: retryUploadFile,
+        onProgress: (value) => setProgress({ name: retryUploadFile.name, value }),
+      })
+      setRetryUploadFile(null)
+      try {
+        await attachUploaded(receipt)
+      } catch (error) {
+        setRetryReceipt(receipt)
+        toast.error(`Image uploaded, but could not attach it: ${error.message}`)
+      }
+    } catch (error) {
+      toast.error(error.message || 'Could not upload that receipt.')
+    } finally {
+      uploadLock.current = false
+      setUploading(false)
+      setProgress(null)
+    }
+  }
+
   return (
     <section className="min-w-0 space-y-3" aria-label="Private receipt images">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-ink">Receipt images</h3>
-          <p className="mt-0.5 text-xs text-dusk">Private to current trip members. Images are optimized for preview; originals are preserved.</p>
+          <p className="mt-0.5 text-xs text-dusk">Private to current trip members. Original images are preserved. Maximum 50 MB each.</p>
         </div>
         {isAuthorizedAccount ? (
           <div className="flex shrink-0 gap-2">
@@ -208,6 +241,12 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-dusk">
           <span>Upload completed, but its expense link still needs saving.</span>
           <Button onClick={retryAttach} size="sm" type="button" variant="secondary">Retry attach</Button>
+        </div>
+      ) : null}
+      {retryUploadFile ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-dusk">
+          <span className="min-w-0 break-all">{retryUploadFile.name} did not finish uploading.</span>
+          <Button disabled={uploading} onClick={retryUpload} size="sm" type="button" variant="secondary">Retry upload</Button>
         </div>
       ) : null}
       {receipts.length ? (

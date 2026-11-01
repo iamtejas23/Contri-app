@@ -1,12 +1,15 @@
+import * as tus from 'tus-js-client'
 import { FieldPath, deleteField, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 
 import { auth, db } from '../firebase/config'
 
+export const RECEIPT_BUCKET = 'contri-receipts'
+export const MAX_RECEIPT_BYTES = 50_000_000
+const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 const configuredBase = String(import.meta.env.VITE_RECEIPT_API_BASE_URL || '').trim()
-const defaultNativeBase = 'https://contri-app.vercel.app'
 const apiBase = configuredBase.replace(/\/$/, '')
-
-const getApiUrl = (route) => `${apiBase || defaultNativeBase}/api/imagekit/${route}`
+const defaultNativeBase = 'https://contri-app.vercel.app'
+const getApiUrl = (route) => `${apiBase || defaultNativeBase}/api/supabase/${route}`
 
 const getIdToken = async () => {
   const user = auth.currentUser
@@ -34,55 +37,84 @@ const requestReceiptApi = async (route, payload) => {
   return result
 }
 
-const uploadWithProgress = ({ file, authParams, onProgress, signal }) => new Promise((resolve, reject) => {
-  const body = new FormData()
-  body.append('file', file)
-  body.append('fileName', authParams.fileName)
-  body.append('folder', authParams.folder)
-  body.append('publicKey', authParams.publicKey)
-  body.append('token', authParams.token)
-  body.append('expire', String(authParams.expire))
-  body.append('signature', authParams.signature)
-  body.append('isPrivateFile', 'true')
-  body.append('useUniqueFileName', 'true')
+const getTusEndpoint = (supabaseUrl) => {
+  const parsed = new URL(supabaseUrl)
+  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') throw new Error('Supabase must use a secure HTTPS URL.')
+  if (parsed.hostname.endsWith('.supabase.co')) {
+    parsed.hostname = parsed.hostname.replace(/\.supabase\.co$/, '.storage.supabase.co')
+    parsed.pathname = ''
+  }
+  return `${parsed.origin}/storage/v1/upload/resumable`
+}
 
-  const xhr = new XMLHttpRequest()
-  xhr.open('POST', 'https://upload.imagekit.io/api/v1/files/upload')
-  xhr.responseType = 'json'
-  xhr.upload.onprogress = (event) => {
-    if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100))
+const uploadWithProgress = ({ file, uploadInfo, onProgress, signal }) => new Promise((resolve, reject) => {
+  const supabaseUrl = String(import.meta.env.VITE_SUPABASE_URL || '').trim()
+  const anonKey = String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()
+  if (!supabaseUrl || !anonKey) {
+    reject(new Error('Receipt storage is not configured in this app build.'))
+    return
   }
-  xhr.onload = () => {
-    const result = xhr.response || (() => {
-      try { return JSON.parse(xhr.responseText) } catch { return {} }
-    })()
-    if (xhr.status < 200 || xhr.status >= 300) {
-      reject(new Error(result.message || 'ImageKit could not upload this receipt. Try again.'))
-      return
-    }
-    if (!result.fileId || !result.filePath) {
-      reject(new Error('ImageKit returned incomplete receipt information.'))
-      return
-    }
-    resolve(result)
+
+  let settled = false
+  const finish = (callback, value) => {
+    if (settled) return
+    settled = true
+    signal?.removeEventListener('abort', abort)
+    callback(value)
   }
-  xhr.onerror = () => reject(new Error('Receipt upload failed due to a network error.'))
-  xhr.onabort = () => reject(new Error('Receipt upload was cancelled.'))
-  if (signal) {
-    if (signal.aborted) return reject(new Error('Receipt upload was cancelled.'))
-    signal.addEventListener('abort', () => xhr.abort(), { once: true })
+  const upload = new tus.Upload(file, {
+    endpoint: getTusEndpoint(supabaseUrl),
+    chunkSize: 6 * 1024 * 1024,
+    retryDelays: [0, 1000, 3000, 5000, 10000],
+    removeFingerprintOnSuccess: true,
+    uploadDataDuringCreation: true,
+    headers: { apikey: anonKey, 'x-signature': uploadInfo.token },
+    metadata: {
+      bucketName: RECEIPT_BUCKET,
+      objectName: uploadInfo.path,
+      contentType: file.type,
+      cacheControl: '3600',
+    },
+    onError: (error) => finish(reject, new Error(error.message || 'Receipt upload failed. Try again.')),
+    onProgress: (bytesUploaded, bytesTotal) => onProgress?.(Math.round((bytesUploaded / bytesTotal) * 100)),
+    onSuccess: () => finish(resolve, true),
+  })
+  const abort = () => {
+    upload.abort(true).finally(() => finish(reject, new Error('Receipt upload was cancelled.')))
   }
-  xhr.send(body)
+  if (signal?.aborted) {
+    abort()
+    return
+  }
+  signal?.addEventListener('abort', abort, { once: true })
+  upload.start()
 })
 
-export const uploadImageKitReceipt = async ({ tripId, expenseId, file, onProgress, signal }) => {
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
-  if (!allowedTypes.includes(file?.type)) throw new Error('Choose a JPEG, PNG or WebP image.')
-  if (file.size > 10 * 1024 * 1024) throw new Error('Receipt images must be 10 MB or smaller.')
+export const uploadSupabaseReceipt = async ({ tripId, expenseId, file, onProgress, signal }) => {
+  if (!String(import.meta.env.VITE_SUPABASE_URL || '').trim()
+    || !String(import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim()) {
+    throw new Error('Receipt storage is not configured in this app build. Ask the app administrator to finish Supabase setup.')
+  }
+  if (!ALLOWED_TYPES.has(file?.type)) throw new Error('Choose a JPEG, PNG or WebP image.')
+  if (file.size > MAX_RECEIPT_BYTES) throw new Error('Receipt images must be 50 MB or smaller.')
+  if (!file.size) throw new Error('Choose an image with content.')
 
-  const authParams = await requestReceiptApi('auth', { tripId, expenseId, mimeType: file.type })
-  const uploaded = await uploadWithProgress({ file, authParams, onProgress, signal })
-  const verified = await requestReceiptApi('verify', { tripId, expenseId, fileId: uploaded.fileId })
+  const uploadInfo = await requestReceiptApi('upload', {
+    tripId,
+    expenseId,
+    mimeType: file.type,
+    fileName: file.name,
+    size: file.size,
+  })
+  await uploadWithProgress({ file, uploadInfo, onProgress, signal })
+  const verified = await requestReceiptApi('verify', {
+    tripId,
+    expenseId,
+    fileId: uploadInfo.fileId,
+    path: uploadInfo.path,
+    mimeType: file.type,
+    fileName: uploadInfo.fileName || file.name,
+  })
   return verified.receipt
 }
 
@@ -94,17 +126,18 @@ export const attachReceiptMetadata = async ({ tripId, expenseId, receipt }) => {
   })
 }
 
-export const getImageKitReceiptUrls = ({ tripId, expenseId, fileId }) =>
+export const getSupabaseReceiptUrls = ({ tripId, expenseId, fileId }) =>
   requestReceiptApi('url', { tripId, expenseId, fileId })
 
-export const deleteImageKitReceipt = async ({ tripId, expenseId, receipt }) => {
+export const deleteSupabaseReceipt = async ({ tripId, expenseId, receipt }) => {
   await requestReceiptApi('delete', { tripId, expenseId, fileId: receipt.fileId })
   const ref = doc(db, 'trips', tripId, 'expenses', expenseId)
   await updateDoc(ref, new FieldPath('receiptFiles', receipt.fileId), deleteField())
 }
 
-export const getImageKitReceiptList = (expense) => {
+export const getSupabaseReceiptList = (expense) => {
   const value = expense?.receiptFiles
   if (!value || typeof value !== 'object' || Array.isArray(value)) return []
-  return Object.values(value).filter((receipt) => receipt?.fileId && receipt?.filePath)
+  return Object.values(value).filter((receipt) => receipt?.provider === 'supabase'
+    && receipt.bucket === RECEIPT_BUCKET && receipt.fileId && receipt.path)
 }

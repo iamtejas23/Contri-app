@@ -22,7 +22,7 @@ A standalone, dependency-free GitHub Pages site lives in [`docs/`](./docs/). It 
 | Notifications | Expense notifications appear in the in-app notification center while the app is running. Background Android push notifications are not implemented. |
 | Profile and settings | Edit a display name, photo URL, and UPI ID; choose light, dark, or system appearance. Theme preference is stored on the current device. |
 | Sharing and exports | Share trip invites and balance summaries through WhatsApp; export an expense CSV or trip-summary PDF. Android exports use the native share sheet. |
-| Receipt images | Existing receipt links remain supported. On trips created by the verified `tsmane8787@gmail.com` account, that account can upload private JPEG/PNG/WebP receipts to ImageKit. Current trip members can request short-lived signed previews/downloads. |
+| Receipt images | Existing `receiptURL` links remain supported. On trips created by the verified `tsmane8787@gmail.com` account, that account can upload private JPEG/PNG/WebP receipts to Supabase Storage. Current trip members can request short-lived signed previews/downloads. |
 | Receipt scanning | OCR reads a selected receipt image on-device and suggests text/amounts. Tesseract.js is loaded from a CDN, so scanning needs network access to load the scanner. Scanning does not upload the scanned image. |
 
 These are capabilities present in the application code, not a claim that a production Firebase project is configured or that every feature has been manually verified on a device.
@@ -32,11 +32,11 @@ These are capabilities present in the application code, not a claim that a produ
 - React 18, React Router 6, and Vite 8
 - Capacitor 7 and Capacitor Android plugins
 - Firebase Authentication and Cloud Firestore
-- Vercel Functions for authenticated ImageKit receipt signing, member-gated signed delivery, and admin-authorized deletion
+- Vercel Functions for Firebase-authenticated Supabase receipt uploads, member-gated signed delivery, and admin-authorized deletion
 - Tailwind CSS, Recharts, Lucide icons, and `react-hot-toast`
 - `date-fns`, Papa Parse, jsPDF, and `jspdf-autotable`
 
-The browser and Android app use the same React UI and Firebase data model. Capacitor supplies native Android authentication, sharing, UPI app launch, keyboard behavior, and file sharing for exports. The small Vercel Functions in `api/imagekit/` use Firebase Auth verification and Firestore REST calls with the caller's Firebase ID token, so Firestore rules remain in effect; they do not use Firebase Admin credentials.
+The browser and Android app use the same React UI and Firebase data model. Capacitor supplies native Android authentication, sharing, UPI app launch, keyboard behavior, and file sharing for exports. The Vercel Functions in `api/supabase/` verify Firebase Auth tokens and read trip/expense documents through Firestore REST using the caller's token, so Firestore rules remain in effect. A Supabase service-role key is used only inside those server functions to issue single-object upload tokens and short-lived signed URLs; it is never sent to the client.
 
 ```mermaid
 flowchart LR
@@ -52,7 +52,7 @@ flowchart LR
 ```text
 .
 ├── android/                 Capacitor Android project and Gradle wrapper
-├── api/                     Vercel Functions for private ImageKit receipts
+├── api/                     Vercel Functions for private Supabase receipts
 ├── public/                  Web static assets
 ├── resources/               Source icon and splash images
 ├── shared/                  Separate platform-agnostic TypeScript utility package
@@ -75,9 +75,7 @@ flowchart LR
 
 ### Private receipt runtime setup
 
-The ImageKit private key must be configured in the linked Vercel project's serverless runtime, not in Vite or the Android app. GitHub repository secrets are not automatically available to Vercel Functions. Reuse the existing `IMAGEKIT_PUBLIC_KEY`, `IMAGEKIT_PRIVATE_KEY`, and `IMAGEKIT_URL_ENDPOINT` secret values when adding those names under Vercel **Settings → Environment Variables**. Also add runtime aliases `FIREBASE_PROJECT_ID` and `FIREBASE_WEB_API_KEY` using the existing Firebase client project ID and public web API key. Mark the ImageKit private key as Sensitive, then deploy through the existing Vercel Git integration. Do not prefix private keys with `VITE_`.
-
-See [`docs/imagekit-receipts-setup.md`](./docs/imagekit-receipts-setup.md) for the authorization model, private URL behavior, local Emulator coverage, and exact setup steps. The repository changes do not deploy Vercel or modify Firestore rules/data.
+Create a private Supabase Storage bucket named `contri-receipts` and configure its 50 MB file limit and JPEG/PNG/WebP MIME allowlist. Add `VITE_SUPABASE_URL` and the public `VITE_SUPABASE_ANON_KEY` to the Vercel frontend environment. Add `SUPABASE_SERVICE_ROLE_KEY` as a sensitive server-only Vercel Function variable; never use a `VITE_` prefix for it. The Vercel runtime also needs `FIREBASE_PROJECT_ID` and `FIREBASE_WEB_API_KEY` so the API can verify Firebase sessions and perform Firestore reads under caller rules. See [`docs/supabase-receipts-setup.md`](./docs/supabase-receipts-setup.md) for the exact configuration and test procedure. No Supabase Auth migration or Firestore rules change is required. Repository changes do not deploy Vercel or modify Firestore rules/data.
 
 ## Prerequisites
 
@@ -177,7 +175,7 @@ Use a project you control. For development, prefer a separate Firebase project f
 
 ### Firestore rules and indexes
 
-- Firebase CLI configuration points to `firestore.rules` for Firestore rules. There is no Storage rules file or Cloud Storage setup in this repository. The app does not use Firebase Storage; receipt scanning is local and `receiptURL` is just an optional expense field.
+- Firebase CLI configuration points to `firestore.rules` for Firestore rules. The app uses Supabase Storage only for new private receipt image objects; Firebase remains the identity, trip, expense and membership source of truth. Existing `receiptURL` fields remain supported.
 - There is no checked-in `firestore.indexes.json`. If Firestore reports that a query needs a composite index, create/review the index for the intended Firebase project using the error link or Firebase Console.
 - No rules deployment has been run as part of this documentation update. Do not deploy rules without confirming the Firebase project and reviewing the effect. For a deliberate staging deployment, the configured rules target can be deployed with `firebase deploy --only firestore:rules --project your-staging-project-id` after installing the Firebase CLI and replacing the placeholder with your staging project ID. This changes that project's rules; it is not a local-only command.
 

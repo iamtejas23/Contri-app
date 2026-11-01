@@ -95,9 +95,7 @@ export const getFirestoreDocument = async (path, idToken, fetchImpl = fetch) => 
 
 export const assertTripMember = (trip, uid) => {
   const fromIds = Array.isArray(trip?.memberIds) && trip.memberIds.includes(uid)
-  const fromMembers = Array.isArray(trip?.members) && trip.members.some((member) => member?.uid === uid)
-  const fromMemberMap = trip?.members && !Array.isArray(trip.members) && Object.hasOwn(trip.members, uid)
-  if (!trip || !(fromIds || fromMembers || fromMemberMap || trip.createdBy === uid)) {
+  if (!trip || !(fromIds || trip.createdBy === uid)) {
     throw Object.assign(new Error('You must be a current trip member to view this receipt.'), { statusCode: 403 })
   }
 }
@@ -109,8 +107,8 @@ export const assertAuthorizedCreator = (trip, identity) => {
 }
 
 export const assertTripAdmin = (trip, uid) => {
-  const isAdmin = trip?.createdBy === uid
-    || (Array.isArray(trip?.adminIds) && trip.adminIds.includes(uid))
+  const isMember = Array.isArray(trip?.memberIds) && trip.memberIds.includes(uid)
+  const isAdmin = trip?.createdBy === uid || (isMember && Array.isArray(trip?.adminIds) && trip.adminIds.includes(uid))
   if (!isAdmin) throw Object.assign(new Error('Only a trip admin can remove a receipt.'), { statusCode: 403 })
 }
 
