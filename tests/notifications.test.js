@@ -16,6 +16,7 @@ import {
   connectFirestoreEmulator,
   deleteDoc,
   doc,
+  FieldPath,
   getDoc,
   getDocs,
   getFirestore,
@@ -1189,6 +1190,63 @@ test('a normal authenticated invitee can still join without a guest label', asyn
   assert.equal(joinedTrip.data().memberIds.includes(joiningMember.uid), true)
   assert.equal(joinedTrip.data().members.find((member) => member.uid === joiningMember.uid).isGuest, undefined)
   assert.equal(joinedTrip.data().members.find((member) => member.uid === joiningMember.uid).photoURL, joiningMember.photoURL)
+})
+
+test('enabled receipt upload members may append one safe receipt reference without editing the expense', async () => {
+  const fileId = '550e8400-e29b-41d4-a716-446655440000'
+  const expenseRef = doc(environment.authenticatedContext('member-b', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore(), 'trips', tripId, 'expenses', 'receipt-expense')
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', tripId), trip)
+    await setDoc(doc(context.firestore(), 'trips', tripId, 'expenses', 'receipt-expense'), {
+      title: 'Dinner', amount: 1200, createdBy: 'member-a', receiptURL: '',
+    })
+  })
+
+  const receipt = {
+    provider: 'supabase', bucket: 'contri-receipts', fileId,
+    path: `trips/${tripId}/expenses/receipt-expense/${fileId}.jpg`,
+    fileName: 'dinner.jpg', mimeType: 'image/jpeg', size: 2000,
+    thumbnailPath: `trips/${tripId}/expenses/receipt-expense/${fileId}.thumb.jpg`,
+    thumbnailMimeType: 'image/jpeg', thumbnailSize: 20_000,
+    uploadedAt: serverTimestamp(),
+  }
+  await assertFails(updateDoc(expenseRef,
+    new FieldPath('receiptFiles', fileId), receipt,
+    new FieldPath('receiptAppendId'), fileId,
+  ))
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', tripId), { ...trip, allowMemberReceiptUploads: true })
+  })
+  await assertSucceeds(updateDoc(expenseRef,
+    new FieldPath('receiptFiles', fileId), receipt,
+    new FieldPath('receiptAppendId'), fileId,
+  ))
+
+  const stored = await assertSucceeds(getDoc(expenseRef))
+  assert.equal(stored.data().amount, 1200)
+  assert.equal(stored.data().receiptFiles[fileId].path, receipt.path)
+  await assertFails(updateDoc(expenseRef,
+    new FieldPath('receiptFiles', fileId), { ...receipt, fileName: 'changed.jpg' },
+    new FieldPath('receiptAppendId'), fileId,
+  ))
+  await assertFails(updateDoc(expenseRef, { amount: 1 }))
+  const secondFileId = '550e8400-e29b-41d4-a716-446655440001'
+  await assertFails(updateDoc(expenseRef,
+    new FieldPath('receiptFiles', secondFileId), {
+    ...receipt, fileId: secondFileId, path: `trips/${tripId}/expenses/other-expense/${secondFileId}.jpg`,
+    }, new FieldPath('receiptAppendId'), secondFileId,
+  ))
+
+  const guestExpense = environment.authenticatedContext('member-c', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  await assertFails(updateDoc(doc(guestExpense, 'trips', tripId, 'expenses', 'receipt-expense'),
+    new FieldPath('receiptFiles', '550e8400-e29b-41d4-a716-446655440002'), {
+      ...receipt, fileId: '550e8400-e29b-41d4-a716-446655440002', path: `trips/${tripId}/expenses/receipt-expense/550e8400-e29b-41d4-a716-446655440002.jpg`,
+    }, new FieldPath('receiptAppendId'), '550e8400-e29b-41d4-a716-446655440002',
+  ))
 })
 
 test('a member can sync their own photo to trip membership while outsiders cannot edit another member photo', async () => {

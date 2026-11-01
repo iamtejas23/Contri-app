@@ -60,6 +60,8 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   const [previewLoading, setPreviewLoading] = useState(false)
   const cameraRef = useRef(null)
   const galleryRef = useRef(null)
+  const previewRefreshAttempted = useRef(false)
+  const thumbnailRefreshAttempted = useRef(new Set())
   const isAuthorizedAccount = currentUser?.email?.trim().toLowerCase() === 'tsmane8787@gmail.com'
     && currentUser?.emailVerified === true && trip?.createdBy === currentUser?.uid
   const isCurrentMember = Boolean(currentUser?.uid && (trip?.createdBy === currentUser.uid || trip?.memberIds?.includes?.(currentUser.uid)))
@@ -101,6 +103,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   const openReceipt = async (receipt, forceRefresh = false) => {
     if (!trip?.id || !expense?.id) return
     if (forceRefresh) invalidateSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId })
+    previewRefreshAttempted.current = false
     setSelected(receipt)
     setSelectedUrls(null)
     setPreviewLoading(true)
@@ -115,6 +118,11 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   }
 
   const refreshRowUrl = async (receipt) => {
+    if (thumbnailRefreshAttempted.current.has(receipt.fileId)) {
+      setUrlsById((current) => ({ ...current, [receipt.fileId]: { error: 'The private thumbnail is unavailable.' } }))
+      return
+    }
+    thumbnailRefreshAttempted.current.add(receipt.fileId)
     invalidateSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId })
     try {
       const refreshed = await getSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId, purpose: 'thumbnail', forceRefresh: true })
@@ -138,6 +146,11 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
 
   const handlePreviewError = async () => {
     if (!selected || !trip?.id || !expense?.id) return
+    if (previewRefreshAttempted.current) {
+      toast.error('The private image could not be loaded after refreshing its link. Check your connection or contact the trip admin.')
+      return
+    }
+    previewRefreshAttempted.current = true
     invalidateSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: selected.fileId })
     try {
       const refreshed = await getSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: selected.fileId, forceRefresh: true })

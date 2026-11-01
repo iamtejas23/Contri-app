@@ -368,6 +368,60 @@ test('receipt list requests sign only the lightweight thumbnail object', async (
   assert.ok(storageCalls.some((call) => call[0] === 'sign' && call[1].endsWith('supabase_receipt_001.thumb.jpg')))
 })
 
+test('a failed optional thumbnail signature falls back to the private original instead of failing receipt access', async () => {
+  storageCalls = []
+  const result = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' },
+    dependencies: {
+      createStorage: () => ({
+        async createSignedUrl(path, seconds, options) {
+          storageCalls.push(['sign', path, seconds, options])
+          if (path.endsWith('.thumb.jpg')) return { data: null, error: { statusCode: 403, code: 'storage_permission_denied' } }
+          return { data: { signedUrl: `https://private.test/${encodeURIComponent(path)}?token=short-lived` }, error: null }
+        },
+      }),
+    },
+  })
+  assert.equal(result.statusCode, 200)
+  assert.equal(result.body.thumbnail, result.body.preview)
+  assert.match(result.body.preview, /supabase_receipt_001\.jpg/)
+})
+
+test('an original signing failure returns a distinct safe error and logs its exact server stage', async () => {
+  storageCalls = []
+  const originalError = console.error
+  const diagnostics = []
+  console.error = (value) => diagnostics.push(String(value))
+  try {
+    const result = await invoke({ handler: urlHandler, token: member.idToken,
+      body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' },
+      dependencies: { createStorage: () => ({ async createSignedUrl() { return { data: null, error: { statusCode: 403, code: 'storage_permission_denied' } } } }) },
+    })
+    assert.equal(result.statusCode, 502)
+    assert.equal(result.body.code, 'SUPABASE_SIGNING_FAILED')
+    assert.ok(result.body.requestId)
+    const entry = JSON.parse(diagnostics[0])
+    assert.equal(entry.stage, 'supabase_original_signing')
+    assert.equal(entry.code, 'SUPABASE_SIGNING_FAILED')
+    assert.equal(entry.category, 'HTTP_403')
+  } finally { console.error = originalError }
+})
+
+test('a removed trip member cannot obtain a new signed receipt URL', async () => {
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, guest.localId],
+    adminIds: [creator.localId],
+  })
+  storageCalls = []
+  const result = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 403)
+  assert.equal(result.body.code, 'TRIP_AUTHORIZATION_FAILED')
+  assert.equal(storageCalls.length, 0)
+  await seedMemberUploadPermission(false)
+})
+
 test('outsiders, invalid tokens, unlinked IDs and legacy/non-Supabase metadata cannot read private storage', async () => {
   const outsiderResult = await invoke({ handler: urlHandler, token: outsider.idToken, body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
   const invalidToken = await invoke({ handler: urlHandler, token: 'invalid-token', body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })

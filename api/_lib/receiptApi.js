@@ -20,7 +20,7 @@ export const withReceiptApi = async (req, res, handler, dependencies = {}) => {
     } catch {
       return respond(res, 400, { error: 'Request body must be valid JSON.' })
     }
-    return await handler({ req, res, body, idToken, identity, dependencies, setStage: (value) => { stage = value } })
+    return await handler({ req, res, body, idToken, identity, requestId, dependencies, setStage: (value) => { stage = value } })
   } catch (error) {
     const status = Number.isInteger(error.statusCode) ? error.statusCode : 500
     const code = error.code || (status >= 500 ? 'RECEIPT_SERVICE_ERROR' : status === 403 ? 'TRIP_AUTHORIZATION_FAILED' : 'RECEIPT_REQUEST_INVALID')

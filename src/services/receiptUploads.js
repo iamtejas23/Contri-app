@@ -134,10 +134,11 @@ export const uploadSupabaseReceipt = async ({ tripId, expenseId, file, fileId = 
 
 export const attachReceiptMetadata = async ({ tripId, expenseId, receipt }) => {
   const ref = doc(db, 'trips', tripId, 'expenses', expenseId)
-  await updateDoc(ref, new FieldPath('receiptFiles', receipt.fileId), {
-    ...receipt,
-    uploadedAt: serverTimestamp(),
-  })
+  await updateDoc(
+    ref,
+    new FieldPath('receiptFiles', receipt.fileId), { ...receipt, uploadedAt: serverTimestamp() },
+    new FieldPath('receiptAppendId'), receipt.fileId,
+  )
 }
 
 export const getSupabaseReceiptUrls = async ({ tripId, expenseId, fileId, purpose = 'full', forceRefresh = false }) => {

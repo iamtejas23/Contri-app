@@ -45,6 +45,54 @@ service cloud.firestore {
             && trip.clearOperation.ownerUid == request.auth.uid));
     }
 
+    // A receipt uploader may append one verified-shaped receipt reference when
+    // the trip creator has enabled member uploads. This does not permit edits to
+    // existing receipt entries or any financial/expense fields. The private
+    // upload API independently verifies membership, upload permission and object
+    // metadata before the UI attempts this write.
+    function isReceiptMetadataAppend(tripId, expenseId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      let oldFiles = resource.data.get('receiptFiles', {});
+      let newFiles = request.resource.data.get('receiptFiles', {});
+      let changes = newFiles.diff(oldFiles);
+      let addedIds = changes.addedKeys();
+      let fileId = request.resource.data.get('receiptAppendId', '');
+      let receipt = newFiles[fileId];
+      return signedIn()
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && isTripMember(tripId)
+        && trip.get('allowMemberReceiptUploads', false) == true
+        && !isTripClearing(tripId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['receiptFiles', 'receiptAppendId'])
+        && fileId != resource.data.get('receiptAppendId', '')
+        && addedIds.size() == 1
+        && addedIds.hasOnly([fileId])
+        && changes.changedKeys().size() == 0
+        && changes.removedKeys().size() == 0
+        && fileId is string
+        && fileId.matches('^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$')
+        && receipt is map
+        && receipt.keys().hasAll(['provider', 'bucket', 'fileId', 'path', 'fileName', 'mimeType', 'size', 'uploadedAt'])
+        && receipt.keys().hasOnly(['provider', 'bucket', 'fileId', 'path', 'fileName', 'mimeType', 'size', 'thumbnailPath', 'thumbnailMimeType', 'thumbnailSize', 'uploadedAt'])
+        && receipt.provider == 'supabase'
+        && receipt.bucket == 'contri-receipts'
+        && receipt.fileId == fileId
+        && receipt.path.matches('^trips/' + tripId + '/expenses/' + expenseId + '/' + fileId + '\\.(jpg|png|webp)$')
+        && receipt.fileName is string
+        && receipt.fileName.size() <= 160
+        && receipt.mimeType in ['image/jpeg', 'image/png', 'image/webp']
+        && receipt.size is int
+        && receipt.size > 0
+        && receipt.size <= 5242880
+        && receipt.uploadedAt == request.time
+        && ((!('thumbnailPath' in receipt) && !('thumbnailMimeType' in receipt) && !('thumbnailSize' in receipt))
+          || (receipt.thumbnailPath == 'trips/' + tripId + '/expenses/' + expenseId + '/' + fileId + '.thumb.jpg'
+            && receipt.thumbnailMimeType == 'image/jpeg'
+            && receipt.thumbnailSize is int
+            && receipt.thumbnailSize > 0
+            && receipt.thumbnailSize <= 262144));
+    }
+
     function isTripParticipant(tripId, uid) {
       let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
       return (('memberIds' in trip) && trip.memberIds is list && uid in trip.memberIds)
@@ -375,7 +423,8 @@ service cloud.firestore {
           && request.resource.data.amount is number
           && request.resource.data.amount > 0
           && request.resource.data.paidBy in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds;
-        allow update, delete: if canManageTripRecords(tripId);
+        allow update: if canManageTripRecords(tripId) || isReceiptMetadataAppend(tripId, expenseId);
+        allow delete: if canManageTripRecords(tripId);
 
       }
 
