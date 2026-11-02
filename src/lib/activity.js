@@ -7,6 +7,8 @@ export const ACTIVITY_TYPES = {
   EXPENSE_UPDATED: 'expense_updated',
   EXPENSE_DELETED: 'expense_deleted',
   SETTLEMENT_CREATED: 'settlement_created',
+  SETTLEMENT_UPDATED: 'settlement_updated',
+  SETTLEMENT_DELETED: 'settlement_deleted',
 }
 
 export const createActivityPayload = ({ type, actor, message, meta = {} }) => ({

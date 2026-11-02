@@ -39,12 +39,13 @@ import { buildDashboardMetrics, buildMembersMap } from '../lib/balances'
 import { formatCurrency } from '../lib/currency'
 import { isDateOutsideRange } from '../lib/date'
 import { validateSettlementForWrite } from '../lib/financialValidation.js'
+import { canManageTripSettlements, isTripAdministrator } from '../lib/settlementPermissions.js'
 import { buildHisabMessage, buildInviteMessage, openWhatsApp } from '../lib/share'
 import { buildTripInviteLink } from '../lib/invites'
 import { buildActor, copyToClipboard } from '../lib/utils'
 import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
-import { createSettlement } from '../services/settlements'
+import { createSettlement, deleteSettlement, updateSettlement, updateSettlementManagementPermission } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
 import { deleteTrip, inviteMemberToTrip, updateReceiptUploadPermission, updateTrip, updateTripMemberRole } from '../services/trips'
 import { clearTripDataFromDatabase } from '../services/clearTripData'
@@ -84,7 +85,9 @@ export const TripPage = () => {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [receiptPermissionSaving, setReceiptPermissionSaving] = useState(false)
+  const [settlementPermissionSavingUid, setSettlementPermissionSavingUid] = useState('')
   const settlementSubmitLock = useRef(false)
+  const settlementMutationLock = useRef(false)
 
   const actor = buildActor(user, profile)
   const members = trip?.members ?? EMPTY_MEMBERS
@@ -109,12 +112,10 @@ export const TripPage = () => {
       }),
     [expenses, settlements, trip, user?.uid],
   )
-  const isAdmin = Boolean(user?.uid && trip && (
-    trip.createdBy === user.uid || (
-      trip.memberIds?.includes(user.uid) && trip.adminIds?.includes(user.uid)
-    )
-  ))
+  const isAdmin = isTripAdministrator(trip, user?.uid)
   const canManageTrip = Boolean(isAdmin)
+  const settlementManagerIds = Array.isArray(trip?.settlementManagerIds) ? trip.settlementManagerIds : EMPTY_MEMBERS
+  const canManageSettlements = canManageTripSettlements(trip, user?.uid)
   const canManageReceiptPermission = Boolean(
     canManageTrip
       && user?.uid
@@ -330,6 +331,10 @@ export const TripPage = () => {
   }
 
   const handleSettlementSubmit = async (values) => {
+    if (!canManageSettlements) {
+      toast.error('Only a trip admin or an authorized member can manage settlements.')
+      return
+    }
     if (settlementSubmitLock.current) return
     const tripMemberIds = trip.memberIds || members.map((member) => member.uid)
     const validation = validateSettlementForWrite({ values, currency: trip.currency, memberIds: tripMemberIds })
@@ -360,6 +365,62 @@ export const TripPage = () => {
       toast.success('Settlement recorded.')
     } finally {
       settlementSubmitLock.current = false
+    }
+  }
+
+  const handleSettlementUpdate = async (settlementId, values) => {
+    if (!canManageSettlements || settlementMutationLock.current) return
+    if (isDateOutsideRange(values.settledAt, { min: trip.startDate, max: trip.endDate })) {
+      toast.error('Settlement date must fall within the trip dates.')
+      return
+    }
+    settlementMutationLock.current = true
+    try {
+      await updateSettlement({
+        tripId: trip.id,
+        settlementId,
+        values,
+        actor,
+        memberIds: trip.memberIds || members.map((member) => member.uid),
+        currency: trip.currency,
+      })
+      toast.success('Settlement updated.')
+    } finally {
+      settlementMutationLock.current = false
+    }
+  }
+
+  const handleSettlementDelete = async (settlement) => {
+    if (!canManageSettlements || settlementMutationLock.current) return
+    if (!window.confirm(`Delete this ${formatCurrency(settlement.amount, trip.currency)} settlement? Its amount will be removed from trip balances.`)) return
+    settlementMutationLock.current = true
+    try {
+      await deleteSettlement({ tripId: trip.id, settlementId: settlement.id, actor })
+      toast.success('Settlement deleted.')
+    } finally {
+      settlementMutationLock.current = false
+    }
+  }
+
+  const handleSettlementPermissionChange = async (member) => {
+    if (!canManageTrip || settlementPermissionSavingUid || !user?.uid) return
+    if (member.uid === trip.createdBy || trip.adminIds?.includes(member.uid)) return
+    const enabled = !settlementManagerIds.includes(member.uid)
+    const verb = enabled ? 'Grant' : 'Revoke'
+    if (!window.confirm(`${verb} settlement management access for ${member.name || 'this member'}?`)) return
+    setSettlementPermissionSavingUid(member.uid)
+    try {
+      await updateSettlementManagementPermission({
+        tripId: trip.id,
+        memberUid: member.uid,
+        enabled,
+        actorUid: user.uid,
+      })
+      toast.success(enabled ? `${member.name || 'Member'} can manage settlements.` : `Settlement access revoked for ${member.name || 'member'}.`)
+    } catch {
+      toast.error('Settlement permissions were not changed. Check your connection and admin access.')
+    } finally {
+      setSettlementPermissionSavingUid('')
     }
   }
 
@@ -537,11 +598,14 @@ export const TripPage = () => {
 
       {activeTab === 'settlements' ? (
         <SettlementPanel
+          key={canManageSettlements ? 'settlement-manager' : 'settlement-read-only'}
           balances={metrics.balances}
           members={displayMembers}
           membersMap={membersMap}
           onSubmit={handleSettlementSubmit}
-          canManage
+          onUpdate={handleSettlementUpdate}
+          onDelete={handleSettlementDelete}
+          canManage={canManageSettlements}
           currentUserId={user?.uid}
           settlements={settlements}
           suggestions={metrics.suggestions}
@@ -608,6 +672,50 @@ export const TripPage = () => {
                 </div>
               )})}
             </div>
+          </Card>
+
+          <Card>
+            <h2 className="font-display text-lg font-semibold text-ink">Settlement permissions</h2>
+            <p className="mt-1 text-sm text-dusk">
+              Trip admins can record, edit and remove settlement records. Access granted here does not give other trip-admin permissions.
+            </p>
+            <div className="mt-5 space-y-2">
+              {displayMembers.map((member) => {
+                const isSettlementAdmin = isTripAdministrator(trip, member.uid)
+                const isGranted = settlementManagerIds.includes(member.uid)
+                const isSaving = settlementPermissionSavingUid === member.uid
+                return (
+                  <div key={member.uid} className="flex min-w-0 flex-col gap-3 rounded-xl bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <MemberAvatar member={member} name={member.name} size="sm" src={member.photoURL} uid={member.uid} />
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}</p>
+                        <p className="text-xs text-dusk">
+                          {isSettlementAdmin ? 'Admin · settlement access always enabled' : isGranted ? 'Can manage settlements' : 'Read-only settlements'}
+                        </p>
+                      </div>
+                    </div>
+                    {canManageTrip && !isSettlementAdmin ? (
+                      <Button
+                        disabled={Boolean(settlementPermissionSavingUid)}
+                        loading={isSaving}
+                        onClick={() => handleSettlementPermissionChange(member)}
+                        size="sm"
+                        type="button"
+                        variant={isGranted ? 'secondary' : 'primary'}
+                      >
+                        {isGranted ? 'Revoke access' : 'Grant access'}
+                      </Button>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+            {!canManageTrip ? (
+              <p className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm text-dusk">
+                Only a trip admin can change who manages settlements.
+              </p>
+            ) : null}
           </Card>
 
           <Card>

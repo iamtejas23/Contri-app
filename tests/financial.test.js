@@ -3,6 +3,7 @@ import { test } from 'node:test'
 
 import { buildDashboardMetrics, computeBalances, computeSettlementSuggestions } from '../src/lib/balances.js'
 import { validateExpenseForWrite, validateSettlementForWrite } from '../src/lib/financialValidation.js'
+import { canManageTripSettlements } from '../src/lib/settlementPermissions.js'
 import { formatCurrency, fromMinorUnits, parseMinorUnits, toMinorUnits } from '../src/lib/money.js'
 import { buildSplitAmongPayload, resolveSplitAmounts, validateSplitConfig } from '../src/lib/splits.js'
 import { runInFlightOnce } from '../src/lib/inFlight.js'
@@ -10,6 +11,21 @@ import { parseReceiptText } from '../src/lib/receipt.js'
 
 const sumSharesMinor = (shares, currency) => shares.reduce((sum, item) => sum + toMinorUnits(item.amount, currency), 0)
 const members = ['a', 'b', 'c'].map((uid) => ({ uid, name: uid.toUpperCase() }))
+
+test('settlement management requires trip admin or explicit current-member access', () => {
+  const trip = {
+    createdBy: 'owner',
+    memberIds: ['owner', 'admin', 'member'],
+    adminIds: ['admin'],
+    settlementManagerIds: ['member', 'removed-member'],
+  }
+  assert.equal(canManageTripSettlements(trip, 'owner'), true)
+  assert.equal(canManageTripSettlements(trip, 'admin'), true)
+  assert.equal(canManageTripSettlements(trip, 'member'), true)
+  assert.equal(canManageTripSettlements(trip, 'removed-member'), false)
+  assert.equal(canManageTripSettlements({ ...trip, settlementManagerIds: undefined }, 'member'), false)
+  assert.equal(canManageTripSettlements(trip, 'outsider'), false)
+})
 
 test('money parsing uses exact minor units and currency-specific precision', () => {
   assert.equal(parseMinorUnits('100.50', 'INR'), 10050)

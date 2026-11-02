@@ -39,7 +39,11 @@ import { computeBalances } from '../src/lib/balances.js'
 import { sortRecordsByDate } from '../src/lib/date.js'
 import { createGuestSession } from '../src/lib/guestAuth.js'
 import { buildCreateExpenseBatch } from '../src/services/expenseWrites.js'
-import { buildCreateSettlementBatch } from '../src/services/settlementWrites.js'
+import {
+  buildCreateSettlementBatch,
+  buildDeleteSettlementBatch,
+  buildUpdateSettlementBatch,
+} from '../src/services/settlementWrites.js'
 import {
   clearAllNotificationsFromDatabase as clearAllNotifications,
   clearNotificationsForTripFromDatabase as clearNotificationsForTrip,
@@ -690,6 +694,179 @@ test('settlement creation is admin-only and ties the settlement to the authentic
     actor: { ...actor, uid: 'member-b' },
   })
   await assertFails(memberBatch.batch.commit())
+})
+
+test('settlement permissions default to denied for members and existing records remain readable', async () => {
+  const legacySettlement = { from: 'member-b', to: 'member-a', amount: 75, method: 'upi', settledAt: '2026-06-03' }
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', tripId, 'settlements', 'legacy-settlement'), legacySettlement)
+  })
+
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  const settlementRef = doc(memberDb, 'trips', tripId, 'settlements', 'legacy-settlement')
+  const read = await assertSucceeds(getDoc(settlementRef))
+  assert.deepEqual(read.data(), legacySettlement)
+  await assertFails(updateDoc(settlementRef, { amount: 80 }))
+  await assertFails(updateDoc(settlementRef, { status: 'confirmed' }))
+  await assertFails(deleteDoc(settlementRef))
+
+  const unauthorizedBatch = buildCreateSettlementBatch({
+    database: memberDb,
+    tripId,
+    values: { from: 'member-b', to: 'member-a', amount: '25', method: 'cash', settledAt: '2026-06-03' },
+    actor: { ...actor, uid: 'member-b' },
+  })
+  await assertFails(unauthorizedBatch.batch.commit())
+})
+
+test('trip admin can grant and revoke settlement access; granted member access is immediate', async () => {
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  const tripRef = doc(adminDb, 'trips', tripId)
+  await assertSucceeds(updateDoc(tripRef, {
+    settlementManagerIds: ['member-b'],
+    updatedAt: serverTimestamp(),
+  }))
+
+  const create = buildCreateSettlementBatch({
+    database: memberDb,
+    tripId,
+    values: { from: 'member-b', to: 'member-a', amount: '25', method: 'cash', settledAt: '2026-06-03' },
+    actor: { ...actor, uid: 'member-b', name: 'B Traveler' },
+  })
+  await assertSucceeds(create.batch.commit())
+
+  const settlementRef = doc(memberDb, 'trips', tripId, 'settlements', create.settlementId)
+  const update = buildUpdateSettlementBatch({
+    database: memberDb,
+    tripId,
+    settlementId: create.settlementId,
+    values: { from: 'member-b', to: 'member-a', amount: '30', method: 'upi', settledAt: '2026-06-04', note: 'Corrected amount' },
+    actor: { ...actor, uid: 'member-b', name: 'B Traveler' },
+  })
+  await assertSucceeds(update.batch.commit())
+  assert.equal((await getDoc(settlementRef)).data().amount, 30)
+
+  const updated = (await getDoc(settlementRef)).data()
+  const remove = buildDeleteSettlementBatch({
+    database: memberDb,
+    tripId,
+    settlementId: create.settlementId,
+    settlement: updated,
+    actor: { ...actor, uid: 'member-b', name: 'B Traveler' },
+  })
+  await assertSucceeds(remove.batch.commit())
+  assert.equal((await getDoc(settlementRef)).exists(), false)
+
+  await assertSucceeds(updateDoc(tripRef, {
+    settlementManagerIds: [],
+    updatedAt: serverTimestamp(),
+  }))
+  const revokedCreate = buildCreateSettlementBatch({
+    database: memberDb,
+    tripId,
+    values: { from: 'member-b', to: 'member-a', amount: '25', method: 'cash', settledAt: '2026-06-03' },
+    actor: { ...actor, uid: 'member-b' },
+  })
+  await assertFails(revokedCreate.batch.commit())
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', tripId, 'settlements', 'after-revoke'), {
+      from: 'member-b', to: 'member-a', amount: 10, method: 'cash', settledAt: '2026-06-03',
+    })
+  })
+  const revokedSettlementRef = doc(memberDb, 'trips', tripId, 'settlements', 'after-revoke')
+  await assertFails(updateDoc(revokedSettlementRef, {
+    amount: 15,
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(deleteDoc(revokedSettlementRef))
+})
+
+test('only trip admins can grant settlement access and the creator retains access', async () => {
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    settlementManagerIds: ['member-b'],
+    updatedAt: serverTimestamp(),
+  }))
+
+  const creatorDb = environment.authenticatedContext(actor.uid).firestore()
+  await assertSucceeds(updateDoc(doc(creatorDb, 'trips', tripId), {
+    settlementManagerIds: ['member-b'],
+    updatedAt: serverTimestamp(),
+  }))
+  await assertSucceeds(updateDoc(doc(creatorDb, 'trips', tripId), {
+    settlementManagerIds: [],
+    updatedAt: serverTimestamp(),
+  }))
+  const ownerSettlement = buildCreateSettlementBatch({
+    database: creatorDb,
+    tripId,
+    values: { from: 'member-b', to: 'member-a', amount: '10', method: 'upi', settledAt: '2026-06-03' },
+    actor,
+  })
+  await assertSucceeds(ownerSettlement.batch.commit())
+})
+
+test('a guest or non-member cannot manage settlements unless the trip admin explicitly grants access', async () => {
+  const guestUid = 'settlement-guest'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      memberIds: [...trip.memberIds, guestUid],
+      members: [...trip.members, { uid: guestUid, name: 'Guest', role: 'member', isGuest: true }],
+    })
+  })
+  const guestDb = environment.authenticatedContext(guestUid, {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  const outsiderDb = environment.authenticatedContext('not-a-trip-member').firestore()
+  const values = { from: guestUid, to: 'member-a', amount: '10', method: 'cash', settledAt: '2026-06-03' }
+  await assertFails(buildCreateSettlementBatch({
+    database: guestDb, tripId, values, actor: { ...actor, uid: guestUid },
+  }).batch.commit())
+  await assertFails(buildCreateSettlementBatch({
+    database: outsiderDb,
+    tripId,
+    values: { ...values, from: 'member-b' },
+    actor: { ...actor, uid: 'not-a-trip-member' },
+  }).batch.commit())
+  await assertFails(getDoc(doc(outsiderDb, 'trips', tripId, 'settlements', 'missing')))
+
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  await assertSucceeds(updateDoc(doc(adminDb, 'trips', tripId), {
+    settlementManagerIds: [guestUid],
+    updatedAt: serverTimestamp(),
+  }))
+  await assertSucceeds(buildCreateSettlementBatch({
+    database: guestDb, tripId, values, actor: { ...actor, uid: guestUid, name: 'Guest' },
+  }).batch.commit())
+})
+
+test('a secondary trip admin can grant access without granting trip administration', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const adminTrip = {
+      ...trip,
+      adminIds: ['member-a', 'member-b'],
+      members: trip.members.map((member) => member.uid === 'member-b' ? { ...member, role: 'admin' } : member),
+    }
+    await setDoc(doc(context.firestore(), 'trips', tripId), adminTrip)
+  })
+  const secondaryAdminDb = environment.authenticatedContext('member-b').firestore()
+  await assertSucceeds(updateDoc(doc(secondaryAdminDb, 'trips', tripId), {
+    settlementManagerIds: ['member-c'],
+    updatedAt: serverTimestamp(),
+  }))
+  const memberC = environment.authenticatedContext('member-c').firestore()
+  const authorized = buildCreateSettlementBatch({
+    database: memberC,
+    tripId,
+    values: { from: 'member-c', to: 'member-a', amount: '10', method: 'upi', settledAt: '2026-06-03' },
+    actor: { ...actor, uid: 'member-c', name: 'C Traveler' },
+  })
+  await assertSucceeds(authorized.batch.commit())
+  await assertFails(updateDoc(doc(memberC, 'trips', tripId), {
+    settlementManagerIds: ['member-c', 'member-b'],
+    updatedAt: serverTimestamp(),
+  }))
 })
 
 test('expense workflow atomically notifies the creator and each other trip member once', async () => {

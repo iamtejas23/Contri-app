@@ -1,4 +1,4 @@
-import { Wallet } from 'lucide-react'
+import { PencilLine, Trash2, Wallet } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 
@@ -6,7 +6,7 @@ import { WhoOwesWhom } from './WhoOwesWhom'
 
 import { SETTLEMENT_METHODS } from '../../lib/constants'
 import { formatCurrency } from '../../lib/currency'
-import { formatDate, isDateOutsideRange } from '../../lib/date'
+import { formatDate, isDateOutsideRange, toDateValue } from '../../lib/date'
 import { getCurrencyFractionDigits } from '../../lib/money.js'
 import { validateSettlementForWrite } from '../../lib/financialValidation.js'
 import { Button } from '../ui/Button'
@@ -16,6 +16,11 @@ import { EmptyState } from '../ui/EmptyState'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { MemberAvatar } from '../ui/MemberAvatar'
+
+const dateForInput = (value, fallback) => {
+  const date = toDateValue(value)
+  return date ? date.toISOString().slice(0, 10) : fallback
+}
 
 const buildInitialForm = (trip) => ({
   from: '',
@@ -27,11 +32,13 @@ const buildInitialForm = (trip) => ({
 })
 
 export const SettlementPanel = ({
-  trip, balances, suggestions, settlements, membersMap, members, onSubmit, canManage = false, currentUserId,
+  trip, balances, suggestions, settlements, membersMap, members, onSubmit, onUpdate, onDelete,
+  canManage = false, currentUserId,
 }) => {
   const [form, setForm]     = useState(() => buildInitialForm(trip))
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(false)
+  const [editingSettlementId, setEditingSettlementId] = useState('')
   const submitLock = useRef(false)
   const currencyStep = 1 / (10 ** getCurrencyFractionDigits(trip.currency))
 
@@ -63,7 +70,9 @@ export const SettlementPanel = ({
     submitLock.current = true
     setLoading(true)
     try {
-      await onSubmit(form)
+      if (editingSettlementId) await onUpdate(editingSettlementId, form)
+      else await onSubmit(form)
+      setEditingSettlementId('')
       setForm(buildInitialForm(trip))
     } catch {
       /* parent shows toast */
@@ -183,11 +192,18 @@ export const SettlementPanel = ({
                 />
               </div>
               <Input label="Note" onChange={(e) => setForm((c) => ({ ...c, note: e.target.value }))} placeholder="UPI ref, cash handoff…" value={form.note} />
-              <Button loading={loading} type="submit">Record settlement</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button loading={loading} type="submit">{editingSettlementId ? 'Save changes' : 'Record settlement'}</Button>
+                {editingSettlementId ? (
+                  <Button disabled={loading} onClick={() => { setEditingSettlementId(''); setForm(buildInitialForm(trip)) }} type="button" variant="secondary">
+                    Cancel edit
+                  </Button>
+                ) : null}
+              </div>
             </form>
           ) : (
             <div className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-sm text-dusk">
-              Only trip admins can record settlements.
+              Only a trip admin or an authorized member can manage settlements.
             </div>
           )}
         </Card>
@@ -227,9 +243,34 @@ export const SettlementPanel = ({
                     {s.note ? ` · ${s.note}` : ''}
                   </p>
                 </div>
-                <p className="font-display text-xl font-bold text-ink">
-                  {formatCurrency(s.amount, trip.currency)}
-                </p>
+                <div className="flex flex-wrap items-center justify-between gap-3 sm:shrink-0 sm:justify-end">
+                  <p className="font-display text-xl font-bold text-ink">{formatCurrency(s.amount, trip.currency)}</p>
+                  {canManage ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        onClick={() => {
+                          setEditingSettlementId(s.id)
+                          setForm({
+                            from: s.from || '',
+                            to: s.to || '',
+                            amount: String(s.amount ?? ''),
+                            method: s.method || 'upi',
+                            settledAt: dateForInput(s.settledAt || s.createdAt || s.updatedAt, buildInitialForm(trip).settledAt),
+                            note: s.note || '',
+                          })
+                        }}
+                        size="sm"
+                        type="button"
+                        variant="secondary"
+                      >
+                        <PencilLine className="h-4 w-4" /> Edit
+                      </Button>
+                      <Button onClick={() => onDelete(s)} size="sm" type="button" variant="danger">
+                        <Trash2 className="h-4 w-4" /> Delete
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             ))}
           </div>

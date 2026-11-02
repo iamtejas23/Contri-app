@@ -37,3 +37,50 @@ export const buildCreateSettlementBatch = ({ database, tripId, values, actor, cu
 
   return { batch, settlementId: settlementRef.id, activityId: activityRef.id }
 }
+
+export const buildUpdateSettlementBatch = ({ database, tripId, settlementId, values, actor, currency = 'INR' }) => {
+  assertFinanciallyValid(validateSettlementForWrite({ values, currency }))
+  const settlementRef = doc(database, 'trips', tripId, 'settlements', settlementId)
+  const activityRef = doc(collection(database, 'trips', tripId, 'activity'))
+  const amount = fromMinorUnits(parseMinorUnits(values.amount, currency), currency)
+  const batch = writeBatch(database)
+
+  batch.update(settlementRef, {
+    from: values.from,
+    to: values.to,
+    amount,
+    method: values.method,
+    settledAt: values.settledAt,
+    note: values.note?.trim() || '',
+    updatedAt: serverTimestamp(),
+  })
+  batch.set(activityRef, createActivityPayload({
+    type: ACTIVITY_TYPES.SETTLEMENT_UPDATED,
+    actor,
+    message: '{actor} updated a settlement from {from} to {to} for {amount}.',
+    meta: { from: values.from, to: values.to, amount, settlementId },
+  }))
+
+  return { batch, activityId: activityRef.id }
+}
+
+export const buildDeleteSettlementBatch = ({ database, tripId, settlementId, settlement, actor }) => {
+  const settlementRef = doc(database, 'trips', tripId, 'settlements', settlementId)
+  const activityRef = doc(collection(database, 'trips', tripId, 'activity'))
+  const batch = writeBatch(database)
+
+  batch.delete(settlementRef)
+  batch.set(activityRef, createActivityPayload({
+    type: ACTIVITY_TYPES.SETTLEMENT_DELETED,
+    actor,
+    message: '{actor} deleted a settlement from {from} to {to} for {amount}.',
+    meta: {
+      from: settlement.from,
+      to: settlement.to,
+      amount: settlement.amount,
+      settlementId,
+    },
+  }))
+
+  return { batch, activityId: activityRef.id }
+}
