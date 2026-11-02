@@ -76,7 +76,7 @@ export const SettlementPanel = ({
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="font-display text-lg font-semibold text-ink">Who owes whom</h3>
+        <h3 className="font-display text-lg font-semibold text-ink">Settlement suggestions</h3>
         <p className="mt-0.5 text-sm text-dusk">The fewest payments that clear this trip.</p>
         <div className="mt-4">
           <WhoOwesWhom

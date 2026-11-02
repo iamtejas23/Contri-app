@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import toast from 'react-hot-toast'
-import { Download, FileImage, FileText, ImagePlus, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
+import { Capacitor } from '@capacitor/core'
+import { Camera as CameraIcon, Download, FileImage, FileText, ImagePlus, LoaderCircle, RefreshCw, Trash2 } from 'lucide-react'
 import {
   deleteSupabaseReceipt,
   getSupabaseReceiptList,
@@ -10,6 +11,7 @@ import {
 } from '../../services/receiptUploads'
 import { receiptUploadQueue } from '../../services/receiptUploadQueue'
 import { getReceiptMimeType } from '../../lib/receiptFile'
+import { captureReceiptWithNativeCamera, clearPendingReceiptCapture, getCameraCaptureErrorMessage, isCameraCaptureCancelled, savePendingReceiptCapture } from '../../services/receiptCamera'
 import { Button } from '../ui/Button'
 import { Modal } from '../ui/Modal'
 
@@ -58,6 +60,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   const [selected, setSelected] = useState(null)
   const [selectedUrls, setSelectedUrls] = useState(null)
   const [previewLoading, setPreviewLoading] = useState(false)
+  const [cameraBusy, setCameraBusy] = useState(false)
   const cameraRef = useRef(null)
   const galleryRef = useRef(null)
   const previewRefreshAttempted = useRef(false)
@@ -85,9 +88,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
     }
   }, [queueSnapshot, receiptIdsKey, receipts])
 
-  const handleFiles = (event) => {
-    const files = Array.from(event.target.files || [])
-    event.target.value = ''
+  const queueFiles = (files) => {
     if (!files.length) return
     if (!canUploadReceipts) { toast.error('You are not currently authorized to upload receipts for this trip.'); return }
     const valid = []
@@ -98,6 +99,34 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
       else valid.push(file)
     }
     valid.forEach((file) => receiptUploadQueue.enqueue({ tripId: trip.id, expenseId: expense.id, file }))
+  }
+
+  const handleFiles = (event) => {
+    const files = Array.from(event.target.files || [])
+    event.target.value = ''
+    queueFiles(files)
+  }
+
+  const captureReceipt = async () => {
+    if (cameraBusy || !canUploadReceipts) return
+    if (!Capacitor.isNativePlatform()) {
+      cameraRef.current?.click()
+      return
+    }
+
+    setCameraBusy(true)
+    try {
+      savePendingReceiptCapture({ tripId: trip.id, expenseId: expense.id })
+      const file = await captureReceiptWithNativeCamera()
+      clearPendingReceiptCapture()
+      queueFiles([file])
+      toast.success('Receipt captured. Upload started.')
+    } catch (error) {
+      clearPendingReceiptCapture()
+      if (!isCameraCaptureCancelled(error)) toast.error(getCameraCaptureErrorMessage(error), { duration: 8000 })
+    } finally {
+      setCameraBusy(false)
+    }
   }
 
   const openReceipt = async (receipt, forceRefresh = false) => {
@@ -163,10 +192,10 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
     <section className="min-w-0 space-y-3" aria-label="Private receipt images">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <div className="min-w-0"><h3 className="text-sm font-semibold text-ink">Receipt images</h3><p className="mt-0.5 text-xs text-dusk">Private to current trip members. Originals are preserved. Maximum 5 MB each.</p></div>
-        {canUploadReceipts ? <div className="flex shrink-0 gap-2">
+        {canUploadReceipts ? <div className="flex min-w-0 flex-wrap gap-2">
           <input ref={cameraRef} accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={handleFiles} type="file" />
           <input ref={galleryRef} accept="image/jpeg,image/png,image/webp" className="hidden" multiple onChange={handleFiles} type="file" />
-          <Button onClick={() => cameraRef.current?.click()} size="sm" type="button" variant="secondary"><ImagePlus className="h-4 w-4" /> Camera</Button>
+          <Button disabled={cameraBusy} onClick={captureReceipt} size="sm" type="button" variant="secondary">{cameraBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CameraIcon className="h-4 w-4" />} Camera</Button>
           <Button onClick={() => galleryRef.current?.click()} size="sm" type="button" variant="secondary"><ImagePlus className="h-4 w-4" /> Add images</Button>
         </div> : null}
       </div>

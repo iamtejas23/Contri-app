@@ -1,3 +1,8 @@
+import { useEffect } from 'react'
+import { App as CapacitorApp } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
+import { Filesystem } from '@capacitor/filesystem'
+import toast from 'react-hot-toast'
 import { Toaster } from 'react-hot-toast'
 import { Navigate, Route, Routes } from 'react-router-dom'
 
@@ -11,8 +16,44 @@ import { JoinTripPage } from './pages/JoinTripPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { TripPage } from './pages/TripPage'
+import { cameraPhotoToReceiptFile } from './lib/cameraReceiptFile'
+import { receiptUploadQueue } from './services/receiptUploadQueue'
+import { clearPendingReceiptCapture, PENDING_CAMERA_RECEIPT_KEY } from './services/receiptCamera'
 
 function App() {
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined
+    let active = true
+    let listener
+    CapacitorApp.addListener('appRestoredResult', async (event) => {
+      if (event.pluginId !== 'Camera' || event.methodName !== 'getPhoto') return
+      let target
+      try {
+        target = JSON.parse(globalThis.localStorage?.getItem(PENDING_CAMERA_RECEIPT_KEY) || 'null')
+      } catch { return }
+      clearPendingReceiptCapture()
+      if (!event.success) return
+      if (!target?.tripId || !target?.expenseId || Date.now() - Number(target.startedAt || 0) > 60 * 60 * 1000) return
+      try {
+        const file = await cameraPhotoToReceiptFile(event.data, {
+          readFile: (options) => Filesystem.readFile(options),
+        })
+        receiptUploadQueue.enqueue({ tripId: target.tripId, expenseId: target.expenseId, file })
+        toast.success('Receipt captured. Upload started.')
+      } catch (error) {
+        toast.error(error?.message || 'The captured receipt could not be added. Try again or use Add Images.')
+      }
+    }).then((handle) => {
+      if (!active) handle.remove()
+      else listener = handle
+    }).catch(() => {})
+
+    return () => {
+      active = false
+      listener?.remove()
+    }
+  }, [])
+
   return (
     <>
       <Routes>

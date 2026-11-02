@@ -20,7 +20,6 @@ import { ExpenseFormModal } from '../components/expenses/ExpenseFormModal'
 import { ExpenseList } from '../components/expenses/ExpenseList'
 import { QuickAddSheet } from '../components/expenses/QuickAddSheet'
 import { SettlementPanel } from '../components/settlements/SettlementPanel'
-import { WhoOwesWhom } from '../components/settlements/WhoOwesWhom'
 import { TripFormModal } from '../components/trips/TripFormModal'
 import { ClearTripDataDialog } from '../components/trips/ClearTripDataDialog'
 import { TripInviteDialog } from '../components/trips/TripInviteDialog'
@@ -195,22 +194,6 @@ export const TripPage = () => {
     } finally {
       setReceiptPermissionSaving(false)
     }
-  }
-
-  const settleSuggestion = async (item) => {
-    const today = new Date().toISOString().slice(0, 10)
-    let settledAt = today
-    if (trip?.startDate && settledAt < trip.startDate) settledAt = trip.startDate
-    if (trip?.endDate && settledAt > trip.endDate) settledAt = trip.endDate
-
-    await handleSettlementSubmit({
-      from: item.from,
-      to: item.to,
-      amount: String(item.amount),
-      method: trip.currency === 'INR' ? 'upi' : 'online',
-      settledAt,
-      note: 'Marked from who owes whom',
-    })
   }
 
   const handleInviteMember = async (event) => {
@@ -521,29 +504,6 @@ export const TripPage = () => {
       {activeTab === 'overview' ? (
         <div className="space-y-5">
           <BudgetBar budget={metrics.budget} currency={trip.currency} spent={metrics.totalSpent} />
-          <section>
-            <div className="mb-3 flex items-end justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-dusk">Settle up</p>
-                <h2 className="font-display text-xl font-bold text-ink">Who owes whom</h2>
-              </div>
-              <p className="text-right text-sm font-medium text-dusk">
-                {metrics.yourNet === 0
-                  ? 'You are settled'
-                  : metrics.yourNet > 0
-                    ? `You get ${formatCurrency(metrics.yourNet, trip.currency)}`
-                    : `You owe ${formatCurrency(Math.abs(metrics.yourNet), trip.currency)}`}
-              </p>
-            </div>
-            <WhoOwesWhom
-              currency={trip.currency}
-              currentUserId={user?.uid}
-              membersMap={membersMap}
-              onMarkPaid={settleSuggestion}
-              suggestions={metrics.suggestions}
-              tripName={trip.name}
-            />
-          </section>
           <ErrorBoundary title="Charts failed to load">
             <Suspense fallback={<Skeleton className="h-[540px] rounded-[2rem]" />}>
               <TripDashboard

@@ -37,7 +37,7 @@
         </provider>
     </application>
 
-    <!-- Permission is requested only when the user starts QR scanning. -->
+    <!-- Capacitor requests camera access only when QR scanning or receipt capture starts. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
