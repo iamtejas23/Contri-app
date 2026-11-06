@@ -521,6 +521,70 @@ test('a member cannot read a receipt that belongs to another trip by changing th
   assert.equal(storageCalls.length, 0)
 })
 
+test('an authorized guest member can view receipts and a guest without permission cannot', async () => {
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, member.localId, guest.localId],
+    adminIds: [creator.localId],
+    allowMemberReceiptUploads: true,
+    receiptViewerIds: [],
+    members: [{ uid: guest.localId, name: 'Guest', role: 'member', isGuest: true }],
+  })
+  storageCalls = []
+  const denied = await invoke({ handler: urlHandler, token: guest.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(denied.statusCode, 403)
+  assert.equal(denied.body.code, 'RECEIPT_VIEW_DENIED')
+  assert.equal(storageCalls.length, 0)
+
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, member.localId, guest.localId],
+    adminIds: [creator.localId],
+    allowMemberReceiptUploads: true,
+    receiptViewerIds: [guest.localId],
+    members: [{ uid: guest.localId, name: 'Guest', role: 'member', isGuest: true }],
+  })
+  const allowed = await invoke({ handler: urlHandler, token: guest.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(allowed.statusCode, 200)
+  assert.match(allowed.body.preview, /short-lived/)
+  const memberStillViews = await invoke({ handler: urlHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'legacy_receipt_002' }, dependencies: { createStorage } })
+  assert.equal(memberStillViews.statusCode, 200)
+
+  storageCalls = []
+  const upload = await invoke({ handler: uploadHandler, token: guest.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 500, fileName: 'guest.png' }, dependencies: { createStorage } })
+  assert.equal(upload.statusCode, 403)
+  assert.equal(upload.body.code, 'TRIP_AUTHORIZATION_FAILED')
+  assert.equal(storageCalls.filter(([kind]) => kind === 'upload').length, 0)
+
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, member.localId, guest.localId],
+    adminIds: [creator.localId],
+    allowMemberReceiptUploads: true,
+    receiptViewerIds: [],
+    members: [{ uid: guest.localId, name: 'Guest', role: 'member', isGuest: true }],
+  })
+  storageCalls = []
+  const revoked = await invoke({ handler: urlHandler, token: guest.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(revoked.statusCode, 403)
+  assert.equal(revoked.body.code, 'RECEIPT_VIEW_DENIED')
+  assert.equal(storageCalls.length, 0)
+
+  const otherTrip = await invoke({ handler: urlHandler, token: guest.idToken,
+    body: { tripId: otherTripId, expenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(otherTrip.statusCode, 403)
+  const stranger = await makeAnonymousUser()
+  const nonMember = await invoke({ handler: urlHandler, token: stranger.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(nonMember.statusCode, 403)
+  await seedMemberUploadPermission(false)
+})
+
 test('only trip admins can delete attached Supabase receipt objects', async () => {
   storageCalls = []
   const body = { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }

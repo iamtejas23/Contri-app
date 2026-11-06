@@ -430,7 +430,7 @@ export const TripPage = () => {
 
   const handleReceiptViewChange = async (member) => {
     if (!canManageTrip || receiptViewSavingUid || !user?.uid) return
-    if (member.isGuest || member.uid === trip.createdBy || trip.adminIds?.includes(member.uid)) return
+    if (member.uid === trip.createdBy || trip.adminIds?.includes(member.uid)) return
     const enabled = !receiptViewerIds.includes(member.uid)
     const verb = enabled ? 'Grant' : 'Revoke'
     if (!window.confirm(`${verb} receipt viewing for ${member.name || 'this member'}? This does not change who can upload receipts.`)) return

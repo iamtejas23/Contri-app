@@ -663,6 +663,36 @@ test('only a trip admin can grant or revoke receipt viewing and members cannot g
   })
 })
 
+test('a trip admin can grant and revoke receipt viewing for an active guest member', async () => {
+  const guestUid = 'guest-viewer'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      memberIds: [...trip.memberIds, guestUid],
+      members: [...trip.members, { uid: guestUid, name: 'Guest', role: 'member', isGuest: true }],
+      receiptViewerIds: [],
+    })
+  })
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  const tripRef = doc(adminDb, 'trips', tripId)
+  await assertSucceeds(updateDoc(tripRef, {
+    receiptViewerIds: [guestUid],
+    updatedAt: serverTimestamp(),
+  }))
+  assert.deepEqual((await getDoc(tripRef)).data().receiptViewerIds, [guestUid])
+  await assertSucceeds(updateDoc(tripRef, {
+    receiptViewerIds: [],
+    updatedAt: serverTimestamp(),
+  }))
+  assert.deepEqual((await getDoc(tripRef)).data().receiptViewerIds, [])
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      memberIds: trip.memberIds,
+      members: trip.members,
+      receiptViewerIds: [],
+    })
+  })
+})
+
 test('an anonymous guest can delete only their own profile and cannot delete shared trips', async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
     const database = context.firestore()

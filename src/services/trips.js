@@ -56,8 +56,6 @@ export const updateReceiptViewPermission = async ({ tripId, memberUid, enabled, 
         || (trip.memberIds?.includes(actorUid) && trip.adminIds?.includes(actorUid))
       if (!isAdmin) throw new Error('Only a trip admin can change receipt viewing permissions.')
       if (!trip.memberIds?.includes(memberUid)) throw new Error('Receipt viewing can only be granted to a current trip member.')
-      const target = trip.members?.find((member) => member.uid === memberUid)
-      if (target?.isGuest) throw new Error('Guest accounts cannot view receipts.')
       if (memberUid === trip.createdBy || trip.adminIds?.includes(memberUid)) {
         throw new Error('Trip admins already can view receipts.')
       }

@@ -17,9 +17,6 @@ export const getReceiptViewStatus = ({ member, trip, viewerIds = [] }) => {
     uid
     && (trip?.createdBy === uid || (trip?.memberIds?.includes(uid) && trip?.adminIds?.includes(uid))),
   )
-  if (member?.isGuest) {
-    return { isAdmin: false, enabled: false, label: 'Receipt access disabled', detail: 'Guest accounts cannot view receipts.' }
-  }
   if (isAdmin) {
     return { isAdmin: true, enabled: true, label: 'Receipt access enabled', detail: 'Trip admins always can view receipts.' }
   }

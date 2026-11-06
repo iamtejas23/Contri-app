@@ -32,7 +32,7 @@ export const ReceiptViewPermissions = ({
             <div className="flex min-w-0 items-center gap-3">
               <MemberAvatar member={member} name={member.name} size="sm" src={member.photoURL} uid={member.uid} />
               <div className="min-w-0">
-                <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}</p>
+                <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}{member.isGuest ? ' · Guest' : ''}</p>
                 <p className={`mt-1 inline-flex max-w-full items-center gap-1 text-xs font-medium ${status.enabled ? 'text-emerald-700' : 'text-dusk'}`}>
                   {status.enabled ? <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /> : <Shield aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />}
                   <span className="break-words [overflow-wrap:anywhere]">{status.label}</span>
@@ -40,7 +40,7 @@ export const ReceiptViewPermissions = ({
                 <p className="mt-0.5 break-words text-xs text-dusk [overflow-wrap:anywhere]">{status.detail}</p>
               </div>
             </div>
-            {canManage && !status.isAdmin && !member.isGuest ? (
+            {canManage && !status.isAdmin ? (
               <Button
                 className="min-h-11 shrink-0"
                 disabled={Boolean(savingUid)}

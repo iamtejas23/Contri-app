@@ -10,10 +10,16 @@ const memberRecord = (trip, uid) => (
   Array.isArray(trip?.members) ? trip.members.find((member) => member?.uid === uid) : null
 )
 
+export const isActiveTripParticipant = (trip, identity) => {
+  const uid = identity?.uid
+  if (!trip || !uid) return false
+  return trip.createdBy === uid || (Array.isArray(trip.memberIds) && trip.memberIds.includes(uid))
+}
+
 export const isCurrentTripMember = (trip, identity) => {
   const uid = identity?.uid
-  if (!trip || !uid || identity?.isAnonymous || memberRecord(trip, uid)?.isGuest) return false
-  return trip.createdBy === uid || (Array.isArray(trip.memberIds) && trip.memberIds.includes(uid))
+  if (!isActiveTripParticipant(trip, identity) || identity?.isAnonymous || memberRecord(trip, uid)?.isGuest) return false
+  return true
 }
 
 export const isReceiptAdmin = (trip, identity) => {
@@ -23,12 +29,15 @@ export const isReceiptAdmin = (trip, identity) => {
     || (Array.isArray(trip.adminIds) && trip.adminIds.includes(uid))
 }
 
-// Viewing is independent of allowMemberReceiptUploads. Missing or empty
-// receiptViewerIds denies regular members. Trip admins always retain access.
+// Viewing is independent of allowMemberReceiptUploads. Anonymous guests who are
+// current members may view only when listed in receiptViewerIds. Admins always can.
 export const canViewTripReceipts = (trip, identity) => {
-  if (!isCurrentTripMember(trip, identity)) return false
-  if (isReceiptAdmin(trip, identity)) return true
-  return getReceiptViewerIds(trip).includes(identity.uid)
+  const uid = identity?.uid
+  if (!isActiveTripParticipant(trip, identity)) return false
+  const isAdmin = trip.createdBy === uid
+    || (Array.isArray(trip.memberIds) && trip.memberIds.includes(uid) && Array.isArray(trip.adminIds) && trip.adminIds.includes(uid))
+  if (isAdmin) return true
+  return getReceiptViewerIds(trip).includes(uid)
 }
 
 export const canUploadTripReceipts = (trip, identity) => {

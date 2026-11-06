@@ -154,12 +154,10 @@ export const getFirestoreDocument = async (path, idToken, fetchImpl = fetch) => 
 
 export const assertCanViewReceipt = (trip, identity) => {
   const uid = identity?.uid
-  const memberRecord = Array.isArray(trip?.members) ? trip.members.find((member) => member?.uid === uid) : null
+  // Anonymous guests are allowed when they are current members and explicitly listed.
   const isMember = Boolean(
     trip
     && uid
-    && !identity.isAnonymous
-    && !memberRecord?.isGuest
     && ((Array.isArray(trip.memberIds) && trip.memberIds.includes(uid)) || trip.createdBy === uid),
   )
   if (!isMember) {
