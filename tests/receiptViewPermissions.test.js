@@ -39,6 +39,18 @@ test('receipt viewing defaults to denied and stays independent of upload permiss
   assert.equal(canUploadTripReceipts({ ...trip, allowMemberReceiptUploads: true, receiptViewerIds: ['guest'] }, {
     uid: 'guest', isAnonymous: true,
   }), false)
+  assert.equal(canUploadTripReceipts({
+    ...trip,
+    allowMemberReceiptUploads: true,
+    receiptViewerIds: [],
+    members: trip.members.map((member) => member.uid === 'member' ? { ...member, isGuest: true } : member),
+  }, { uid: 'member', email: 'member@example.test', emailVerified: true, isAnonymous: false }), true)
+  assert.equal(canUploadTripReceipts({ ...trip, allowMemberReceiptUploads: true, receiptViewerIds: ['member'] }, {
+    uid: 'member', isAnonymous: false,
+  }), true)
+  assert.equal(canUploadTripReceipts({ ...trip, memberIds: ['admin'], allowMemberReceiptUploads: true }, {
+    uid: 'member', isAnonymous: false,
+  }), false)
   assert.equal(canViewTripReceipts({ ...trip, memberIds: ['admin'], receiptViewerIds: ['member'] }, { uid: 'member' }), false)
   assert.deepEqual(getReceiptViewerIds({ ...trip, receiptViewerIds: ['member', 'removed', 'member'] }), ['member'])
 })

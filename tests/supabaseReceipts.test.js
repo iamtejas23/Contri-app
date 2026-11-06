@@ -294,6 +294,32 @@ test('member receipt upload is denied by default for a legacy trip with no permi
   assert.equal(storageCalls.length, 0)
 })
 
+test('a signed-in member can upload without receipt viewing permission when member uploads are enabled', async () => {
+  storageCalls = []
+  const fileId = randomUUID()
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, member.localId, guest.localId],
+    adminIds: [creator.localId],
+    allowMemberReceiptUploads: true,
+    receiptViewerIds: [],
+    members: [
+      { uid: member.localId, name: 'Member', role: 'member', isGuest: true },
+      { uid: guest.localId, name: 'Guest', role: 'member', isGuest: true },
+    ],
+  })
+  const upload = await invoke({ handler: uploadHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId, mimeType: 'image/jpeg', size: 900, fileName: 'gallery.jpg' }, dependencies: { createStorage } })
+  assert.equal(upload.statusCode, 200)
+  assert.equal(upload.body.path, `trips/${ownerTripId}/expenses/${expenseId}/${fileId}.jpg`)
+  assert.equal(storageCalls.some(([kind]) => kind === 'upload'), true)
+  const guestUpload = await invoke({ handler: uploadHandler, token: guest.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/jpeg', size: 900, fileName: 'guest-camera.jpg' }, dependencies: { createStorage } })
+  assert.equal(guestUpload.statusCode, 403)
+  assert.equal(guestUpload.body.code, 'TRIP_AUTHORIZATION_FAILED')
+  await seedMemberUploadPermission(false)
+})
+
 test('current authenticated member can upload and verify when the trip creator enabled permission', async () => {
   storageCalls = []
   const fileId = randomUUID()

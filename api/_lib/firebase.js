@@ -197,8 +197,8 @@ export const assertCanUploadReceipt = (trip, identity) => {
     throw Object.assign(new Error('Only current, non-guest trip members can upload receipts.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
   }
   if (identity.uid === trip.createdBy && identity.email === 'tsmane8787@gmail.com' && identity.emailVerified) return
-  // This optional flag is trusted only because Firestore rules permit changing it
-  // exclusively to the verified authorized creator. Missing/legacy values fail closed.
+  // receiptViewerIds is a viewing grant only. A stored members[].isGuest value is
+  // not an upload denial; anonymous tokens are rejected above. Missing flag fails closed.
   if (trip.allowMemberReceiptUploads !== true) {
     throw Object.assign(new Error('Receipt uploads are limited to the verified trip creator for this trip.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
   }

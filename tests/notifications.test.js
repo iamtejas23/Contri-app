@@ -1533,7 +1533,23 @@ test('enabled receipt upload members may append one safe receipt reference witho
 
   const stored = await assertSucceeds(getDoc(expenseRef))
   assert.equal(stored.data().amount, 1200)
+  assert.equal(stored.data().receiptURL, '')
   assert.equal(stored.data().receiptFiles[fileId].path, receipt.path)
+  const nextFileId = '550e8400-e29b-41d4-a716-446655440003'
+  await assertSucceeds(updateDoc(expenseRef,
+    new FieldPath('receiptFiles', nextFileId), {
+      ...receipt,
+      fileId: nextFileId,
+      path: `trips/${tripId}/expenses/receipt-expense/${nextFileId}.jpg`,
+      thumbnailPath: `trips/${tripId}/expenses/receipt-expense/${nextFileId}.thumb.jpg`,
+    },
+    new FieldPath('receiptAppendId'), nextFileId,
+  ))
+  const appended = await assertSucceeds(getDoc(expenseRef))
+  assert.equal(appended.data().amount, 1200)
+  assert.equal(appended.data().receiptURL, '')
+  assert.equal(appended.data().receiptFiles[fileId].fileName, 'dinner.jpg')
+  assert.equal(appended.data().receiptFiles[nextFileId].path, `trips/${tripId}/expenses/receipt-expense/${nextFileId}.jpg`)
   await assertFails(updateDoc(expenseRef,
     new FieldPath('receiptFiles', fileId), { ...receipt, fileName: 'changed.jpg' },
     new FieldPath('receiptAppendId'), fileId,

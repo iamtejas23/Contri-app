@@ -40,8 +40,11 @@ export const canViewTripReceipts = (trip, identity) => {
   return getReceiptViewerIds(trip).includes(uid)
 }
 
+// Upload does not use receiptViewerIds or the stored member isGuest flag.
+// Anonymous Firebase sessions stay denied. A signed-in member is allowed when
+// the trip flag is on, even if an older trip record still says isGuest.
 export const canUploadTripReceipts = (trip, identity) => {
-  if (!isCurrentTripMember(trip, identity)) return false
+  if (!isActiveTripParticipant(trip, identity) || identity?.isAnonymous === true) return false
   const email = identity.email?.trim().toLowerCase()
   if (identity.uid === trip.createdBy && email === 'tsmane8787@gmail.com' && identity.emailVerified === true) return true
   return trip.allowMemberReceiptUploads === true
