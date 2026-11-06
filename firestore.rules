@@ -389,7 +389,11 @@ service cloud.firestore {
       allow read: if isSelf(uid)
         || (signedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous');
       allow create, update: if isSelf(uid);
-      allow delete: if false;
+      // Anonymous guests may delete only their own profile document. Shared trip,
+      // expense, settlement, and receipt records are not user documents and stay
+      // protected by the trip rules below.
+      allow delete: if isSelf(uid)
+        && request.auth.token.firebase.sign_in_provider == 'anonymous';
 
       match /notifications/{notificationId} {
         allow get: if isSelf(uid);

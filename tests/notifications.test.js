@@ -663,6 +663,54 @@ test('only a trip admin can grant or revoke receipt viewing and members cannot g
   })
 })
 
+test('an anonymous guest can delete only their own profile and cannot delete shared trips', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const database = context.firestore()
+    await setDoc(doc(database, 'users', 'guest-delete'), { name: 'Guest', isGuest: true })
+    await setDoc(doc(database, 'users', 'guest-delete', 'notifications', 'own-note'), { tripId, read: false })
+    await setDoc(doc(database, 'users', 'kept-user'), { name: 'Kept' })
+    await setDoc(doc(database, 'users', 'kept-user', 'notifications', 'kept-note'), { tripId, read: false })
+    await setDoc(doc(database, 'trips', 'guest-owned-trip'), {
+      ...trip,
+      createdBy: 'guest-delete',
+      memberIds: ['guest-delete', 'member-a'],
+      adminIds: ['guest-delete'],
+    })
+    await setDoc(doc(database, 'trips', 'guest-owned-trip', 'expenses', 'guest-expense'), {
+      title: 'Shared dinner', amount: 40, receiptURL: 'https://ik.imagekit.io/legacy/receipt.jpg',
+      receiptFiles: { file: { provider: 'supabase', bucket: 'contri-receipts', fileId: 'file' } },
+    })
+    await setDoc(doc(database, 'trips', 'guest-owned-trip', 'settlements', 'guest-settlement'), {
+      from: 'member-a', to: 'guest-delete', amount: 10, method: 'cash',
+    })
+  })
+
+  const guestDb = environment.authenticatedContext('guest-delete', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  const memberDb = environment.authenticatedContext('member-a').firestore()
+  await assertSucceeds(deleteDoc(doc(guestDb, 'users', 'guest-delete', 'notifications', 'own-note')))
+  await assertSucceeds(deleteDoc(doc(guestDb, 'users', 'guest-delete')))
+  await assertFails(deleteDoc(doc(guestDb, 'users', 'kept-user')))
+  await assertFails(deleteDoc(doc(memberDb, 'users', 'member-a')))
+  await assertFails(deleteDoc(doc(guestDb, 'trips', tripId)))
+  await assertFails(deleteDoc(doc(guestDb, 'users', 'kept-user', 'notifications', 'kept-note')))
+
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const database = context.firestore()
+    assert.equal((await getDoc(doc(database, 'users', 'kept-user'))).data().name, 'Kept')
+    assert.equal((await getDoc(doc(database, 'users', 'kept-user', 'notifications', 'kept-note'))).exists(), true)
+    const ownedTrip = await getDoc(doc(database, 'trips', 'guest-owned-trip'))
+    assert.equal(ownedTrip.data().createdBy, 'guest-delete')
+    const expense = await getDoc(doc(database, 'trips', 'guest-owned-trip', 'expenses', 'guest-expense'))
+    assert.equal(expense.data().title, 'Shared dinner')
+    assert.equal(expense.data().amount, 40)
+    assert.equal(expense.data().receiptURL, 'https://ik.imagekit.io/legacy/receipt.jpg')
+    assert.equal(expense.data().receiptFiles.file.bucket, 'contri-receipts')
+    assert.equal((await getDoc(doc(database, 'trips', 'guest-owned-trip', 'settlements', 'guest-settlement'))).data().amount, 10)
+  })
+})
+
 test('only an admin can add an existing authenticated member to a trip', async () => {
   const invitedMember = {
     uid: 'member-new',

@@ -14,7 +14,7 @@ const readFirebaseTokenClaims = (idToken) => {
   }
 }
 
-const firebaseHost = (emulatorHost, productionHost) => {
+export const firebaseHost = (emulatorHost, productionHost) => {
   const value = process.env[emulatorHost]
   if (!value) return productionHost
   return `http://${value.replace(/^https?:\/\//, '')}`

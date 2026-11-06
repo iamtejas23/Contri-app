@@ -25,6 +25,7 @@ import {
   previewNotificationSound,
   setNotificationSoundEnabled,
 } from '../lib/notificationSound'
+import { DeleteGuestAccountDialog } from '../components/settings/DeleteGuestAccountDialog'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
@@ -177,6 +178,7 @@ export const SettingsPage = () => {
             </Button>
           </div>
         </Card>
+        {user?.isAnonymous ? <DeleteGuestAccountDialog user={user} /> : null}
       </section>
 
       <section aria-labelledby="settings-information" className="space-y-3">
