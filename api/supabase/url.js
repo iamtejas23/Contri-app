@@ -1,4 +1,4 @@
-import { assertTripMember, getFirestoreDocument, validateDocumentId } from '../_lib/firebase.js'
+import { assertCanViewReceipt, getFirestoreDocument, validateDocumentId } from '../_lib/firebase.js'
 import { createReceiptStorage, getReceiptFile } from '../_lib/supabase.js'
 import { respond } from '../_lib/http.js'
 import { withReceiptApi } from '../_lib/receiptApi.js'
@@ -35,7 +35,7 @@ export default async function handler(req, res, dependencies = {}) {
     const fetchImpl = deps.fetchImpl || fetch
     setStage('trip_membership_lookup')
     const trip = await getFirestoreDocument(`trips/${tripId}`, idToken, fetchImpl)
-    assertTripMember(trip, identity)
+    assertCanViewReceipt(trip, identity)
     setStage('expense_receipt_lookup')
     const expense = await getFirestoreDocument(`trips/${tripId}/expenses/${expenseId}`, idToken, fetchImpl)
     const receipt = getReceiptFile(expense, fileId, tripId, expenseId)

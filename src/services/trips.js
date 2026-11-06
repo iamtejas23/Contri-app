@@ -1,6 +1,7 @@
 import {
   arrayUnion,
   doc,
+  runTransaction,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
@@ -39,6 +40,42 @@ export const updateReceiptUploadPermission = async (tripId, enabled) => {
     allowMemberReceiptUploads: enabled === true,
     updatedAt: serverTimestamp(),
   })
+}
+
+export const updateReceiptViewPermission = async ({ tripId, memberUid, enabled, actorUid }) => {
+  if (!tripId || !memberUid || !actorUid || typeof enabled !== 'boolean') {
+    throw new Error('A trip, current admin, member and permission value are required.')
+  }
+  try {
+    await runTransaction(db, async (transaction) => {
+      const tripRef = doc(db, 'trips', tripId)
+      const snapshot = await transaction.get(tripRef)
+      if (!snapshot.exists()) throw new Error('Trip not found.')
+      const trip = snapshot.data()
+      const isAdmin = trip.createdBy === actorUid
+        || (trip.memberIds?.includes(actorUid) && trip.adminIds?.includes(actorUid))
+      if (!isAdmin) throw new Error('Only a trip admin can change receipt viewing permissions.')
+      if (!trip.memberIds?.includes(memberUid)) throw new Error('Receipt viewing can only be granted to a current trip member.')
+      const target = trip.members?.find((member) => member.uid === memberUid)
+      if (target?.isGuest) throw new Error('Guest accounts cannot view receipts.')
+      if (memberUid === trip.createdBy || trip.adminIds?.includes(memberUid)) {
+        throw new Error('Trip admins already can view receipts.')
+      }
+
+      const current = (Array.isArray(trip.receiptViewerIds) ? trip.receiptViewerIds : [])
+        .filter((uid) => trip.memberIds.includes(uid))
+      const next = enabled
+        ? [...new Set([...current, memberUid])]
+        : current.filter((uid) => uid !== memberUid)
+      transaction.update(tripRef, {
+        receiptViewerIds: next,
+        updatedAt: serverTimestamp(),
+      })
+    })
+  } catch (error) {
+    notifyFirebaseError(error, 'We could not update receipt viewing permissions.')
+    throw error
+  }
 }
 
 export const deleteTrip = async (tripId) => {

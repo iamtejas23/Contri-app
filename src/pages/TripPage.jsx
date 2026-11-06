@@ -7,8 +7,8 @@ import {
   PencilLine,
   Plus,
   QrCode,
-  ShieldCheck,
   Trash2,
+  UserPlus,
 } from 'lucide-react'
 import { Suspense, lazy, useMemo, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
@@ -22,8 +22,10 @@ import { QuickAddSheet } from '../components/expenses/QuickAddSheet'
 import { SettlementPanel } from '../components/settlements/SettlementPanel'
 import { TripFormModal } from '../components/trips/TripFormModal'
 import { ClearTripDataDialog } from '../components/trips/ClearTripDataDialog'
+import { ReceiptViewPermissions } from '../components/trips/ReceiptViewPermissions'
 import { TripInviteDialog } from '../components/trips/TripInviteDialog'
 import { TripMembersIndicator } from '../components/trips/TripMembersIndicator'
+import { TripMembersSection } from '../components/trips/TripMembersSection'
 import { MemberAvatar } from '../components/ui/MemberAvatar'
 import { Badge } from '../components/ui/Badge'
 import { BudgetBar } from '../components/ui/BudgetBar'
@@ -47,7 +49,7 @@ import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement, deleteSettlement, updateSettlement, updateSettlementManagementPermission } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
-import { deleteTrip, inviteMemberToTrip, updateReceiptUploadPermission, updateTrip, updateTripMemberRole } from '../services/trips'
+import { deleteTrip, inviteMemberToTrip, updateReceiptUploadPermission, updateReceiptViewPermission, updateTrip, updateTripMemberRole } from '../services/trips'
 import { clearTripDataFromDatabase } from '../services/clearTripData'
 import { publishTripInvitationPreview } from '../services/tripInvitationPreview'
 import { db } from '../firebase/config'
@@ -85,6 +87,7 @@ export const TripPage = () => {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [receiptPermissionSaving, setReceiptPermissionSaving] = useState(false)
+  const [receiptViewSavingUid, setReceiptViewSavingUid] = useState('')
   const [settlementPermissionSavingUid, setSettlementPermissionSavingUid] = useState('')
   const settlementSubmitLock = useRef(false)
   const settlementMutationLock = useRef(false)
@@ -115,6 +118,7 @@ export const TripPage = () => {
   const isAdmin = isTripAdministrator(trip, user?.uid)
   const canManageTrip = Boolean(isAdmin)
   const settlementManagerIds = Array.isArray(trip?.settlementManagerIds) ? trip.settlementManagerIds : EMPTY_MEMBERS
+  const receiptViewerIds = Array.isArray(trip?.receiptViewerIds) ? trip.receiptViewerIds : EMPTY_MEMBERS
   const canManageSettlements = canManageTripSettlements(trip, user?.uid)
   const canManageReceiptPermission = Boolean(
     canManageTrip
@@ -424,6 +428,28 @@ export const TripPage = () => {
     }
   }
 
+  const handleReceiptViewChange = async (member) => {
+    if (!canManageTrip || receiptViewSavingUid || !user?.uid) return
+    if (member.isGuest || member.uid === trip.createdBy || trip.adminIds?.includes(member.uid)) return
+    const enabled = !receiptViewerIds.includes(member.uid)
+    const verb = enabled ? 'Grant' : 'Revoke'
+    if (!window.confirm(`${verb} receipt viewing for ${member.name || 'this member'}? This does not change who can upload receipts.`)) return
+    setReceiptViewSavingUid(member.uid)
+    try {
+      await updateReceiptViewPermission({
+        tripId: trip.id,
+        memberUid: member.uid,
+        enabled,
+        actorUid: user.uid,
+      })
+      toast.success(enabled ? `${member.name || 'Member'} can view receipts.` : `Receipt viewing revoked for ${member.name || 'member'}.`)
+    } catch {
+      toast.error('Receipt viewing permissions were not changed. Check your connection and admin access.')
+    } finally {
+      setReceiptViewSavingUid('')
+    }
+  }
+
   const handleRoleChange = async (member, role) => {
     if (!canManageTrip) {
       toast.error('Only trip admins can manage roles.')
@@ -619,60 +645,15 @@ export const TripPage = () => {
 
       {activeTab === 'settings' ? (
         <div className="grid gap-6 xl:grid-cols-2">
-          <Card>
-            <h2 className="font-display text-lg font-semibold text-ink">Members</h2>
-            <p className="mt-1 text-sm text-dusk">Manage roles for everyone in this trip.</p>
-            <div className="mt-5 space-y-2">
-              {displayMembers.map((member) => {
-                const finances = metrics.balances.find((entry) => entry.uid === member.uid)
-                return (
-                <div
-                  key={member.uid}
-                  className="flex min-w-0 flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <MemberAvatar member={member} name={member.name} size="sm" src={member.photoURL} uid={member.uid} />
-                    <div className="min-w-0 flex-1">
-                      <p className="break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{member.name || 'Traveler'}</p>
-                      <p className="mt-1 flex flex-wrap gap-x-2 text-xs text-dusk">
-                        <span>Paid {formatCurrency(finances?.paid || 0, trip.currency)}</span>
-                        <span>Share {formatCurrency(finances?.share || 0, trip.currency)}</span>
-                        <span>Settled: {formatCurrency(finances?.settledOut || 0, trip.currency)} paid / {formatCurrency(finances?.settledIn || 0, trip.currency)} received</span>
-                        <span>Net {formatCurrency(finances?.net || 0, trip.currency)}</span>
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
-                    <Badge tone={member.role === 'admin' ? 'teal' : 'default'}>{member.role || 'member'}</Badge>
-                    {member.isGuest ? <Badge tone="amber">Guest</Badge> : null}
-                    {canManageTrip ? (
-                      member.role === 'admin' ? (
-                        <Button
-                          disabled={(trip.adminIds?.length || 0) <= 1}
-                          onClick={() => handleRoleChange(member, 'member')}
-                          size="sm"
-                          type="button"
-                          variant="secondary"
-                        >
-                          Demote
-                        </Button>
-                      ) : (
-                        <Button
-                          onClick={() => handleRoleChange(member, 'admin')}
-                          size="sm"
-                          type="button"
-                          variant="secondary"
-                        >
-                          <ShieldCheck className="h-4 w-4" />
-                          Make admin
-                        </Button>
-                      )
-                    ) : null}
-                  </div>
-                </div>
-              )})}
-            </div>
-          </Card>
+          <TripMembersSection
+            balances={metrics.balances}
+            canManage={canManageTrip}
+            currency={trip.currency}
+            members={displayMembers}
+            onRoleChange={handleRoleChange}
+            settlementManagerIds={settlementManagerIds}
+            trip={trip}
+          />
 
           <Card>
             <h2 className="font-display text-lg font-semibold text-ink">Settlement permissions</h2>
@@ -723,7 +704,7 @@ export const TripPage = () => {
               <div className="min-w-0">
                 <h2 className="font-display text-lg font-semibold text-ink">Receipt upload permissions</h2>
                 <p className="mt-1 text-sm text-dusk">When enabled, members of this trip can attach receipt images to expenses.</p>
-                <p className="mt-1 text-xs text-dusk">Guest accounts cannot upload or view private receipts.</p>
+                <p className="mt-1 text-xs text-dusk">Guest accounts cannot upload receipts. Viewing is controlled separately below.</p>
               </div>
               {canManageReceiptPermission ? (
                 <button
@@ -745,9 +726,25 @@ export const TripPage = () => {
             </div>
           </Card>
 
+          <ReceiptViewPermissions
+            canManage={canManageTrip}
+            members={displayMembers}
+            onToggle={handleReceiptViewChange}
+            savingUid={receiptViewSavingUid}
+            trip={trip}
+            viewerIds={receiptViewerIds}
+          />
+
           <Card>
-            <h2 className="font-display text-lg font-semibold text-ink">Admin tools</h2>
-            <p className="mt-1 text-sm text-dusk">Invite members and manage the trip.</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal/10 text-teal">
+                <UserPlus aria-hidden="true" className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="font-display text-lg font-semibold leading-tight text-ink">Invite</h2>
+                <p className="text-sm text-dusk">Add members and manage the trip.</p>
+              </div>
+            </div>
 
             {canManageTrip ? (
               <>

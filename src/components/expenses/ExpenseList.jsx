@@ -7,6 +7,7 @@ import { formatCurrency } from '../../lib/currency'
 import { formatDate } from '../../lib/date'
 import { buildExpenseCreationActivityMap, resolveExpenseCreator } from '../../lib/expenseCreators'
 import { sortExpensesNewestFirst } from '../../lib/expenseSorting'
+import { canViewTripReceipts } from '../../lib/receiptPermissions'
 import { resolveSplitAmounts } from '../../lib/splits'
 import { MemberAvatar } from '../ui/MemberAvatar'
 import { Button } from '../ui/Button'
@@ -37,6 +38,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
     return result
   }, [expenses, search, categoryFilter, membersMap])
   const newestFirst = useMemo(() => sortExpensesNewestFirst(filtered, creationActivityMap), [filtered, creationActivityMap])
+  const canViewReceipts = canViewTripReceipts(trip, currentUser || { uid: currentUserId })
 
   if (!expenses.length) {
     return (
@@ -141,7 +143,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
                       <Eye className="h-3.5 w-3.5" />
                       Details
                     </Button>
-                    {expense.receiptURL ? (
+                    {expense.receiptURL && canViewReceipts ? (
                       <a
                         className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-dusk shadow-sm transition hover:bg-slate-50"
                         href={expense.receiptURL}

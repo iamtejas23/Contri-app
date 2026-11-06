@@ -219,6 +219,26 @@ service cloud.firestore {
 
     // Receipt sharing is an optional, default-off setting. Only the specific
     // verified account that owns the trip may change this single field.
+    // Per-member receipt viewing is separate from allowMemberReceiptUploads.
+    // Only a trip admin may change the list, and every id must be a current member.
+    function isReceiptViewPermissionUpdate(tripId) {
+      let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
+      let viewers = request.resource.data.get('receiptViewerIds', null);
+      return isTripAdmin(tripId)
+        && !isTripClearing(tripId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'receiptViewerIds', 'updatedAt'
+        ])
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.members == resource.data.members
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.adminIds == resource.data.adminIds
+        && viewers is list
+        && trip.get('memberIds', []) is list
+        && trip.get('memberIds', []).hasAll(viewers)
+        && request.resource.data.updatedAt == request.time;
+    }
+
     function isAuthorizedReceiptPermissionUpdate(tripId) {
       let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
       return signedIn()
@@ -400,6 +420,7 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
       allow update: if isAdminTripDetailsUpdate(tripId)
         || isAuthorizedReceiptPermissionUpdate(tripId)
+        || isReceiptViewPermissionUpdate(tripId)
         || isSettlementPermissionUpdate(tripId)
         || isAdminInviteUpdate(tripId)
         || isAdminRoleUpdate(tripId)

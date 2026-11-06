@@ -3,6 +3,7 @@ import { ExternalLink } from 'lucide-react'
 import { formatCurrency } from '../../lib/currency'
 import { formatDate } from '../../lib/date'
 import { resolveExpenseCreator } from '../../lib/expenseCreators'
+import { canViewTripReceipts, RECEIPT_VIEW_DENIED_MESSAGE } from '../../lib/receiptPermissions'
 import { resolveSplitAmounts } from '../../lib/splits'
 import { Avatar } from '../ui/Avatar'
 import { Modal } from '../ui/Modal'
@@ -14,6 +15,7 @@ export const ExpenseDetailDialog = ({ expense, open, onClose, currency, membersM
   const creator = resolveExpenseCreator(expense, membersMap, creationActivityMap)
   const payer = membersMap[expense.paidBy]
   const splitAmounts = resolveSplitAmounts({ ...expense, currency })
+  const canViewReceipts = canViewTripReceipts(trip, currentUser)
 
   return (
     <Modal description="Expense details" onClose={onClose} open={open} size="profile" title={expense.title || 'Expense details'}>
@@ -59,10 +61,13 @@ export const ExpenseDetailDialog = ({ expense, open, onClose, currency, membersM
             })}
           </ul>
         </section>
-        {expense.receiptURL ? (
+        {expense.receiptURL && canViewReceipts ? (
           <a className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-ink" href={expense.receiptURL} rel="noreferrer" target="_blank">
             <ExternalLink className="h-4 w-4" /> View receipt
           </a>
+        ) : null}
+        {expense.receiptURL && !canViewReceipts ? (
+          <p className="rounded-xl bg-sand px-3 py-2 text-sm leading-5 text-dusk">{RECEIPT_VIEW_DENIED_MESSAGE}</p>
         ) : null}
         <ReceiptAttachments canManage={canManage} currentUser={currentUser} expense={expense} trip={trip} />
       </div>

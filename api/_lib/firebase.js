@@ -152,6 +152,31 @@ export const getFirestoreDocument = async (path, idToken, fetchImpl = fetch) => 
   }
 }
 
+export const assertCanViewReceipt = (trip, identity) => {
+  const uid = identity?.uid
+  const memberRecord = Array.isArray(trip?.members) ? trip.members.find((member) => member?.uid === uid) : null
+  const isMember = Boolean(
+    trip
+    && uid
+    && !identity.isAnonymous
+    && !memberRecord?.isGuest
+    && ((Array.isArray(trip.memberIds) && trip.memberIds.includes(uid)) || trip.createdBy === uid),
+  )
+  if (!isMember) {
+    throw Object.assign(new Error('You must be a current trip member to view this receipt.'), { statusCode: 403, code: 'TRIP_AUTHORIZATION_FAILED' })
+  }
+  const isAdmin = trip.createdBy === uid
+    || (Array.isArray(trip.memberIds) && trip.memberIds.includes(uid) && Array.isArray(trip.adminIds) && trip.adminIds.includes(uid))
+  const viewers = Array.isArray(trip.receiptViewerIds) ? trip.receiptViewerIds : []
+  // Upload permission is intentionally ignored. A missing viewer list denies members.
+  if (!isAdmin && !viewers.includes(uid)) {
+    throw Object.assign(new Error('Receipt viewing is not enabled for your account. Contact the trip admin.'), {
+      statusCode: 403,
+      code: 'RECEIPT_VIEW_DENIED',
+    })
+  }
+}
+
 export const assertTripMember = (trip, uid) => {
   const identity = typeof uid === 'object' ? uid : { uid }
   const fromIds = Array.isArray(trip?.memberIds) && trip.memberIds.includes(identity.uid)

@@ -11,6 +11,7 @@ import {
 } from '../../services/receiptUploads'
 import { receiptUploadQueue } from '../../services/receiptUploadQueue'
 import { getReceiptMimeType } from '../../lib/receiptFile'
+import { canUploadTripReceipts, canViewTripReceipts, RECEIPT_VIEW_DENIED_MESSAGE } from '../../lib/receiptPermissions'
 import { captureReceiptWithNativeCamera, clearPendingReceiptCapture, getCameraCaptureErrorMessage, isCameraCaptureCancelled, savePendingReceiptCapture } from '../../services/receiptCamera'
 import { Button } from '../ui/Button'
 import { Modal } from '../ui/Modal'
@@ -22,11 +23,12 @@ const ReceiptRow = ({ receipt, urls, onOpen, onRefresh, onDelete, deleting }) =>
       <button aria-label={`Open ${receipt.fileName || 'receipt'}`} className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-sand text-dusk" onClick={() => onOpen(receipt)} type="button">
         {isImage && urls?.thumbnail
           ? <img alt="Receipt thumbnail" className="h-full w-full object-cover" loading="lazy" onError={() => onRefresh(receipt)} src={urls.thumbnail} />
-          : isImage ? <FileImage className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
+          : isImage && !urls ? <LoaderCircle aria-label="Loading receipt" className="h-5 w-5 animate-spin" />
+            : isImage ? <FileImage className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
       </button>
       <button className="min-w-0 flex-1 text-left" onClick={() => onOpen(receipt)} type="button">
         <span className="block truncate text-sm font-semibold text-ink">{receipt.fileName || 'Receipt image'}</span>
-        <span className="mt-0.5 block text-xs text-dusk">{receipt.size ? `${(receipt.size / 1024 / 1024).toFixed(1)} MB · private` : 'Private receipt'}</span>
+        <span className="mt-0.5 block text-xs text-dusk">{urls?.error ? 'This receipt is unavailable right now.' : !urls && isImage ? 'Loading receipt…' : receipt.size ? `${(receipt.size / 1024 / 1024).toFixed(1)} MB · private` : 'Private receipt'}</span>
       </button>
       {urls?.download ? <a aria-label="Download original receipt" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-dusk hover:bg-sand" href={urls.download} rel="noreferrer" target="_blank"><Download className="h-4 w-4" /></a> : null}
       {onDelete ? <button aria-label="Delete receipt" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-red-500 hover:bg-red-50 disabled:opacity-50" disabled={deleting} onClick={() => onDelete(receipt)} type="button">{deleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}</button> : null}
@@ -65,14 +67,13 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   const galleryRef = useRef(null)
   const previewRefreshAttempted = useRef(false)
   const thumbnailRefreshAttempted = useRef(new Set())
-  const isAuthorizedAccount = currentUser?.email?.trim().toLowerCase() === 'tsmane8787@gmail.com'
-    && currentUser?.emailVerified === true && trip?.createdBy === currentUser?.uid
-  const isCurrentMember = Boolean(currentUser?.uid && (trip?.createdBy === currentUser.uid || trip?.memberIds?.includes?.(currentUser.uid)))
-  const canUploadReceipts = Boolean(!currentUser?.isAnonymous && isCurrentMember && (isAuthorizedAccount || trip?.allowMemberReceiptUploads === true))
+  const isCurrentMember = Boolean(currentUser?.uid && !currentUser?.isAnonymous && (trip?.createdBy === currentUser.uid || trip?.memberIds?.includes?.(currentUser.uid)))
+  const canUploadReceipts = canUploadTripReceipts(trip, currentUser)
+  const canViewReceipts = canViewTripReceipts(trip, currentUser)
 
   useEffect(() => {
     let active = true
-    if (!receipts.length || !trip?.id || !expense?.id) return undefined
+    if (!canViewReceipts || !receipts.length || !trip?.id || !expense?.id) return undefined
     Promise.all(receipts.filter((receipt) => !urlsById[receipt.fileId]).map(async (receipt) => {
       try { return [receipt.fileId, await getSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId, purpose: 'thumbnail' })] }
       catch (error) { return [receipt.fileId, { error: error.message || 'Could not load private preview.' }] }
@@ -80,7 +81,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
     return () => { active = false }
     // Signed URL validity and in-flight de-duplication are managed by the service cache.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expense?.id, receiptIdsKey, trip?.id])
+  }, [canViewReceipts, expense?.id, receiptIdsKey, trip?.id])
 
   useEffect(() => {
     for (const job of queueSnapshot) {
@@ -130,7 +131,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   }
 
   const openReceipt = async (receipt, forceRefresh = false) => {
-    if (!trip?.id || !expense?.id) return
+    if (!canViewReceipts || !trip?.id || !expense?.id) return
     if (forceRefresh) invalidateSupabaseReceiptUrls({ tripId: trip.id, expenseId: expense.id, fileId: receipt.fileId })
     previewRefreshAttempted.current = false
     setSelected(receipt)
@@ -191,7 +192,7 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
   return (
     <section className="min-w-0 space-y-3" aria-label="Private receipt images">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0"><h3 className="text-sm font-semibold text-ink">Receipt images</h3><p className="mt-0.5 text-xs text-dusk">Private to current trip members. Originals are preserved. Maximum 5 MB each.</p></div>
+        <div className="min-w-0"><h3 className="text-sm font-semibold text-ink">Receipt images</h3><p className="mt-0.5 text-xs text-dusk">Private images open only for the trip admin and members they authorize. JPEG, PNG and WebP. Maximum 5 MB each.</p></div>
         {canUploadReceipts ? <div className="flex min-w-0 flex-wrap gap-2">
           <input ref={cameraRef} accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden" onChange={handleFiles} type="file" />
           <input ref={galleryRef} accept="image/jpeg,image/png,image/webp" className="hidden" multiple onChange={handleFiles} type="file" />
@@ -200,9 +201,12 @@ export const ReceiptAttachments = ({ trip, expense, currentUser, canManage = fal
         </div> : null}
       </div>
 
-      {!canUploadReceipts ? <p className="rounded-xl bg-sand px-3 py-2 text-xs leading-5 text-dusk">{currentUser?.isAnonymous ? 'Guest accounts cannot upload receipts. Current trip members can view attached receipts.' : !isCurrentMember ? 'Only current trip members can upload or view private receipts.' : trip?.allowMemberReceiptUploads === true ? 'Receipt uploads are enabled for trip members. Guest accounts are excluded.' : 'Member uploads are disabled. Only the verified trip creator can upload receipts.'}</p> : null}
+      {!canUploadReceipts ? <p className="rounded-xl bg-sand px-3 py-2 text-xs leading-5 text-dusk">{currentUser?.isAnonymous ? 'Guest accounts cannot upload receipts.' : !isCurrentMember ? 'Only current trip members can upload receipts.' : 'Member uploads are disabled. Only the verified trip creator can upload receipts.'}</p> : null}
+      {receipts.length && !canViewReceipts ? <p className="rounded-xl bg-sand px-3 py-2 text-sm leading-5 text-dusk">{RECEIPT_VIEW_DENIED_MESSAGE}</p> : null}
       {pendingJobs.length ? <div className="grid min-w-0 gap-2 sm:grid-cols-2">{pendingJobs.map((job) => <UploadJobRow key={job.id} job={job} onRetry={receiptUploadQueue.retry} />)}</div> : null}
-      {receipts.length ? <div className="grid min-w-0 gap-2 sm:grid-cols-2">{receipts.map((receipt) => <ReceiptRow key={receipt.fileId} deleting={deletingFileId === receipt.fileId} onDelete={canManage ? removeReceipt : null} onOpen={openReceipt} onRefresh={refreshRowUrl} receipt={receipt} urls={urlsById[receipt.fileId]} />)}</div> : !pendingJobs.length ? <p className="rounded-xl bg-sand/70 px-3 py-3 text-sm text-dusk">No private receipt images attached.</p> : null}
+      {canViewReceipts && receipts.length ? <div className="grid min-w-0 gap-2 sm:grid-cols-2">{receipts.map((receipt) => <ReceiptRow key={receipt.fileId} deleting={deletingFileId === receipt.fileId} onDelete={canManage ? removeReceipt : null} onOpen={openReceipt} onRefresh={refreshRowUrl} receipt={receipt} urls={urlsById[receipt.fileId]} />)}</div> : null}
+      {canViewReceipts && receipts.some((receipt) => urlsById[receipt.fileId]?.error) ? <p className="rounded-xl bg-sand px-3 py-2 text-sm leading-5 text-dusk">This receipt is unavailable right now. Try again, or contact the trip admin if it is missing.</p> : null}
+      {!receipts.length && !pendingJobs.length ? <p className="rounded-xl bg-sand/70 px-3 py-3 text-sm text-dusk">No private receipt images attached.</p> : null}
 
       <Modal description={selected?.fileName || 'Private receipt'} fullScreen onClose={() => setSelected(null)} open={Boolean(selected)} title="Receipt preview">
         {previewLoading ? <div className="flex min-h-48 items-center justify-center text-dusk"><LoaderCircle className="h-5 w-5 animate-spin" /><span className="ml-2">Loading securely…</span></div> : null}

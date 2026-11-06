@@ -73,6 +73,15 @@ const seedMemberUploadPermission = async (enabled) => seedDocument(`trips/${owne
   memberIds: [creator.localId, member.localId, guest.localId],
   adminIds: [creator.localId],
   allowMemberReceiptUploads: enabled,
+  receiptViewerIds: [],
+})
+
+const grantMemberReceiptView = async () => seedDocument(`trips/${ownerTripId}`, {
+  createdBy: creator.localId,
+  memberIds: [creator.localId, member.localId, guest.localId],
+  adminIds: [creator.localId],
+  allowMemberReceiptUploads: false,
+  receiptViewerIds: [member.localId],
 })
 
 const invoke = async ({ handler, token, body, dependencies = {} }) => {
@@ -335,7 +344,30 @@ test('a member removed from the trip immediately loses receipt upload access', a
   await seedMemberUploadPermission(false)
 })
 
+test('missing receipt viewing permission defaults to denied for a current member', async () => {
+  await seedMemberUploadPermission(true)
+  storageCalls = []
+  const result = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 403)
+  assert.equal(result.body.code, 'RECEIPT_VIEW_DENIED')
+  assert.match(result.body.error, /Receipt viewing is not enabled/)
+  assert.equal(storageCalls.length, 0)
+  await seedMemberUploadPermission(false)
+})
+
+test('trip admin can view receipts without an explicit viewer grant', async () => {
+  await seedMemberUploadPermission(false)
+  storageCalls = []
+  const result = await invoke({ handler: urlHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(result.statusCode, 200)
+  assert.match(result.body.preview, /short-lived/)
+  assert.equal(Object.hasOwn(result.body, 'serviceRoleKey'), false)
+})
+
 test('trip members receive cached-preview-compatible short-lived URLs for attached original and thumbnail files', async () => {
+  await grantMemberReceiptView()
   storageCalls = []
   const result = await invoke({ handler: urlHandler, token: member.idToken,
     body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
@@ -349,6 +381,7 @@ test('trip members receive cached-preview-compatible short-lived URLs for attach
 })
 
 test('legacy receipt metadata without a thumbnail remains viewable using its original private file', async () => {
+  await grantMemberReceiptView()
   storageCalls = []
   const result = await invoke({ handler: urlHandler, token: member.idToken,
     body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'legacy_receipt_002' }, dependencies: { createStorage } })
@@ -358,6 +391,7 @@ test('legacy receipt metadata without a thumbnail remains viewable using its ori
 })
 
 test('receipt list requests sign only the lightweight thumbnail object', async () => {
+  await grantMemberReceiptView()
   storageCalls = []
   const result = await invoke({ handler: urlHandler, token: member.idToken,
     body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001', purpose: 'thumbnail' }, dependencies: { createStorage } })
@@ -369,6 +403,7 @@ test('receipt list requests sign only the lightweight thumbnail object', async (
 })
 
 test('a failed optional thumbnail signature falls back to the private original instead of failing receipt access', async () => {
+  await grantMemberReceiptView()
   storageCalls = []
   const result = await invoke({ handler: urlHandler, token: member.idToken,
     body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' },
@@ -388,6 +423,7 @@ test('a failed optional thumbnail signature falls back to the private original i
 })
 
 test('an original signing failure returns a distinct safe error and logs its exact server stage', async () => {
+  await grantMemberReceiptView()
   storageCalls = []
   const originalError = console.error
   const diagnostics = []
@@ -412,6 +448,7 @@ test('a removed trip member cannot obtain a new signed receipt URL', async () =>
     createdBy: creator.localId,
     memberIds: [creator.localId, guest.localId],
     adminIds: [creator.localId],
+    receiptViewerIds: [member.localId],
   })
   storageCalls = []
   const result = await invoke({ handler: urlHandler, token: member.idToken,
@@ -423,12 +460,65 @@ test('a removed trip member cannot obtain a new signed receipt URL', async () =>
 })
 
 test('outsiders, invalid tokens, unlinked IDs and legacy/non-Supabase metadata cannot read private storage', async () => {
+  await grantMemberReceiptView()
   const outsiderResult = await invoke({ handler: urlHandler, token: outsider.idToken, body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
   const invalidToken = await invoke({ handler: urlHandler, token: 'invalid-token', body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
   const missing = await invoke({ handler: urlHandler, token: member.idToken, body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'missing_receipt' }, dependencies: { createStorage } })
   assert.equal(outsiderResult.statusCode, 403)
   assert.equal(invalidToken.statusCode, 401)
   assert.equal(missing.statusCode, 404)
+})
+
+test('revoking receipt viewing blocks the next signed URL without granting or removing upload permission', async () => {
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, member.localId, guest.localId],
+    adminIds: [creator.localId],
+    allowMemberReceiptUploads: true,
+    receiptViewerIds: [member.localId],
+  })
+  const allowed = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'legacy_receipt_002' }, dependencies: { createStorage } })
+  assert.equal(allowed.statusCode, 200)
+  await seedDocument(`trips/${ownerTripId}`, {
+    createdBy: creator.localId,
+    memberIds: [creator.localId, member.localId, guest.localId],
+    adminIds: [creator.localId],
+    allowMemberReceiptUploads: true,
+    receiptViewerIds: [],
+  })
+  storageCalls = []
+  const revoked = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId: memberExpenseId, fileId: 'legacy_receipt_002' }, dependencies: { createStorage } })
+  assert.equal(revoked.statusCode, 403)
+  assert.equal(revoked.body.code, 'RECEIPT_VIEW_DENIED')
+  assert.equal(storageCalls.length, 0)
+  const stillUploads = await invoke({ handler: uploadHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 1000, fileName: 'still-upload.png' }, dependencies: { createStorage } })
+  assert.equal(stillUploads.statusCode, 200)
+  await seedMemberUploadPermission(false)
+})
+
+test('viewing permission does not grant receipt upload permission', async () => {
+  await grantMemberReceiptView()
+  storageCalls = []
+  const upload = await invoke({ handler: uploadHandler, token: member.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: randomUUID(), mimeType: 'image/png', size: 800, fileName: 'view-only.png' }, dependencies: { createStorage } })
+  assert.equal(upload.statusCode, 403)
+  assert.equal(upload.body.code, 'TRIP_AUTHORIZATION_FAILED')
+  assert.equal(storageCalls.length, 0)
+})
+
+test('a member cannot read a receipt that belongs to another trip by changing the trip id', async () => {
+  await grantMemberReceiptView()
+  storageCalls = []
+  const swappedTrip = await invoke({ handler: urlHandler, token: member.idToken,
+    body: { tripId: otherTripId, expenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  const swappedExpense = await invoke({ handler: urlHandler, token: creator.idToken,
+    body: { tripId: ownerTripId, expenseId, fileId: 'supabase_receipt_001' }, dependencies: { createStorage } })
+  assert.equal(swappedTrip.statusCode, 404)
+  assert.equal(swappedExpense.statusCode, 404)
+  assert.equal(storageCalls.length, 0)
 })
 
 test('only trip admins can delete attached Supabase receipt objects', async () => {

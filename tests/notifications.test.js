@@ -611,6 +611,58 @@ test('only the verified authorized trip creator can change receipt upload permis
   }))
 })
 
+test('only a trip admin can grant or revoke receipt viewing and members cannot grant it to themselves', async () => {
+  const memberDb = environment.authenticatedContext('member-b').firestore()
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    receiptViewerIds: ['member-b'],
+    updatedAt: serverTimestamp(),
+  }))
+
+  const adminDb = environment.authenticatedContext(actor.uid).firestore()
+  const tripRef = doc(adminDb, 'trips', tripId)
+  await assertSucceeds(updateDoc(tripRef, {
+    receiptViewerIds: ['member-b'],
+    updatedAt: serverTimestamp(),
+  }))
+  assert.equal((await getDoc(tripRef)).data().allowMemberReceiptUploads, undefined)
+  await assertFails(updateDoc(tripRef, {
+    receiptViewerIds: ['not-a-member'],
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(tripRef, {
+    receiptViewerIds: ['member-c'],
+    name: 'Must not edit other trip settings here',
+    updatedAt: serverTimestamp(),
+  }))
+  await assertSucceeds(updateDoc(tripRef, {
+    receiptViewerIds: [],
+    updatedAt: serverTimestamp(),
+  }))
+
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      adminIds: ['member-a', 'member-c'],
+      members: trip.members.map((member) => member.uid === 'member-c' ? { ...member, role: 'admin' } : member),
+    })
+  })
+  const secondaryAdminDb = environment.authenticatedContext('member-c').firestore()
+  await assertSucceeds(updateDoc(doc(secondaryAdminDb, 'trips', tripId), {
+    receiptViewerIds: ['member-b'],
+    updatedAt: serverTimestamp(),
+  }))
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId), {
+    receiptViewerIds: ['member-b', 'member-c'],
+    updatedAt: serverTimestamp(),
+  }))
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      adminIds: ['member-a'],
+      members: trip.members,
+      receiptViewerIds: [],
+    })
+  })
+})
+
 test('only an admin can add an existing authenticated member to a trip', async () => {
   const invitedMember = {
     uid: 'member-new',
