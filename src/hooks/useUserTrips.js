@@ -1,9 +1,9 @@
-import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { onSnapshot } from 'firebase/firestore'
 import { useEffect, useState } from 'react'
 
 import { db } from '../firebase/config'
-import { sortRecordsByDate } from '../lib/date'
 import { getErrorMessage } from '../lib/errors'
+import { getUserTripQueries, mergeUserTripSources, tripsFromSnapshot } from '../lib/userTrips'
 
 export const useUserTrips = (uid) => {
   const [retryCount, setRetryCount] = useState(0)
@@ -19,18 +19,14 @@ export const useUserTrips = (uid) => {
       return undefined
     }
 
-    const tripSources = { memberships: new Map(), ownership: new Map() }
+    const tripSources = { memberships: [], ownership: [] }
     const sourceErrors = {}
     const sourceReady = { memberships: false, ownership: false }
     const publish = () => {
-      const uniqueTrips = new Map([
-        ...tripSources.memberships,
-        ...tripSources.ownership,
-      ])
       const messages = Object.values(sourceErrors)
       setState({
         uid,
-        trips: sortRecordsByDate([...uniqueTrips.values()], ['createdAt', 'updatedAt']),
+        trips: mergeUserTripSources(tripSources),
         error: messages.join(' '),
         loading: !Object.values(sourceReady).every(Boolean),
       })
@@ -38,10 +34,7 @@ export const useUserTrips = (uid) => {
     const subscribe = (source, tripQuery) => onSnapshot(
       tripQuery,
       (snapshot) => {
-        tripSources[source] = new Map(snapshot.docs.map((item) => [item.id, {
-          id: item.id,
-          ...item.data(),
-        }]))
+        tripSources[source] = tripsFromSnapshot(snapshot).map((trip) => [trip.id, trip])
         delete sourceErrors[source]
         sourceReady[source] = true
         publish()
@@ -53,14 +46,9 @@ export const useUserTrips = (uid) => {
       },
     )
 
-    const unsubscribeMemberships = subscribe(
-      'memberships',
-      query(collection(db, 'trips'), where('memberIds', 'array-contains', uid)),
-    )
-    const unsubscribeOwnership = subscribe(
-      'ownership',
-      query(collection(db, 'trips'), where('createdBy', '==', uid)),
-    )
+    const queries = getUserTripQueries(db, uid)
+    const unsubscribeMemberships = subscribe('memberships', queries.memberships)
+    const unsubscribeOwnership = subscribe('ownership', queries.ownership)
 
     return () => {
       unsubscribeMemberships()

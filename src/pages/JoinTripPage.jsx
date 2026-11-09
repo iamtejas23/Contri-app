@@ -2,8 +2,6 @@ import { CalendarDays, Link2, MapPin, QrCode, Users, UserRound } from 'lucide-re
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { doc, getDoc } from 'firebase/firestore'
-
 import { Button } from '../components/ui/Button'
 import { Card } from '../components/ui/Card'
 import { Input } from '../components/ui/Input'
@@ -12,9 +10,9 @@ import { useAuth } from '../context/useAuth'
 import { db } from '../firebase/config'
 import { getTripIdFromInvite } from '../lib/invites'
 import { getErrorMessage } from '../lib/errors'
+import { resolveJoinInvitation } from '../lib/joinInvitation'
 import { createGuestAccount } from '../services/auth'
 import { joinTripByLink } from '../services/trips'
-import { isValidTripInvitationPreview, loadTripInvitationPreview } from '../services/tripInvitationPreview'
 
 const formatDate = (value) => {
   if (!value) return ''
@@ -46,6 +44,10 @@ export const JoinTripPage = () => {
   useEffect(() => {
     let alive = true
     if (!tripId) return undefined
+    if (authLoading) {
+      setPreviewState('loading')
+      return undefined
+    }
 
     Promise.resolve()
       .then(() => {
@@ -55,15 +57,18 @@ export const JoinTripPage = () => {
           setPreview(null)
           setAlreadyMember(false)
         }
-        return loadTripInvitationPreview({ database: db, tripId })
+        return resolveJoinInvitation({ database: db, tripId, uid: user?.uid })
       })
       .then((result) => {
         if (!alive) return
-        if (isValidTripInvitationPreview(result, tripId)) {
-          setPreview(result)
-          setPreviewState('ready')
-        } else {
-          setPreviewState('legacy')
+        setPreview(result.preview)
+        setAlreadyMember(result.alreadyMember)
+        setPreviewState(result.previewState)
+        if (result.previewState === 'error') {
+          setPreviewError(getErrorMessage(
+            result.previewError,
+            'We could not load this invite preview. Check your connection and try again.',
+          ))
         }
       })
       .catch((error) => {
@@ -73,22 +78,7 @@ export const JoinTripPage = () => {
       })
 
     return () => { alive = false }
-  }, [tripId])
-
-  useEffect(() => {
-    let alive = true
-    if (!tripId || !user || user.isAnonymous && authLoading) return undefined
-    getDoc(doc(db, 'trips', tripId))
-      .then((snapshot) => {
-        if (!alive || !snapshot.exists()) return
-        const data = snapshot.data()
-        const member = data.memberIds?.includes(user.uid)
-          && data.members?.some((entry) => entry.uid === user.uid)
-        if (member) setAlreadyMember(true)
-      })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [authLoading, tripId, user])
+  }, [authLoading, tripId, user?.uid])
 
   const continueToInvite = (value) => {
     const parsedTripId = getTripIdFromInvite(value)
@@ -110,6 +100,10 @@ export const JoinTripPage = () => {
   }, [navigate])
 
   const performJoin = async (joiningUser, displayName = '', contactEmail = '') => {
+    if (alreadyMember) {
+      navigate(`/trips/${encodeURIComponent(tripId)}`, { replace: true })
+      return
+    }
     if (joining || !tripId || !joiningUser) return
     setJoining(true)
     setJoinError('')
