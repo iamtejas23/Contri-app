@@ -17,7 +17,7 @@ const GoogleIcon = () => (
 )
 
 const features = [
-  'Log petrol, toll, food, and hotel in a few taps',
+  'Log diesel, toll, food, and hotel in a few taps',
   'See exactly who owes whom, then pay with UPI',
   'Share the hisab on WhatsApp before the group chat starts',
 ]

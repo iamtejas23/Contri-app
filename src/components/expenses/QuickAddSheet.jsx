@@ -1,5 +1,6 @@
 import { X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import toast from 'react-hot-toast'
 
 import { EXPENSE_CATEGORIES } from '../../lib/constants'
@@ -135,11 +136,11 @@ export const QuickAddSheet = ({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center overflow-hidden overscroll-contain bg-ink/40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:items-center sm:p-4">
+  return createPortal((
+    <div className="quick-add-backdrop fixed inset-0 z-[60] flex items-end justify-center overflow-hidden overscroll-contain bg-ink/40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] backdrop-blur-sm sm:items-center sm:p-4">
       <button aria-label="Close add expense" className="absolute inset-0" onClick={onClose} type="button" />
       <form
-        className="animate-sheet relative flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-modal sm:rounded-3xl"
+        className="quick-add-panel animate-sheet relative flex w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-modal sm:rounded-3xl"
         style={{ maxHeight: 'calc(var(--app-viewport-height, 100dvh) - env(safe-area-inset-top) - env(safe-area-inset-bottom))' }}
         onSubmit={handleSubmit}
       >
@@ -300,5 +301,5 @@ export const QuickAddSheet = ({
         </div>
       </form>
     </div>
-  )
+  ), document.body)
 }

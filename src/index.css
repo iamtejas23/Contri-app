@@ -482,3 +482,49 @@ html[data-theme='dark'] .contri-splash__orbit { border-color: rgb(94 234 212 / 1
     animation: none;
   }
 }
+
+/* Expense entry fills the phone's available app viewport; desktop keeps its dialog layout. */
+@media (max-width: 639px) {
+  .quick-add-backdrop {
+    align-items: stretch;
+    justify-content: flex-start;
+    bottom: auto;
+    height: var(--app-viewport-height, 100dvh);
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px) !important;
+  }
+
+  .quick-add-panel {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: 100% !important;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .modal-mobile-fullscreen-backdrop {
+    align-items: stretch;
+    justify-content: flex-start;
+    bottom: auto;
+    height: var(--app-viewport-height, 100dvh);
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 env(safe-area-inset-left, 0px) !important;
+  }
+
+  .modal-mobile-fullscreen-panel {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: 100% !important;
+    margin: 0;
+    border-radius: 0;
+  }
+}
+
+/* Capacitor's non-overlay status bar already removes the unsafe top area from the WebView. */
+@media (max-width: 639px) {
+  .native-app .quick-add-backdrop,
+  .native-app .modal-mobile-fullscreen-backdrop {
+    top: 0;
+    padding-top: 0 !important;
+  }
+}

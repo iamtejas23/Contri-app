@@ -16,7 +16,7 @@ export const openWhatsApp = async (text) => {
 }
 
 export const buildInviteMessage = ({ tripName, inviteLink }) =>
-  `Join "${tripName}" on Contri.\nLog petrol, toll, food, and hotel as you go — settle the hisab before the group chat starts.\n\n${inviteLink}\n\n${BRAND_LINE}`
+  `Join "${tripName}" on Contri.\nLog diesel, toll, food, and hotel as you go — settle the hisab before the group chat starts.\n\n${inviteLink}\n\n${BRAND_LINE}`
 
 export const buildPaymentMessage = ({ fromName, toName, amount, currency, upiId, tripName }) => {
   const money = formatCurrency(amount, currency)

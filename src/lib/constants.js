@@ -9,7 +9,7 @@ export const CURRENCIES = [
 
 export const EXPENSE_CATEGORIES = [
   'Food',
-  'Petrol',
+  'Diesel',
   'Toll',
   'Hotel',
   'Travel',
@@ -18,7 +18,8 @@ export const EXPENSE_CATEGORIES = [
   'Other',
 ]
 
-export const LEGACY_CATEGORIES = ['Stay']
+// Keep historical categories visible in existing expense summaries and edits.
+export const LEGACY_CATEGORIES = ['Petrol', 'Stay']
 
 export const TRIP_EMOJIS = [
   '🏝️',

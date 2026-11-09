@@ -1,5 +1,6 @@
 export const CATEGORY_DETAILS = {
   Food: { emoji: '🍛', label: 'Food', tone: 'bg-orange-100 text-orange-700' },
+  Diesel: { emoji: '⛽', label: 'Diesel', tone: 'bg-amber-100 text-amber-800' },
   Petrol: { emoji: '⛽', label: 'Petrol', tone: 'bg-amber-100 text-amber-800' },
   Toll: { emoji: '🛣️', label: 'Toll', tone: 'bg-sky-100 text-sky-700' },
   Hotel: { emoji: '🏨', label: 'Hotel', tone: 'bg-indigo-100 text-indigo-700' },

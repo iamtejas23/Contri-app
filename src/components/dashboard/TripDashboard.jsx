@@ -28,7 +28,7 @@ export const TripDashboard = ({ trip, metrics, onAddExpense }) => {
     return (
       <EmptyState
         actionLabel="Add first expense"
-        description="Log the first petrol, toll, meal, or hotel bill. Totals and the hisab show up right after."
+        description="Log the first diesel, toll, meal, or hotel bill. Totals and the hisab show up right after."
         icon={Receipt}
         onAction={onAddExpense}
         title="No kharcha yet"

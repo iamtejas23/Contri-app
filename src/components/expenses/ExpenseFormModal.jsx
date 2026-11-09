@@ -144,11 +144,22 @@ export const ExpenseFormModal = ({
   return (
     <Modal
       description="Track the bill, attach a receipt, and decide exactly who owes what."
+      footer={(
+        <div className="flex flex-wrap justify-end gap-3">
+          <Button onClick={onClose} type="button" variant="secondary">
+            Cancel
+          </Button>
+          <Button form="expense-form" loading={loading} type="submit">
+            {initialExpense?.id ? 'Save changes' : 'Add expense'}
+          </Button>
+        </div>
+      )}
       onClose={onClose}
       open={open}
+      mobileFullScreen
       title={initialExpense?.id ? 'Edit expense' : 'Add expense'}
     >
-      <form className="space-y-5" onSubmit={handleSubmit}>
+      <form className="space-y-5" id="expense-form" onSubmit={handleSubmit}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="Title"
@@ -371,14 +382,6 @@ export const ExpenseFormModal = ({
           </div>
         ) : null}
 
-        <div className="sticky bottom-0 -mx-4 flex justify-end gap-3 border-t border-slate-100 bg-white/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:-mx-6 sm:px-6">
-          <Button onClick={onClose} type="button" variant="secondary">
-            Cancel
-          </Button>
-          <Button loading={loading} type="submit">
-            {initialExpense?.id ? 'Save changes' : 'Add expense'}
-          </Button>
-        </div>
       </form>
     </Modal>
   )

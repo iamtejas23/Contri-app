@@ -45,7 +45,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
     return (
       <EmptyState
         actionLabel={onCreate ? 'Add first kharcha' : undefined}
-        description="Petrol, toll, dinner, hotel — log it in a few taps and the hisab updates for everyone."
+        description="Diesel, toll, dinner, hotel — log it in a few taps and the hisab updates for everyone."
         icon={Receipt}
         onAction={onCreate}
         title="No kharcha yet"

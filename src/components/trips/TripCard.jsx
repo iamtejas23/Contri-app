@@ -51,7 +51,7 @@ const TripCardComponent = ({ trip, currentUser }) => {
             <Link className="rounded-sm focus-visible:outline-teal" to={`/trips/${trip.id}`}>{trip.name}</Link>
           </h3>
           <p className="mt-1.5 line-clamp-2 text-sm text-dusk">
-            {trip.description || 'Petrol, toll, food, hotel — one hisab for the whole group.'}
+            {trip.description || 'Diesel, toll, food, hotel — one hisab for the whole group.'}
           </p>
 
           {/* Meta */}

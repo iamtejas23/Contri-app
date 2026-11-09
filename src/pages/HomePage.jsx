@@ -62,7 +62,7 @@ export const HomePage = () => {
             Trip khatam.<br className="hidden sm:block" /> Hisab bhi khatam.
           </h1>
           <p className="mt-3 max-w-xl text-sm text-white/70">
-            Log petrol, toll, food, and hotel as they happen. See who owes whom,
+            Log diesel, toll, food, and hotel as they happen. See who owes whom,
             pay with UPI, and send the hisab on WhatsApp.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
