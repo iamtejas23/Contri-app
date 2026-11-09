@@ -25,6 +25,7 @@ test('advance validation stores positive integer paise and rejects empty or zero
   assert.equal(validateAdvanceInput({ memberUid: 'b', amount: 'abc', paymentDate: '2026-06-01', memberIds: ['a', 'b'] }).valid, false)
   assert.equal(validateAdvanceInput({ memberUid: 'missing', amount: '10', paymentDate: '2026-06-01', memberIds: ['a', 'b'] }).valid, false)
   assert.equal(validateAdvanceInput({ memberUid: 'b', amount: '10', paymentDate: '2026-13-01', memberIds: ['a', 'b'] }).valid, false)
+  assert.equal(validateAdvanceInput({ memberUid: 'b', amount: '1000001', paymentDate: '2026-06-01', memberIds: ['a', 'b'] }).valid, false)
 })
 
 test('multiple advances accumulate in paise without replacing earlier payments', () => {
@@ -99,6 +100,19 @@ test('a reversal keeps the original advance and removes it from the active total
   assert.equal(advances[0].note, 'First')
   const balances = computeBalances({ trip, expenses: [expense], advances })
   assert.equal(balances.find((entry) => entry.uid === 'b').advance, 1000)
+})
+
+test('an edited advance keeps the original and counts only the replacement', () => {
+  const advances = [
+    { id: '1', status: 'reversed', memberUid: 'b', recordedBy: 'a', amountPaise: 50000 },
+    { id: '1-reversal', status: 'reversal', reversalOf: '1', memberUid: 'b', recordedBy: 'a', amountPaise: 50000 },
+    { id: '2', status: 'recorded', memberUid: 'b', recordedBy: 'a', amountPaise: 80000, replaces: '1' },
+  ]
+  assert.equal(summarizeAdvances({ members, advances }).contributed.get('b'), 80000)
+  assert.equal(advances[0].amountPaise, 50000)
+  const balances = computeBalances({ trip, expenses: [expense], advances })
+  assert.equal(balances.find((entry) => entry.uid === 'b').advance, 800)
+  assert.equal(balances.find((entry) => entry.uid === 'b').remainingContribution, 1700)
 })
 
 test('existing settlement math is unchanged when no advances are recorded', () => {

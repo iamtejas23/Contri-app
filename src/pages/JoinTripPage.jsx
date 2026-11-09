@@ -43,11 +43,7 @@ export const JoinTripPage = () => {
 
   useEffect(() => {
     let alive = true
-    if (!tripId) return undefined
-    if (authLoading) {
-      setPreviewState('loading')
-      return undefined
-    }
+    if (!tripId || authLoading) return undefined
 
     Promise.resolve()
       .then(() => {
@@ -194,6 +190,7 @@ export const JoinTripPage = () => {
     )
   }
 
+  const previewLoading = Boolean(tripId) && (authLoading || previewState === 'loading')
   const dateRange = [formatDate(preview?.startDate), formatDate(preview?.endDate)].filter(Boolean).join(' – ')
 
   return (
@@ -201,7 +198,7 @@ export const JoinTripPage = () => {
       <Card className="overflow-hidden p-0">
         <div className="mesh-brand-panel px-5 py-7 text-white sm:px-8 sm:py-9">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/65">Trip invitation</p>
-          {previewState === 'loading' ? <div aria-label="Loading trip preview" className="mt-3 h-8 w-3/4 animate-pulse rounded-lg bg-white/15" /> : (
+          {previewLoading ? <div aria-label="Loading trip preview" className="mt-3 h-8 w-3/4 animate-pulse rounded-lg bg-white/15" /> : (
             <h1 className="mt-2 break-words font-display text-3xl font-bold sm:text-4xl">{preview ? `${preview.emoji || '🧳'} ${preview.tripName}` : 'You’re invited to a Contri trip'}</h1>
           )}
           {preview?.description ? <p className="mt-3 max-w-lg break-words text-sm text-white/75">{preview.description}</p> : null}
@@ -209,7 +206,7 @@ export const JoinTripPage = () => {
         </div>
 
         <div className="space-y-5 p-5 sm:p-8">
-          {previewState === 'loading' ? <p aria-live="polite" className="text-sm text-dusk">Checking this invitation…</p> : null}
+          {previewLoading ? <p aria-live="polite" className="text-sm text-dusk">Checking this invitation…</p> : null}
           {previewState === 'error' ? <div className="rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{previewError}</div> : null}
           {previewState === 'legacy' ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-dusk">
@@ -227,7 +224,7 @@ export const JoinTripPage = () => {
 
           {user ? (
             <div className="space-y-3">
-              <Button className="min-h-12 w-full" disabled={previewState === 'loading'} loading={joining} onClick={() => alreadyMember ? navigate(`/trips/${encodeURIComponent(tripId)}`) : void performJoin(user)} type="button">
+              <Button className="min-h-12 w-full" disabled={previewLoading} loading={joining} onClick={() => alreadyMember ? navigate(`/trips/${encodeURIComponent(tripId)}`) : void performJoin(user)} type="button">
                 {alreadyMember ? 'Open trip' : 'Join Trip'}
               </Button>
               <Button className="w-full" onClick={() => navigate('/join')} type="button" variant="ghost">Use another invitation</Button>
@@ -239,7 +236,7 @@ export const JoinTripPage = () => {
               <form className="space-y-3" onSubmit={handleGuestJoin}>
                 <Input autoComplete="name" label="Display name" onChange={(event) => setName(event.target.value)} placeholder="Your name" required value={name} />
                 <Input autoComplete="email" label="Email (optional)" onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" type="email" value={email} />
-                <Button className="min-h-12 w-full" disabled={previewState === 'loading'} loading={joining} type="submit">Create guest account & join</Button>
+                <Button className="min-h-12 w-full" disabled={previewLoading} loading={joining} type="submit">Create guest account & join</Button>
                 <p className="text-xs leading-5 text-dusk">Guest accounts are anonymous and may be difficult to recover if you sign out or change devices.</p>
               </form>
             </div>

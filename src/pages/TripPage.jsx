@@ -50,7 +50,7 @@ import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement, deleteSettlement, updateSettlement, updateSettlementManagementPermission } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
-import { recordTripAdvance, reverseTripAdvance } from '../services/advances'
+import { recordTripAdvance, replaceTripAdvance, reverseTripAdvance } from '../services/advances'
 import { deleteTrip, inviteMemberToTrip, updateReceiptUploadPermission, updateReceiptViewPermission, updateTrip, updateTripMemberRole } from '../services/trips'
 import { clearTripDataFromDatabase } from '../services/clearTripData'
 import { publishTripInvitationPreview } from '../services/tripInvitationPreview'
@@ -271,7 +271,7 @@ export const TripPage = () => {
   }
 
   const handleClearTripData = async () => {
-    if (!canManageTrip || !user?.uid || clearTripLoading) return
+    if (!canManageAdvances || !user?.uid || clearTripLoading) return
     setClearTripLoading(true)
     try {
       const result = await clearTripDataFromDatabase({
@@ -473,16 +473,36 @@ export const TripPage = () => {
     }
   }
 
-  const handleAdvanceReverse = async (advance) => {
-    if (!canManageAdvances || advanceSaving) return
-    const memberName = membersMap[advance.memberUid]?.name || 'this member'
-    if (!window.confirm(`Correct the advance recorded for ${memberName}? The original payment stays in the history and a reversal is added.`)) return
+  const handleAdvanceReverse = async (advance, { note } = {}) => {
+    if (!canManageAdvances || advanceSaving) throw new Error('Only a trip admin can reverse an advance.')
     setAdvanceSaving(true)
     try {
-      await reverseTripAdvance({ tripId, actorUid: user.uid, advance })
+      await reverseTripAdvance({ tripId, actorUid: user.uid, advance, note })
+      toast.success('Advance reversal recorded.')
+    } catch (error) {
+      toast.error(error?.message || 'The advance reversal was not saved.')
+      throw error
+    } finally {
+      setAdvanceSaving(false)
+    }
+  }
+
+  const handleAdvanceReplace = async (advance, values) => {
+    if (!canManageAdvances || advanceSaving) throw new Error('Only a trip admin can edit an advance.')
+    setAdvanceSaving(true)
+    try {
+      await replaceTripAdvance({
+        tripId,
+        actorUid: user.uid,
+        advance,
+        memberIds: trip.memberIds || [],
+        currency: trip.currency,
+        values,
+      })
       toast.success('Advance correction recorded.')
-    } catch {
-      toast.error('The advance correction was not saved.')
+    } catch (error) {
+      toast.error(error?.message || 'The advance contribution was not updated.')
+      throw error
     } finally {
       setAdvanceSaving(false)
     }
@@ -684,6 +704,7 @@ export const TripPage = () => {
           canManage={canManageAdvances}
           members={displayMembers}
           onRecord={handleAdvanceRecord}
+          onReplace={handleAdvanceReplace}
           onReverse={handleAdvanceReverse}
           saving={advanceSaving}
           trip={trip}
@@ -830,11 +851,15 @@ export const TripPage = () => {
 
                 <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-4">
                   <p className="text-sm font-semibold text-red-600">Danger zone</p>
-                  <p className="mt-1 text-xs text-red-500">Clear trip records while keeping the trip, members, roles, invitations and settings.</p>
-                  <Button className="mt-3" onClick={() => setShowClearTripData(true)} size="sm" type="button" variant="danger">
-                    <Trash2 className="h-4 w-4" />
-                    Clear trip data
-                  </Button>
+                  {canManageAdvances ? (
+                    <>
+                      <p className="mt-1 text-xs text-red-500">Clear trip records while keeping the trip, members, roles, invitations and settings.</p>
+                      <Button className="mt-3" onClick={() => setShowClearTripData(true)} size="sm" type="button" variant="danger">
+                        <Trash2 className="h-4 w-4" />
+                        Clear trip data
+                      </Button>
+                    </>
+                  ) : null}
                   <Button className="mt-3" onClick={handleTripDelete} size="sm" type="button" variant="danger">
                     <Trash2 className="h-4 w-4" />
                     Delete trip
@@ -913,7 +938,7 @@ export const TripPage = () => {
         loading={clearTripLoading}
         onClose={() => setShowClearTripData(false)}
         onConfirm={handleClearTripData}
-        open={showClearTripData && canManageTrip}
+        open={showClearTripData && canManageAdvances}
         tripName={trip.name}
       />
       <TripInviteDialog

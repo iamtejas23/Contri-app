@@ -13,7 +13,7 @@ import {
 
 const LOCK_LEASE_MS = 5 * 60 * 1000
 const WRITE_BATCH_SIZE = 400
-const RECORD_COLLECTIONS = ['expenses', 'settlements', 'activity']
+const RECORD_COLLECTIONS = ['expenses', 'settlements', 'activity', 'advances']
 
 const makeOperationId = () => globalThis.crypto?.randomUUID?.()
   || `clear-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -102,7 +102,7 @@ const deleteInChunks = async ({ database, documents, commitBatch, onBatch }) => 
 }
 
 /**
- * Removes only trip-scoped expense, settlement, activity and notification documents.
+ * Removes only trip-scoped expense, settlement, activity, advance and notification documents.
  * The trip and its membership/settings are held behind a short-lived Firestore lock,
  * preventing concurrent clear runs and new financial writes during the operation.
  */

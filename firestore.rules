@@ -133,6 +133,7 @@ service cloud.firestore {
       let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
       let nextLock = request.resource.data.get('clearOperation', null);
       return isTripAdmin(tripId)
+        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') != 'anonymous'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clearOperation'])
         && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.members == resource.data.members
@@ -551,7 +552,7 @@ service cloud.firestore {
           && !isTripClearing(tripId)
           && request.resource.data.keys().hasOnly([
             'tripId', 'memberUid', 'amountPaise', 'recordedBy', 'paymentDate',
-            'createdAt', 'reference', 'note', 'status', 'reversalOf'
+            'createdAt', 'reference', 'note', 'status', 'reversalOf', 'replaces'
           ])
           && request.resource.data.tripId == tripId
           && request.resource.data.recordedBy == request.auth.uid
@@ -568,7 +569,16 @@ service cloud.firestore {
           && request.resource.data.note is string
           && request.resource.data.note.size() <= 280
           && (
-            (request.resource.data.status == 'recorded' && request.resource.data.reversalOf == '')
+            (request.resource.data.status == 'recorded'
+              && request.resource.data.reversalOf == ''
+              && request.resource.data.get('replaces', '') == '')
+            || (request.resource.data.status == 'recorded'
+              && request.resource.data.reversalOf == ''
+              && request.resource.data.get('replaces', '') is string
+              && request.resource.data.get('replaces', '').size() > 0
+              && request.resource.data.get('replaces', '') != advanceId
+              && get(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.get('replaces', ''))).data.status == 'recorded'
+              && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.get('replaces', ''))).data.status == 'reversed')
             || (request.resource.data.status == 'reversal'
               && request.resource.data.reversalOf is string
               && request.resource.data.reversalOf.size() > 0

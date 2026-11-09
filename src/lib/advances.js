@@ -23,8 +23,11 @@ export const validateAdvanceInput = ({
     return { valid: false, error: 'Choose a current member of this trip.' }
   }
   const amountPaise = parseMinorUnits(amount, currency)
-  if (amountPaise === null || amountPaise <= 0 || amountPaise > MAX_ADVANCE_PAISE) {
+  if (amountPaise === null || amountPaise <= 0) {
     return { valid: false, error: 'Enter an advance amount greater than zero.' }
+  }
+  if (amountPaise > MAX_ADVANCE_PAISE) {
+    return { valid: false, error: 'Advance cannot exceed ₹10,00,000.' }
   }
   if (!isAdvancePaymentDate(paymentDate)) {
     return { valid: false, error: 'Choose the date this advance was paid.' }
@@ -49,16 +52,18 @@ const reversalTargets = (advances = []) => new Set(
   advances.filter((entry) => entry?.status === 'reversal' && entry.reversalOf).map((entry) => entry.reversalOf),
 )
 
-export const activeAdvanceRecords = (advances = []) => {
-  const reversed = reversalTargets(advances)
-  return advances.filter((entry) => {
-    const amount = Number(entry?.amountPaise)
-    return entry?.status === 'recorded'
-      && !reversed.has(entry.id)
-      && Number.isSafeInteger(amount)
-      && amount > 0
-  })
+export const isActiveRecordedAdvance = (entry, advances = []) => {
+  const amount = Number(entry?.amountPaise)
+  return entry?.status === 'recorded'
+    && !entry?.reversalId
+    && !reversalTargets(advances).has(entry?.id)
+    && Number.isSafeInteger(amount)
+    && amount > 0
 }
+
+export const activeAdvanceRecords = (advances = []) => (
+  advances.filter((entry) => isActiveRecordedAdvance(entry, advances))
+)
 
 export const summarizeAdvances = ({ members = [], advances = [] }) => {
   const contributed = new Map()

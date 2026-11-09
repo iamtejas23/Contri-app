@@ -46,7 +46,7 @@ export const ClearTripDataDialog = ({ open, tripName, loading = false, onClose, 
               <AlertTriangle aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
               <div>
                 <p className="text-sm font-semibold text-red-700">Final confirmation</p>
-                <p className="mt-1 break-words text-sm text-red-700">Clear expenses, settlements, activity history, and notifications associated with <strong>{tripName}</strong>?</p>
+                <p className="mt-1 break-words text-sm text-red-700">Clear expenses, settlements, advance contributions, activity history, and notifications associated with <strong>{tripName}</strong>?</p>
               </div>
             </div>
           </div>
@@ -69,6 +69,7 @@ export const ClearTripDataDialog = ({ open, tripName, loading = false, onClose, 
                 <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-red-700">
                   <li>Trip expenses and transactions</li>
                   <li>Settlement records</li>
+                  <li>Advance contributions, including reversals and corrections</li>
                   <li>Trip activity history</li>
                   <li>Notifications with this trip ID for its members</li>
                 </ul>

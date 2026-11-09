@@ -53,6 +53,11 @@ import {
 } from '../src/services/notificationClearing.js'
 import { createTripDocument, deleteTripDocuments } from '../src/services/tripDocuments.js'
 import {
+  recordTripAdvanceInDatabase,
+  replaceTripAdvanceInDatabase,
+  reverseTripAdvanceInDatabase,
+} from '../src/services/advanceWrites.js'
+import {
   acquireTripClearLock,
   clearTripDataFromDatabase,
   releaseTripClearLock,
@@ -193,6 +198,33 @@ test('trip owner can clear only scoped trip records and notifications while pres
       setDoc(doc(adminDb, 'trips', tripId, 'expenses', 'expense-clear'), { title: 'Dinner', amount: 500, createdBy: actor.uid }),
       setDoc(doc(adminDb, 'trips', tripId, 'settlements', 'settlement-clear'), { from: 'member-a', to: 'member-b', amount: 100 }),
       setDoc(doc(adminDb, 'trips', tripId, 'activity', 'activity-clear'), { actorUid: actor.uid, type: 'expense_created' }),
+      setDoc(doc(adminDb, 'trips', tripId, 'advances', 'advance-recorded'), {
+        tripId, memberUid: 'member-b', amountPaise: 50000, recordedBy: actor.uid,
+        paymentDate: '2026-06-01', status: 'recorded', reversalOf: '',
+      }),
+      setDoc(doc(adminDb, 'trips', tripId, 'advances', 'advance-reversed'), {
+        tripId, memberUid: 'member-b', amountPaise: 10000, recordedBy: actor.uid,
+        paymentDate: '2026-06-01', status: 'reversed', reversalOf: '', reversalId: 'advance-reversal',
+      }),
+      setDoc(doc(adminDb, 'trips', tripId, 'advances', 'advance-reversal'), {
+        tripId, memberUid: 'member-b', amountPaise: 10000, recordedBy: actor.uid,
+        paymentDate: '2026-06-01', status: 'reversal', reversalOf: 'advance-reversed',
+      }),
+      setDoc(doc(adminDb, 'trips', tripId, 'advances', 'advance-corrected'), {
+        tripId, memberUid: 'member-c', amountPaise: 20000, recordedBy: actor.uid,
+        paymentDate: '2026-06-02', status: 'recorded', reversalOf: '', replaces: 'advance-reversed',
+      }),
+      setDoc(doc(adminDb, 'trips', tripId, 'invitationPreview', 'current'), {
+        tripId, tripName: trip.name, description: '', emoji: '🧳', startDate: '', endDate: '', memberCount: 3,
+      }),
+      updateDoc(doc(adminDb, 'trips', tripId), {
+        receiptViewerIds: ['member-b'],
+        settlementManagerIds: ['member-c'],
+        allowMemberReceiptUploads: true,
+      }),
+      setDoc(doc(adminDb, 'trips', otherTripId, 'advances', 'keep-advance'), {
+        tripId: otherTripId, memberUid: actor.uid, amountPaise: 1000, status: 'recorded', reversalOf: '',
+      }),
       setDoc(doc(adminDb, 'users', 'member-a', 'notifications', 'same-trip-owner'), { tripId, tripName: trip.name }),
       setDoc(doc(adminDb, 'users', 'member-b', 'notifications', 'same-trip-member'), { tripId, tripName: trip.name }),
       setDoc(doc(adminDb, 'users', 'member-c', 'notifications', 'other-trip-user'), { tripId: otherTripId, tripName: 'Other' }),
@@ -207,16 +239,21 @@ test('trip owner can clear only scoped trip records and notifications while pres
   const beforeTrip = await getDoc(doc(database, 'trips', tripId))
   const beforeData = beforeTrip.data()
   const result = await assertSucceeds(clearTripDataFromDatabase({ database, tripId, uid: actor.uid, operationId: 'clear-owner-run' }))
-  assert.equal(result.deletedCount, 5)
+  assert.equal(result.deletedCount, 9)
 
   const afterTrip = await getDoc(doc(database, 'trips', tripId))
   assert.deepEqual(afterTrip.data(), beforeData)
   assert.deepEqual(afterTrip.data().memberIds, trip.memberIds)
   assert.deepEqual(afterTrip.data().adminIds, trip.adminIds)
   assert.deepEqual(afterTrip.data().members, trip.members)
-  for (const collectionName of ['expenses', 'settlements', 'activity']) {
+  for (const collectionName of ['expenses', 'settlements', 'activity', 'advances']) {
     assert.equal((await getDocs(collection(database, 'trips', tripId, collectionName))).size, 0)
   }
+  assert.equal(afterTrip.data().receiptViewerIds[0], 'member-b')
+  assert.equal(afterTrip.data().settlementManagerIds[0], 'member-c')
+  assert.equal(afterTrip.data().allowMemberReceiptUploads, true)
+  assert.equal((await getDoc(doc(database, 'trips', tripId, 'invitationPreview', 'current'))).exists(), true)
+  assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'advances', 'keep-advance'))).exists(), true)
   assert.equal((await getDocs(query(collection(database, 'users', 'member-b', 'notifications'), where('tripId', '==', tripId)))).size, 0)
   assert.equal((await getDoc(doc(database, 'users', 'member-a', 'notifications', 'legacy-no-trip-id'))).exists(), true)
   let otherTripNotification
@@ -227,6 +264,7 @@ test('trip owner can clear only scoped trip records and notifications while pres
   assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'expenses', 'keep-expense'))).exists(), true)
   assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'settlements', 'keep-settlement'))).exists(), true)
   assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'activity', 'keep-activity'))).exists(), true)
+  assert.equal((await getDoc(doc(database, 'trips', otherTripId, 'advances', 'keep-advance'))).exists(), true)
 
   const repeatedClear = await assertSucceeds(clearTripDataFromDatabase({
     database,
@@ -1797,4 +1835,168 @@ test('only a non-guest trip admin can record and reverse advance contributions',
   const reversal = await getDoc(reversalRef)
   assert.equal(reversal.data().reversalOf, 'advance-500')
   assert.equal(reversal.data().amountPaise, 50000)
+})
+
+test('admin edit creates a reversal and replacement while members guests and managers cannot write', async () => {
+  const adminDb = environment.authenticatedContext(actor.uid, {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const originalId = await assertSucceeds(recordTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-b', amount: '500', paymentDate: '2026-06-01', reference: 'UPI-1', note: 'First' },
+  }))
+  const original = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', originalId))).data()
+  const replacementId = await assertSucceeds(replaceTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    advance: { id: originalId, ...original },
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-c', amount: '800', paymentDate: '2026-06-03', reference: 'UPI-2', note: 'Corrected' },
+  }))
+  const afterOriginal = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', originalId))).data()
+  assert.equal(afterOriginal.status, 'reversed')
+  assert.equal(afterOriginal.amountPaise, 50000)
+  assert.equal(afterOriginal.note, 'First')
+  const replacement = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', replacementId))).data()
+  assert.equal(replacement.status, 'recorded')
+  assert.equal(replacement.replaces, originalId)
+  assert.equal(replacement.amountPaise, 80000)
+  assert.equal(replacement.memberUid, 'member-c')
+  assert.equal(replacement.note, 'Corrected')
+  const reversalSnap = await getDocs(collection(adminDb, 'trips', tripId, 'advances'))
+  const reversal = reversalSnap.docs.map((item) => ({ id: item.id, ...item.data() })).find((item) => item.status === 'reversal' && item.reversalOf === originalId)
+  assert.equal(reversal.amountPaise, 50000)
+
+  await assert.rejects(replaceTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    advance: { id: originalId, ...afterOriginal },
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-b', amount: '100', paymentDate: '2026-06-01' },
+  }), /no longer be corrected/)
+
+  const memberDb = environment.authenticatedContext('member-b', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  await assert.rejects(replaceTripAdvanceInDatabase({
+    database: memberDb,
+    tripId,
+    actorUid: 'member-b',
+    advance: { id: replacementId, ...replacement },
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-b', amount: '100', paymentDate: '2026-06-01' },
+  }))
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), { settlementManagerIds: ['member-b'] })
+  })
+  await assert.rejects(reverseTripAdvanceInDatabase({
+    database: memberDb,
+    tripId,
+    actorUid: 'member-b',
+    advance: { id: replacementId, ...replacement },
+  }))
+  const guestDb = environment.authenticatedContext('member-c', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  await assert.rejects(reverseTripAdvanceInDatabase({
+    database: guestDb,
+    tripId,
+    actorUid: 'member-c',
+    advance: { id: replacementId, ...replacement },
+  }))
+})
+
+test('duplicate reversals are rejected and a failed second reversal leaves the original reversed once', async () => {
+  const adminDb = environment.authenticatedContext(actor.uid, {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const originalId = await recordTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-b', amount: '250', paymentDate: '2026-06-01' },
+  })
+  const original = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', originalId))).data()
+  await assertSucceeds(reverseTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    advance: { id: originalId, ...original },
+    note: 'Wrong member',
+  }))
+  const once = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', originalId))).data()
+  assert.equal(once.status, 'reversed')
+  await assert.rejects(reverseTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    advance: { id: originalId, ...original },
+  }), /no longer be corrected/)
+  const still = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', originalId))).data()
+  assert.equal(still.status, 'reversed')
+  assert.equal(still.reversalId, once.reversalId)
+  const reversals = (await getDocs(collection(adminDb, 'trips', tripId, 'advances'))).docs.filter((item) => item.data().reversalOf === originalId)
+  assert.equal(reversals.length, 1)
+})
+
+test('invalid replacement amounts are rejected without reversing the original', async () => {
+  const adminDb = environment.authenticatedContext(actor.uid, {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const originalId = await recordTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-b', amount: '250', paymentDate: '2026-06-01', note: 'Keep' },
+  })
+  const original = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', originalId))).data()
+  await assert.rejects(replaceTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    advance: { id: originalId, ...original },
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-b', amount: '0', paymentDate: '2026-06-01' },
+  }))
+  await assert.rejects(replaceTripAdvanceInDatabase({
+    database: adminDb,
+    tripId,
+    actorUid: actor.uid,
+    advance: { id: originalId, ...original },
+    memberIds: trip.memberIds,
+    currency: 'INR',
+    values: { memberUid: 'member-b', amount: '1000001', paymentDate: '2026-06-01' },
+  }))
+  const still = (await getDoc(doc(adminDb, 'trips', tripId, 'advances', originalId))).data()
+  assert.equal(still.status, 'recorded')
+  assert.equal(still.note, 'Keep')
+  assert.equal(still.amountPaise, 25000)
+})
+
+test('anonymous admins cannot acquire a clear lock', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      adminIds: [...trip.adminIds, 'anon-admin'],
+      memberIds: [...trip.memberIds, 'anon-admin'],
+      members: [...trip.members, { uid: 'anon-admin', name: 'Anon', role: 'admin' }],
+    })
+  })
+  const guestDb = environment.authenticatedContext('anon-admin', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  await assertFails(clearTripDataFromDatabase({ database: guestDb, tripId, uid: 'anon-admin', operationId: 'anon-clear' }))
 })
