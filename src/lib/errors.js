@@ -11,6 +11,8 @@ const ERROR_MESSAGES = {
   'auth/too-many-requests': 'Too many attempts. Please wait a moment and try again.',
   'auth/unauthorized-domain':
     'This domain is not authorized for Firebase Authentication. Add localhost or your deployed domain in Firebase Console > Authentication > Settings.',
+  'auth/invalid-continue-uri':
+    'Google sign-in used an Auth continue URL that does not belong to this Firebase project. The web app Auth domain must be {projectId}.firebaseapp.com for the same project as the API key.',
   'permission-denied':
     'Firestore denied this request. Confirm the signed-in account still has access to this trip and that the deployed rules support its data format.',
   unavailable: 'Firebase is unavailable right now. Please try again.',
