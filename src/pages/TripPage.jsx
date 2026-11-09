@@ -25,6 +25,7 @@ import { ClearTripDataDialog } from '../components/trips/ClearTripDataDialog'
 import { ReceiptViewPermissions } from '../components/trips/ReceiptViewPermissions'
 import { TripInviteDialog } from '../components/trips/TripInviteDialog'
 import { TripMembersIndicator } from '../components/trips/TripMembersIndicator'
+import { AdvanceContributions } from '../components/trips/AdvanceContributions'
 import { TripMembersSection } from '../components/trips/TripMembersSection'
 import { MemberAvatar } from '../components/ui/MemberAvatar'
 import { Badge } from '../components/ui/Badge'
@@ -49,6 +50,7 @@ import { useTripData } from '../hooks/useTripData'
 import { createExpense, deleteExpense, updateExpense } from '../services/expenses'
 import { createSettlement, deleteSettlement, updateSettlement, updateSettlementManagementPermission } from '../services/settlements'
 import { findUserByEmail } from '../services/users'
+import { recordTripAdvance, reverseTripAdvance } from '../services/advances'
 import { deleteTrip, inviteMemberToTrip, updateReceiptUploadPermission, updateReceiptViewPermission, updateTrip, updateTripMemberRole } from '../services/trips'
 import { clearTripDataFromDatabase } from '../services/clearTripData'
 import { publishTripInvitationPreview } from '../services/tripInvitationPreview'
@@ -64,6 +66,7 @@ const tabs = [
   { value: 'overview', label: 'Hisab', emoji: '💸' },
   { value: 'expenses', label: 'Kharcha', emoji: '🧾' },
   { value: 'settlements', label: 'Settle', emoji: '🤝' },
+  { value: 'advances', label: 'Advance', emoji: '👛' },
   { value: 'activity', label: 'Activity', emoji: '📋' },
   { value: 'settings', label: 'Group', emoji: '👥' },
 ]
@@ -72,7 +75,7 @@ const EMPTY_MEMBERS = []
 export const TripPage = () => {
   const { tripId } = useParams()
   const navigate = useNavigate()
-  const { trip, expenses, settlements, activity, loading, notFound, error, retry } = useTripData(tripId)
+  const { trip, expenses, settlements, advances, activity, loading, notFound, error, retry } = useTripData(tripId)
   const { user, profile } = useAuth()
 
   const [activeTab, setActiveTab] = useState('overview')
@@ -89,6 +92,7 @@ export const TripPage = () => {
   const [receiptPermissionSaving, setReceiptPermissionSaving] = useState(false)
   const [receiptViewSavingUid, setReceiptViewSavingUid] = useState('')
   const [settlementPermissionSavingUid, setSettlementPermissionSavingUid] = useState('')
+  const [advanceSaving, setAdvanceSaving] = useState(false)
   const settlementSubmitLock = useRef(false)
   const settlementMutationLock = useRef(false)
 
@@ -111,12 +115,14 @@ export const TripPage = () => {
         trip,
         expenses,
         settlements,
+        advances,
         currentUserId: user?.uid,
       }),
-    [expenses, settlements, trip, user?.uid],
+    [advances, expenses, settlements, trip, user?.uid],
   )
   const isAdmin = isTripAdministrator(trip, user?.uid)
   const canManageTrip = Boolean(isAdmin)
+  const canManageAdvances = Boolean(canManageTrip && user?.uid && !user.isAnonymous)
   const settlementManagerIds = Array.isArray(trip?.settlementManagerIds) ? trip.settlementManagerIds : EMPTY_MEMBERS
   const receiptViewerIds = Array.isArray(trip?.receiptViewerIds) ? trip.receiptViewerIds : EMPTY_MEMBERS
   const canManageSettlements = canManageTripSettlements(trip, user?.uid)
@@ -450,6 +456,38 @@ export const TripPage = () => {
     }
   }
 
+  const handleAdvanceRecord = async (values) => {
+    if (!canManageAdvances || advanceSaving) throw new Error('Only a trip admin can record an advance.')
+    setAdvanceSaving(true)
+    try {
+      await recordTripAdvance({
+        tripId,
+        actorUid: user.uid,
+        memberIds: trip.memberIds || [],
+        currency: trip.currency,
+        values,
+      })
+      toast.success('Advance contribution recorded.')
+    } finally {
+      setAdvanceSaving(false)
+    }
+  }
+
+  const handleAdvanceReverse = async (advance) => {
+    if (!canManageAdvances || advanceSaving) return
+    const memberName = membersMap[advance.memberUid]?.name || 'this member'
+    if (!window.confirm(`Correct the advance recorded for ${memberName}? The original payment stays in the history and a reversal is added.`)) return
+    setAdvanceSaving(true)
+    try {
+      await reverseTripAdvance({ tripId, actorUid: user.uid, advance })
+      toast.success('Advance correction recorded.')
+    } catch {
+      toast.error('The advance correction was not saved.')
+    } finally {
+      setAdvanceSaving(false)
+    }
+  }
+
   const handleRoleChange = async (member, role) => {
     if (!canManageTrip) {
       toast.error('Only trip admins can manage roles.')
@@ -635,6 +673,19 @@ export const TripPage = () => {
           currentUserId={user?.uid}
           settlements={settlements}
           suggestions={metrics.suggestions}
+          trip={trip}
+        />
+      ) : null}
+
+      {activeTab === 'advances' ? (
+        <AdvanceContributions
+          advances={advances}
+          balances={metrics.balances}
+          canManage={canManageAdvances}
+          members={displayMembers}
+          onRecord={handleAdvanceRecord}
+          onReverse={handleAdvanceReverse}
+          saving={advanceSaving}
           trip={trip}
         />
       ) : null}

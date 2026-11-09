@@ -20,6 +20,7 @@ import {
   getDoc,
   getDocs,
   getFirestore,
+  writeBatch,
   limit,
   onSnapshot,
   orderBy,
@@ -1721,4 +1722,79 @@ test('joining an unknown trip code fails without creating a trip', async () => {
     addMemberToTrip({ database, tripId: 'missing-trip', member: joiningMember }),
     /could not be found/i,
   )
+})
+
+const advanceRecord = (overrides = {}) => ({
+  tripId,
+  memberUid: 'member-b',
+  amountPaise: 50000,
+  recordedBy: 'member-a',
+  paymentDate: '2026-06-01',
+  createdAt: serverTimestamp(),
+  reference: '',
+  note: '',
+  status: 'recorded',
+  reversalOf: '',
+  ...overrides,
+})
+
+test('only a non-guest trip admin can record and reverse advance contributions', async () => {
+  const adminDb = environment.authenticatedContext(actor.uid, {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  const advanceRef = doc(adminDb, 'trips', tripId, 'advances', 'advance-500')
+  await assertSucceeds(setDoc(advanceRef, advanceRecord()))
+  const stored = await getDoc(advanceRef)
+  assert.equal(stored.data().amountPaise, 50000)
+  assert.equal(stored.data().status, 'recorded')
+
+  const memberDb = environment.authenticatedContext('member-b', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  await assertSucceeds(getDoc(doc(memberDb, 'trips', tripId, 'advances', 'advance-500')))
+  await assertFails(setDoc(doc(memberDb, 'trips', tripId, 'advances', 'member-advance'), advanceRecord({ recordedBy: 'member-b' })))
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId, 'advances', 'advance-500'), { amountPaise: 1 }))
+
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), { settlementManagerIds: ['member-b'] })
+  })
+  await assertFails(setDoc(doc(memberDb, 'trips', tripId, 'advances', 'manager-advance'), advanceRecord({ recordedBy: 'member-b' })))
+
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await updateDoc(doc(context.firestore(), 'trips', tripId), {
+      memberIds: [...trip.memberIds, 'guest-advance'],
+      adminIds: ['member-a', 'guest-advance'],
+      members: [...trip.members, { uid: 'guest-advance', name: 'Guest', role: 'admin', isGuest: true }],
+    })
+  })
+  const guestDb = environment.authenticatedContext('guest-advance', {
+    firebase: { sign_in_provider: 'anonymous' },
+  }).firestore()
+  await assertFails(setDoc(doc(guestDb, 'trips', tripId, 'advances', 'guest-advance'), advanceRecord({
+    memberUid: 'guest-advance', recordedBy: 'guest-advance',
+  })))
+  const outsiderDb = environment.authenticatedContext('advance-outsider', {
+    firebase: { sign_in_provider: 'google.com' },
+  }).firestore()
+  await assertFails(setDoc(doc(outsiderDb, 'trips', tripId, 'advances', 'outsider-advance'), advanceRecord({ recordedBy: 'advance-outsider' })))
+  await assertFails(setDoc(doc(adminDb, 'trips', tripId, 'advances', 'non-member-advance'), advanceRecord({ memberUid: 'not-a-member' })))
+  await assertFails(setDoc(doc(adminDb, 'trips', tripId, 'advances', 'zero-advance'), advanceRecord({ amountPaise: 0 })))
+
+  const reversalRef = doc(adminDb, 'trips', tripId, 'advances', 'advance-500-reversal')
+  const batch = writeBatch(adminDb)
+  batch.update(advanceRef, { status: 'reversed', reversalId: reversalRef.id, reversedAt: serverTimestamp() })
+  batch.set(reversalRef, advanceRecord({
+    amountPaise: 50000,
+    status: 'reversal',
+    reversalOf: 'advance-500',
+    note: 'Entered for the wrong member',
+  }))
+  await assertSucceeds(batch.commit())
+  const original = await getDoc(advanceRef)
+  assert.equal(original.data().amountPaise, 50000)
+  assert.equal(original.data().status, 'reversed')
+  assert.equal(original.data().note, '')
+  const reversal = await getDoc(reversalRef)
+  assert.equal(reversal.data().reversalOf, 'advance-500')
+  assert.equal(reversal.data().amountPaise, 50000)
 })

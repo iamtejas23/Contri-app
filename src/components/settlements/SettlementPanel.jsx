@@ -130,6 +130,7 @@ export const SettlementPanel = ({
                     <p className="text-xs text-dusk">
                     Paid {formatCurrency(entry.paid, trip.currency)} · Share {formatCurrency(entry.share, trip.currency)}
                     </p>
+                    {entry.advance ? <p className="text-xs text-dusk">Advance {formatCurrency(entry.advance, trip.currency)} · Remaining share {formatCurrency(entry.remainingContribution, trip.currency)}</p> : null}
                   </div>
                 </div>
                 <p className={`font-display text-xl font-bold ${entry.net >= 0 ? 'text-teal' : 'text-coral'}`}>

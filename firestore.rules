@@ -527,6 +527,75 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if canManageTripRecords(tripId);
       }
+
+      function isAdvanceAdmin(tripId) {
+        return isTripAdmin(tripId)
+          && request.auth.token.firebase.sign_in_provider != 'anonymous';
+      }
+
+      function sameAdvanceIdentity() {
+        return request.resource.data.tripId == resource.data.tripId
+          && request.resource.data.memberUid == resource.data.memberUid
+          && request.resource.data.amountPaise == resource.data.amountPaise
+          && request.resource.data.recordedBy == resource.data.recordedBy
+          && request.resource.data.paymentDate == resource.data.paymentDate
+          && request.resource.data.reference == resource.data.reference
+          && request.resource.data.note == resource.data.note
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.reversalOf == resource.data.reversalOf;
+      }
+
+      match /advances/{advanceId} {
+        allow read: if isTripMember(tripId);
+        allow create: if isAdvanceAdmin(tripId)
+          && !isTripClearing(tripId)
+          && request.resource.data.keys().hasOnly([
+            'tripId', 'memberUid', 'amountPaise', 'recordedBy', 'paymentDate',
+            'createdAt', 'reference', 'note', 'status', 'reversalOf'
+          ])
+          && request.resource.data.tripId == tripId
+          && request.resource.data.recordedBy == request.auth.uid
+          && request.resource.data.memberUid is string
+          && request.resource.data.memberUid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberIds
+          && request.resource.data.amountPaise is int
+          && request.resource.data.amountPaise > 0
+          && request.resource.data.amountPaise <= 100000000
+          && request.resource.data.paymentDate is string
+          && request.resource.data.paymentDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.reference is string
+          && request.resource.data.reference.size() <= 80
+          && request.resource.data.note is string
+          && request.resource.data.note.size() <= 280
+          && (
+            (request.resource.data.status == 'recorded' && request.resource.data.reversalOf == '')
+            || (request.resource.data.status == 'reversal'
+              && request.resource.data.reversalOf is string
+              && request.resource.data.reversalOf.size() > 0
+              && request.resource.data.reversalOf != advanceId
+              && get(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalOf)).data.status == 'recorded'
+              && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalOf)).data.status == 'reversed'
+              && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalOf)).data.reversalId == advanceId
+              && get(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalOf)).data.memberUid == request.resource.data.memberUid
+              && get(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalOf)).data.amountPaise == request.resource.data.amountPaise
+              && get(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalOf)).data.tripId == tripId)
+          );
+        allow update: if isAdvanceAdmin(tripId)
+          && !isTripClearing(tripId)
+          && resource.data.status == 'recorded'
+          && request.resource.data.status == 'reversed'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'reversalId', 'reversedAt'])
+          && sameAdvanceIdentity()
+          && request.resource.data.reversalId is string
+          && request.resource.data.reversalId.size() > 0
+          && request.resource.data.reversedAt == request.time
+          && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalId)).data.status == 'reversal'
+          && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalId)).data.reversalOf == advanceId
+          && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalId)).data.amountPaise == resource.data.amountPaise
+          && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalId)).data.memberUid == resource.data.memberUid
+          && getAfter(/databases/$(database)/documents/trips/$(tripId)/advances/$(request.resource.data.reversalId)).data.recordedBy == request.auth.uid;
+        allow delete: if canManageTripRecords(tripId);
+      }
     }
   }
 }

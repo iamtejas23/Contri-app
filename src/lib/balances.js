@@ -1,3 +1,4 @@
+import { activeAdvanceRecords } from './advances.js'
 import { EXPENSE_CATEGORIES, LEGACY_CATEGORIES } from './constants.js'
 import { formatTimelineDate, toDateValue } from './date.js'
 import { fromMinorUnits, toMinorUnits } from './money.js'
@@ -12,16 +13,16 @@ export const buildMembersMap = (members = []) =>
 const amountMinor = (amount, currency) => toMinorUnits(amount, currency)
 const appendUnknownMember = (ledger, uid, name = 'Unknown member') => {
   if (!uid || ledger[uid]) return
-  ledger[uid] = { uid, name, email: '', role: 'member', paidMinor: 0, shareMinor: 0, settledInMinor: 0, settledOutMinor: 0 }
+  ledger[uid] = { uid, name, email: '', role: 'member', paidMinor: 0, shareMinor: 0, settledInMinor: 0, settledOutMinor: 0, advanceMinor: 0, advanceHeldMinor: 0 }
 }
 
-export const computeBalances = ({ trip, expenses = [], settlements = [] }) => {
+export const computeBalances = ({ trip, expenses = [], settlements = [], advances = [] }) => {
   const currency = trip?.currency || 'INR'
   const members = trip?.members || []
   const ledger = members.reduce((accumulator, member) => {
     accumulator[member.uid] = {
       uid: member.uid, name: member.name, email: member.email, role: member.role,
-      paidMinor: 0, shareMinor: 0, settledInMinor: 0, settledOutMinor: 0,
+      paidMinor: 0, shareMinor: 0, settledInMinor: 0, settledOutMinor: 0, advanceMinor: 0, advanceHeldMinor: 0,
     }
     return accumulator
   }, {})
@@ -59,9 +60,19 @@ export const computeBalances = ({ trip, expenses = [], settlements = [] }) => {
     if (ledger[settlement.to]) ledger[settlement.to].settledInMinor += amount
   })
 
+  activeAdvanceRecords(advances).forEach((advance) => {
+    appendUnknownMember(ledger, advance.memberUid)
+    appendUnknownMember(ledger, advance.recordedBy, 'Advance holder')
+    if (ledger[advance.memberUid]) ledger[advance.memberUid].advanceMinor += advance.amountPaise
+    if (ledger[advance.recordedBy]) ledger[advance.recordedBy].advanceHeldMinor += advance.amountPaise
+  })
+
+  const expenseMinor = expenses.reduce((sum, expense) => sum + amountMinor(expense.amount, currency), 0)
+
   return Object.values(ledger)
     .map((entry) => {
-      const netMinor = entry.paidMinor - entry.shareMinor + entry.settledOutMinor - entry.settledInMinor
+      const advanceEffect = expenseMinor > 0 ? entry.advanceMinor - entry.advanceHeldMinor : 0
+      const netMinor = entry.paidMinor - entry.shareMinor + entry.settledOutMinor - entry.settledInMinor + advanceEffect
       return {
         uid: entry.uid,
         name: entry.name,
@@ -71,6 +82,8 @@ export const computeBalances = ({ trip, expenses = [], settlements = [] }) => {
         share: fromMinorUnits(entry.shareMinor, currency),
         settledIn: fromMinorUnits(entry.settledInMinor, currency),
         settledOut: fromMinorUnits(entry.settledOutMinor, currency),
+        advance: fromMinorUnits(entry.advanceMinor, currency),
+        remainingContribution: fromMinorUnits(entry.shareMinor - entry.advanceMinor, currency),
         net: fromMinorUnits(netMinor, currency),
       }
     })
@@ -103,10 +116,10 @@ export const computeSettlementSuggestions = (balances = [], currency = 'INR') =>
   return suggestions
 }
 
-export const buildDashboardMetrics = ({ trip, expenses = [], settlements = [], currentUserId }) => {
+export const buildDashboardMetrics = ({ trip, expenses = [], settlements = [], advances = [], currentUserId }) => {
   const currency = trip?.currency || 'INR'
   const members = trip?.members || []
-  const balances = computeBalances({ trip, expenses, settlements })
+  const balances = computeBalances({ trip, expenses, settlements, advances })
   const totalSpentMinor = expenses.reduce((sum, item) => sum + amountMinor(item.amount, currency), 0)
   const totalSpent = fromMinorUnits(totalSpentMinor, currency)
   const averagePerPerson = members.length

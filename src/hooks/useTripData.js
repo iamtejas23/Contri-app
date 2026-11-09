@@ -18,6 +18,7 @@ const defaultState = {
   trip: null,
   expenses: [],
   settlements: [],
+  advances: [],
   activity: [],
   loading: true,
   notFound: false,
@@ -37,6 +38,7 @@ export const useTripData = (tripId) => {
       trip: false,
       expenses: false,
       settlements: false,
+      advances: false,
       activity: false,
     }
     const streamErrors = {}
@@ -135,6 +137,25 @@ export const useTripData = (tripId) => {
       },
     )
 
+    const unsubscribeAdvances = onSnapshot(
+      query(collection(db, 'trips', tripId, 'advances')),
+      (snapshot) => {
+        clearStreamError('advances')
+        updateForTrip((current) => ({
+          ...current,
+          advances: sortRecordsByDate(snapshot.docs.map((item) => ({
+            id: item.id,
+            ...item.data(),
+          })), ['paymentDate', 'createdAt']),
+        }))
+        markReady('advances')
+      },
+      (error) => {
+        toast.error(getErrorMessage(error, 'We could not load advance contributions.'))
+        recordStreamError('advances', error, 'We could not load advance contributions.')
+      },
+    )
+
     const unsubscribeActivity = onSnapshot(
       query(collection(db, 'trips', tripId, 'activity')),
       (snapshot) => {
@@ -161,13 +182,14 @@ export const useTripData = (tripId) => {
       unsubscribeTrip()
       unsubscribeExpenses()
       unsubscribeSettlements()
+      unsubscribeAdvances()
       unsubscribeActivity()
     }
   }, [retryCount, tripId])
 
   const retry = () => {
     setState((current) => current.tripId === tripId
-      ? { ...current, loading: true, error: '', expenses: [], settlements: [], activity: [] }
+      ? { ...current, loading: true, error: '', expenses: [], settlements: [], advances: [], activity: [] }
       : current)
     setRetryCount((count) => count + 1)
   }

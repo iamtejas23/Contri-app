@@ -41,5 +41,6 @@ export const deleteTripDocuments = async ({ database, tripId }) => {
   await deleteCollectionDocs(database, collection(database, 'trips', tripId, 'expenses'))
   await deleteCollectionDocs(database, collection(database, 'trips', tripId, 'settlements'))
   await deleteCollectionDocs(database, collection(database, 'trips', tripId, 'activity'))
+  await deleteCollectionDocs(database, collection(database, 'trips', tripId, 'advances'))
   await deleteDoc(doc(database, 'trips', tripId))
 }
