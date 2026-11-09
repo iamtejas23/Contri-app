@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { addMonths, endOfMonth, format, isValid, parse, startOfMonth, subMonths } from 'date-fns'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { acquireBodyScrollLock } from '../../lib/bodyScrollLock.js'
 
 const parseDate = (value) => {
   if (!value) return null
@@ -33,11 +34,10 @@ export const DatePicker = ({ label, hint, className, name, value, onChange, min,
 
   useEffect(() => {
     if (!open) return undefined
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const releaseScrollLock = acquireBodyScrollLock()
     const keydown = (event) => { if (event.key === 'Escape') setOpen(false) }
     document.addEventListener('keydown', keydown)
-    return () => { document.body.style.overflow = prevOverflow; document.removeEventListener('keydown', keydown) }
+    return () => { releaseScrollLock(); document.removeEventListener('keydown', keydown) }
   }, [open])
 
   const openPicker = () => {

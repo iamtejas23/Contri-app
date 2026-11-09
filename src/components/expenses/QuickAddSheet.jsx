@@ -11,6 +11,7 @@ import { getDisplayName } from '../../lib/utils'
 import { ReceiptScanButton } from './ReceiptScanButton'
 import { MemberAvatar } from '../ui/MemberAvatar'
 import { Button } from '../ui/Button'
+import { acquireBodyScrollLock } from '../../lib/bodyScrollLock.js'
 
 const QUICK_AMOUNTS = [100, 200, 500, 1000]
 
@@ -43,18 +44,19 @@ export const QuickAddSheet = ({
   const [selectedIds, setSelectedIds] = useState(() => members.map((member) => member.uid))
   const [loading, setLoading] = useState(false)
   const submitLock = useRef(false)
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
   useEffect(() => {
     if (!open) return undefined
-    const previous = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const onEscape = (event) => { if (event.key === 'Escape') onClose() }
+    const releaseScrollLock = acquireBodyScrollLock()
+    const onEscape = (event) => { if (event.key === 'Escape') onCloseRef.current?.() }
     window.addEventListener('keydown', onEscape)
     return () => {
-      document.body.style.overflow = previous
+      releaseScrollLock()
       window.removeEventListener('keydown', onEscape)
     }
-  }, [onClose, open])
+  }, [open])
 
   const symbol = currencySymbol(currency)
   const preview = useMemo(

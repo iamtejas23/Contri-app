@@ -1,22 +1,24 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+import { acquireBodyScrollLock } from '../../lib/bodyScrollLock.js'
 
 export const Modal = ({ open, onClose, title, description, children, fullScreen = false, bottomSheet = false, size = 'wide' }) => {
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
+
   useEffect(() => {
     if (!open) return undefined
 
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-
-    const handleEscape = (e) => { if (e.key === 'Escape') onClose() }
+    const releaseScrollLock = acquireBodyScrollLock()
+    const handleEscape = (e) => { if (e.key === 'Escape') onCloseRef.current?.() }
     window.addEventListener('keydown', handleEscape)
 
     return () => {
-      document.body.style.overflow = prev
+      releaseScrollLock()
       window.removeEventListener('keydown', handleEscape)
     }
-  }, [onClose, open])
+  }, [open])
 
   if (!open) return null
 
