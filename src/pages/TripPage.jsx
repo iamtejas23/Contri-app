@@ -13,7 +13,7 @@ import {
 import { Suspense, lazy, useMemo, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import toast from 'react-hot-toast'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { ActivityFeed } from '../components/feed/ActivityFeed'
 import { ExpenseFormModal } from '../components/expenses/ExpenseFormModal'
@@ -75,10 +75,22 @@ const EMPTY_MEMBERS = []
 export const TripPage = () => {
   const { tripId } = useParams()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const targetExpenseId = searchParams.get('expenseId') || ''
   const { trip, expenses, settlements, advances, activity, loading, notFound, error, retry } = useTripData(tripId)
   const { user, profile } = useAuth()
 
-  const [activeTab, setActiveTab] = useState('overview')
+  const [activeTabState, setActiveTabState] = useState('overview')
+  const activeTab = tabs.some((tab) => tab.value === requestedTab) ? requestedTab : activeTabState
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab)
+    if (requestedTab || targetExpenseId) setSearchParams((current) => {
+      current.delete('tab')
+      current.delete('expenseId')
+      return current
+    }, { replace: true })
+  }
   const [showExpenseModal, setShowExpenseModal] = useState(false)
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [expensePrefill, setExpensePrefill] = useState(null)
@@ -667,6 +679,8 @@ export const TripPage = () => {
           trip={trip ? { ...trip, id: tripId } : null}
           currency={trip.currency}
           expenses={expenses}
+          targetExpenseId={targetExpenseId}
+          onDismissTarget={() => setSearchParams((current) => { current.delete('expenseId'); return current }, { replace: true })}
           membersMap={membersMap}
           currentUserId={user?.uid}
           currentUser={user}

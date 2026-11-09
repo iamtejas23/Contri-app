@@ -10,6 +10,7 @@ import {
   updateProfile,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore'
+import { removeOwnPushToken } from './pushNotifications.js'
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication'
 import { Capacitor } from '@capacitor/core'
 
@@ -162,9 +163,12 @@ export const createGuestAccount = async ({ name, contactEmail = '' }) => {
 
 export const logoutUser = async () => {
   try {
+    if (auth.currentUser && !auth.currentUser.isAnonymous) {
+      await removeOwnPushToken(auth.currentUser.uid, { forgetPreference: true })
+    }
     await signOut(auth)
   } catch (error) {
-    notifyFirebaseError(error, 'We could not sign you out.')
+    notifyFirebaseError(error, 'We could not safely remove this device from push notifications. Check your connection and try signing out again.')
     throw error
   }
 }

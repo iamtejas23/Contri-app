@@ -19,6 +19,7 @@ export const buildCreateSettlementBatch = ({ database, tripId, values, actor, cu
     settledAt: values.settledAt || serverTimestamp(),
     note: values.note?.trim() || '',
     createdBy: actor.uid,
+    createdAt: serverTimestamp(),
   })
   batch.set(
     activityRef,
@@ -53,6 +54,7 @@ export const buildUpdateSettlementBatch = ({ database, tripId, settlementId, val
     settledAt: values.settledAt,
     note: values.note?.trim() || '',
     updatedAt: serverTimestamp(),
+    updatedBy: actor.uid,
   })
   batch.set(activityRef, createActivityPayload({
     type: ACTIVITY_TYPES.SETTLEMENT_UPDATED,
@@ -61,7 +63,7 @@ export const buildUpdateSettlementBatch = ({ database, tripId, settlementId, val
     meta: { from: values.from, to: values.to, amount, settlementId },
   }))
 
-  return { batch, activityId: activityRef.id }
+  return { batch, settlementId, activityId: activityRef.id }
 }
 
 export const buildDeleteSettlementBatch = ({ database, tripId, settlementId, settlement, actor }) => {

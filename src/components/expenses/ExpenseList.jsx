@@ -16,10 +16,11 @@ import { EmptyState } from '../ui/EmptyState'
 import { Select } from '../ui/Select'
 import { ExpenseDetailDialog } from './ExpenseDetailDialog'
 
-export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onEdit, onDelete, onCreate, currentUserId, currentUser, trip, canManage = false }) => {
+export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onEdit, onDelete, onCreate, currentUserId, currentUser, trip, canManage = false, targetExpenseId = '', onDismissTarget }) => {
   const [search, setSearch]               = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const [selectedExpense, setSelectedExpense] = useState(null)
+  const [selectedExpenseState, setSelectedExpenseState] = useState(null)
+  const selectedExpense = selectedExpenseState || expenses.find((expense) => expense.id === targetExpenseId) || null
   const creationActivityMap = useMemo(() => buildExpenseCreationActivityMap(activity), [activity])
 
   const categories = useMemo(() => [...new Set(expenses.map((e) => e.category))].sort(), [expenses])
@@ -139,7 +140,7 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
                     {formatCurrency(expense.amount, currency)}
                   </p>
                 <div className="flex w-full min-w-0 flex-wrap justify-start gap-2 min-[480px]:w-auto min-[480px]:justify-end">
-                  <Button className="min-w-[5.5rem] justify-center" onClick={() => setSelectedExpense(expense)} size="sm" type="button" variant="secondary">
+                  <Button className="min-w-[5.5rem] justify-center" onClick={() => setSelectedExpenseState(expense)} size="sm" type="button" variant="secondary">
                       <Eye className="h-3.5 w-3.5" />
                       Details
                     </Button>
@@ -183,7 +184,10 @@ export const ExpenseList = ({ expenses, membersMap, activity = [], currency, onE
         currentUser={currentUser}
         expense={selectedExpense}
         membersMap={membersMap}
-        onClose={() => setSelectedExpense(null)}
+        onClose={() => {
+          setSelectedExpenseState(null)
+          onDismissTarget?.()
+        }}
         open={Boolean(selectedExpense)}
         trip={trip}
       />

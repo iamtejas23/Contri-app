@@ -12,6 +12,7 @@ import { fromMinorUnits, parseMinorUnits } from '../lib/money.js'
 import { assertFinanciallyValid, validateExpenseForWrite } from '../lib/financialValidation.js'
 import { runInFlightOnce, serializeOperation } from '../lib/inFlight.js'
 import { buildCreateExpenseBatch } from './expenseWrites'
+import { requestPushDelivery } from './pushDelivery'
 
 const buildExpensePayload = ({
   values,
@@ -42,8 +43,9 @@ export const createExpense = async ({ tripId, tripName, memberIds, currency, val
   return runInFlightOnce(operationKey, async () => {
     try {
       assertFinanciallyValid(validateExpenseForWrite({ values, currency, memberIds }))
-      const { batch } = buildCreateExpenseBatch({ database: db, tripId, tripName, memberIds, currency, values, actor })
+      const { batch, activityId } = buildCreateExpenseBatch({ database: db, tripId, tripName, memberIds, currency, values, actor })
       await batch.commit()
+      void requestPushDelivery({ tripId, eventId: activityId, eventType: 'expense_created' })
     } catch (error) {
       notifyFirebaseError(error, 'We could not save that expense.')
       throw error
@@ -57,6 +59,7 @@ export const updateExpense = async ({ tripId, expenseId, values, actor, existing
     try {
       assertFinanciallyValid(validateExpenseForWrite({ values, currency, memberIds }))
       const payload = buildExpensePayload({ values, existingExpense, currency })
+      payload.updatedBy = actor.uid
       const activityRef = doc(collection(db, 'trips', tripId, 'activity'))
       const batch = writeBatch(db)
       batch.set(doc(db, 'trips', tripId, 'expenses', expenseId), payload, { merge: true })
@@ -67,6 +70,7 @@ export const updateExpense = async ({ tripId, expenseId, values, actor, existing
         meta: { title: payload.title, amount: payload.amount, expenseId },
       }))
       await batch.commit()
+      void requestPushDelivery({ tripId, eventId: activityRef.id, eventType: 'expense_updated' })
     } catch (error) {
       notifyFirebaseError(error, 'We could not update that expense.')
       throw error

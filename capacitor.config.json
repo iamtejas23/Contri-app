@@ -19,6 +19,9 @@
     "FirebaseAuthentication": {
       "skipNativeAuth": true,
       "providers": ["google.com"]
+    },
+    "PushNotifications": {
+      "presentationOptions": ["alert"]
     }
   }
 }

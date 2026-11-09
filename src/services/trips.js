@@ -1,16 +1,19 @@
 import {
   arrayUnion,
+  collection,
   doc,
   runTransaction,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore'
 
-import { db } from '../firebase/config.js'
+import { auth, db } from '../firebase/config.js'
+import { createActivityPayload } from '../lib/activity.js'
 import { notifyFirebaseError } from '../lib/errors.js'
 import { addMemberToTrip } from '../lib/joinTrip.js'
 import { buildMemberFromIdentity } from '../lib/utils.js'
 import { createTripDocument, deleteTripDocuments } from './tripDocuments.js'
+import { requestPushDelivery } from './pushDelivery.js'
 
 export { createTripDocument, deleteTripDocuments } from './tripDocuments.js'
 
@@ -87,11 +90,33 @@ export const deleteTrip = async (tripId) => {
 
 export const inviteMemberToTrip = async ({ tripId, member }) => {
   try {
-    await updateDoc(doc(db, 'trips', tripId), {
-      members: arrayUnion(buildMemberFromIdentity(member, 'member')),
-      memberIds: arrayUnion(member.uid),
-      updatedAt: serverTimestamp(),
+    const actor = auth.currentUser
+    if (!actor?.uid || actor.isAnonymous) throw new Error('A signed-in trip admin is required to add a member.')
+    const tripRef = doc(db, 'trips', tripId)
+    const activityRef = doc(collection(db, 'trips', tripId, 'activity'))
+    const added = await runTransaction(db, async (transaction) => {
+      const tripSnapshot = await transaction.get(tripRef)
+      if (!tripSnapshot.exists()) throw new Error('Trip not found.')
+      const trip = tripSnapshot.data()
+      const currentMembers = new Set([
+        ...(Array.isArray(trip.memberIds) ? trip.memberIds : []),
+        ...(Array.isArray(trip.members) ? trip.members.map((entry) => entry.uid) : []),
+      ])
+      if (currentMembers.has(member.uid)) return false
+      transaction.update(tripRef, {
+        members: arrayUnion(buildMemberFromIdentity(member, 'member')),
+        memberIds: arrayUnion(member.uid),
+        updatedAt: serverTimestamp(),
+      })
+      transaction.set(activityRef, createActivityPayload({
+        type: 'trip_member_added',
+        actor: { uid: actor.uid, name: actor.displayName || 'A trip admin', email: actor.email || '' },
+        message: '{actor} added a member to the trip.',
+        meta: { targetUid: member.uid },
+      }))
+      return true
     })
+    if (added) void requestPushDelivery({ tripId, eventId: activityRef.id, eventType: 'trip_member_added' })
   } catch (error) {
     notifyFirebaseError(error, 'We could not add that member to the trip.')
     throw error

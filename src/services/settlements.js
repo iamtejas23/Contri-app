@@ -9,6 +9,7 @@ import {
   buildDeleteSettlementBatch,
   buildUpdateSettlementBatch,
 } from './settlementWrites.js'
+import { requestPushDelivery } from './pushDelivery.js'
 
 export {
   buildCreateSettlementBatch,
@@ -21,8 +22,9 @@ export const createSettlement = async ({ tripId, values, actor, memberIds, curre
   return runInFlightOnce(operationKey, async () => {
     try {
       assertFinanciallyValid(validateSettlementForWrite({ values, currency, memberIds }))
-      const { batch } = buildCreateSettlementBatch({ database: db, tripId, values, actor, currency })
+      const { batch, activityId } = buildCreateSettlementBatch({ database: db, tripId, values, actor, currency })
       await batch.commit()
+      void requestPushDelivery({ tripId, eventId: activityId, eventType: 'settlement_created' })
     } catch (error) {
       notifyFirebaseError(error, 'We could not record that settlement.')
       throw error
@@ -35,8 +37,9 @@ export const updateSettlement = async ({ tripId, settlementId, values, actor, me
   return runInFlightOnce(operationKey, async () => {
     try {
       assertFinanciallyValid(validateSettlementForWrite({ values, currency, memberIds }))
-      const { batch } = buildUpdateSettlementBatch({ database: db, tripId, settlementId, values, actor, currency })
+      const { batch, activityId } = buildUpdateSettlementBatch({ database: db, tripId, settlementId, values, actor, currency })
       await batch.commit()
+      void requestPushDelivery({ tripId, eventId: activityId, eventType: 'settlement_updated' })
     } catch (error) {
       notifyFirebaseError(error, 'We could not update that settlement.')
       throw error

@@ -1,5 +1,6 @@
 import {
   ArrowUpRight,
+  Bell,
   Check,
   Cloud,
   Code2,
@@ -18,6 +19,7 @@ import toast from 'react-hot-toast'
 
 import { useAuth } from '../context/useAuth'
 import { useTheme } from '../context/useTheme'
+import { usePushNotifications } from '../context/usePushNotifications'
 import { getDisplayName } from '../lib/utils'
 import { openCreatorLink, openExternalLink, CREATOR_URL, GITHUB_URL } from '../lib/creatorLink'
 import {
@@ -46,6 +48,7 @@ const GitHubMark = ({ className = '' }) => (
 export const SettingsPage = () => {
   const { preference, setThemePreference } = useTheme()
   const { user, profile, logout } = useAuth()
+  const push = usePushNotifications()
   const [soundEnabled, setSoundEnabled] = useState(isNotificationSoundEnabled)
   const displayName = getDisplayName(profile || user)
   const accountEmail = profile?.contactEmail || profile?.email || user?.email
@@ -63,6 +66,21 @@ export const SettingsPage = () => {
     const played = await previewNotificationSound()
     if (played) toast.success('Coin sound preview played. Check media volume or silent mode if needed.')
     else toast.error('Audio is unavailable. Check device media volume and try again.')
+  }
+
+  const handlePushToggle = async () => {
+    try {
+      if (push.enabled) {
+        await push.disable()
+        toast.success('Push notifications turned off on this device.')
+      } else if (await push.enable()) {
+        toast.success('Push notifications enabled on this device.')
+      } else {
+        toast.error('Notification permission was not granted. Enable it in Android Settings to receive trip updates.')
+      }
+    } catch {
+      toast.error('Push notification settings could not be updated. Check your connection and try again.')
+    }
   }
 
   return (
@@ -142,6 +160,46 @@ export const SettingsPage = () => {
               </button>
             </div>
           </div>
+        </Card>
+      </section>
+
+      <section aria-labelledby="settings-push" className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal">Stay in the loop</p>
+          <h2 className="mt-1 font-display text-xl font-semibold text-ink" id="settings-push">Push notifications</h2>
+        </div>
+        <Card className="flex min-w-0 flex-wrap items-center justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+              <Bell aria-hidden="true" className="h-5 w-5" />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-semibold text-ink">Trip updates on this device</span>
+              <span className="mt-1 block text-sm leading-5 text-dusk">
+                {user?.isAnonymous
+                  ? 'Guest accounts do not register for push notifications.'
+                  : !push.supported
+                    ? 'Remote push delivery is currently supported in the Contri Android app.'
+                    : 'Receive a private alert when another member records a trip update.'}
+              </span>
+              {push.permission === 'denied' && push.supported && !user?.isAnonymous ? (
+                <span className="mt-1 block text-xs text-amber-700">Permission is denied. Enable Contri notifications in Android Settings.</span>
+              ) : null}
+            </span>
+          </div>
+          {push.supported && user && !user.isAnonymous ? (
+            <button
+              aria-checked={push.enabled}
+              aria-label={push.enabled ? 'Push notifications on' : 'Push notifications off'}
+              className={`relative inline-flex h-8 w-14 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-teal disabled:cursor-wait disabled:opacity-60 ${push.enabled ? 'bg-teal' : 'bg-slate-300'}`}
+              disabled={push.busy}
+              onClick={handlePushToggle}
+              role="switch"
+              type="button"
+            >
+              <span className={`inline-block h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${push.enabled ? 'translate-x-7' : 'translate-x-1'}`} />
+            </button>
+          ) : null}
         </Card>
       </section>
 

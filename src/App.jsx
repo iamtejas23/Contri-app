@@ -19,8 +19,11 @@ import { TripPage } from './pages/TripPage'
 import { cameraPhotoToReceiptFile } from './lib/cameraReceiptFile'
 import { receiptUploadQueue } from './services/receiptUploadQueue'
 import { clearPendingReceiptCapture, PENDING_CAMERA_RECEIPT_KEY } from './services/receiptCamera'
+import { useAuth } from './context/useAuth'
+import { PushNotificationsProvider } from './context/PushNotificationsContext'
 
 function App() {
+  const { user } = useAuth()
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return undefined
     let active = true
@@ -56,6 +59,7 @@ function App() {
 
   return (
     <>
+      <PushNotificationsProvider user={user}>
       <Routes>
         <Route element={<PublicOnlyRoute />}>
           <Route element={<AuthPage />} path="/login" />
@@ -76,6 +80,7 @@ function App() {
 
         <Route element={<NotFoundPage />} path="*" />
       </Routes>
+      </PushNotificationsProvider>
 
       <Toaster
         position="top-right"
