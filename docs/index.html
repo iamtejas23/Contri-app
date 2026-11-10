@@ -3,28 +3,31 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#000000">
-    <meta name="description" content="Track shared trip expenses, split costs fairly, see balances, and settle up with your group. Contri for Android APK release coming soon.">
+    <meta name="theme-color" content="#0A0E1A">
+    <meta name="description" content="Plan trips together, split shared expenses, track contributions, and settle up with Contri. See the real Android app and latest release details.">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Contri — Every Trip. Every Expense. Sorted.">
-    <meta property="og:description" content="Track shared trip expenses, split costs fairly, and settle up with your group.">
+    <meta property="og:title" content="Contri — Travel together. Split together.">
+    <meta property="og:description" content="Create trips, invite your group, track shared expenses, and settle up with Contri.">
     <meta property="og:url" content="https://iamtejas23.github.io/Contri-app/">
     <meta property="og:image" content="https://iamtejas23.github.io/Contri-app/contri-icon.png">
     <meta name="twitter:card" content="summary">
     <link rel="canonical" href="https://iamtejas23.github.io/Contri-app/">
-    <title>Contri — Every Trip. Every Expense. Sorted.</title>
     <link rel="icon" type="image/png" href="./contri-icon.png">
     <link rel="apple-touch-icon" href="./contri-icon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css">
     <script src="./site-config.js"></script>
     <script src="./main.js" defer></script>
+    <title>Contri — Travel together. Split together.</title>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <div class="nav-wrap">
         <a class="brand" href="#top" aria-label="Contri home">
-          <img class="brand-mark brand-mark-image" src="./contri-icon.png" alt="" aria-hidden="true">
+          <img src="./contri-icon.png" alt="" aria-hidden="true">
           <span>contri<span class="brand-period">.</span></span>
         </a>
         <button class="menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="primary-navigation">
@@ -34,7 +37,7 @@
           <a href="#features">Features</a>
           <a href="#how-it-works">How it works</a>
           <a href="#faq">FAQ</a>
-          <a class="nav-download" href="#download">Download <span aria-hidden="true">↗</span></a>
+          <a class="nav-download" href="#download">Get the app <span aria-hidden="true">↗</span></a>
         </nav>
       </div>
     </header>
@@ -42,149 +45,145 @@
     <main id="main">
       <section class="hero section-wrap" id="top" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-dot"></span> Trip Expense Manager</p>
-          <h1 id="hero-title">Every Trip.<br><span>Every Expense. Sorted.</span></h1>
-          <p class="hero-lede">Track shared expenses, split costs fairly, and settle up with your group. Everything you need to keep trip finances simple.</p>
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Trip expense manager</p>
+          <h1 id="hero-title">Travel together.<br><span>Split together.</span></h1>
+          <p class="hero-lede">Keep trip expenses, contributions, and settlement updates in one shared place. Less back-and-forth on the math, more time for the trip.</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="#download">Download Android App <span aria-hidden="true">↗</span></a>
-            <a class="text-link" href="#features">Explore Features <span aria-hidden="true">↓</span></a>
+            <a class="button button-primary" href="#download">Get the Android app <span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="#features">Explore features <span aria-hidden="true">↓</span></a>
             <a class="text-link" href="https://contri-app.vercel.app/" target="_blank" rel="noopener noreferrer">Open Contri on the web <span aria-hidden="true">↗</span></a>
           </div>
-          <div class="hero-note">
-            <span class="note-check" aria-hidden="true">✓</span>
-            <p><strong>Trip khatam. Hisab bhi khatam.</strong><br>One shared view, less group-chat math.</p>
-          </div>
+          <div class="hero-proof"><span class="proof-icon" aria-hidden="true">✓</span><span><strong>Made for shared trips</strong><small>Invite your group, keep the details together.</small></span></div>
         </div>
 
-        <div class="hero-visual" role="img" aria-label="Illustrative Contri interface preview showing a trip expense list and balance; this is not an app screenshot">
-          <div class="visual-glow"></div>
-          <div class="orbit orbit-one"></div>
-          <div class="orbit orbit-two"></div>
-          <div class="float-label label-top"><span class="label-icon">↗</span><span><b>Everyone's in</b><small>One trip. One shared hisab.</small></span></div>
-          <div class="phone">
-            <div class="phone-frame">
-              <div class="phone-island"></div>
-              <div class="phone-screen">
-                <div class="phone-status"><span>9:41</span><span>●●● &nbsp; ▰</span></div>
-                <div class="phone-head">
-                  <div><small>YOUR TRIP</small><h2>Goa Trip <span>✦</span></h2></div>
-                  <span class="trip-emoji">⌖</span>
-                </div>
-                <div class="trip-total"><div><span>Total trip spend</span><strong>₹18,460</strong></div><div class="spend-icon">↗</div><div class="progress-track"><span></span></div><small>Illustrative trip total</small></div>
-                <div class="preview-section-title"><strong>Latest expenses</strong><span>View all</span></div>
-                <div class="preview-expense"><span class="expense-icon food">₹</span><span class="expense-name"><b>Dinner</b><small>Food · paid by you</small></span><strong>₹2,400</strong></div>
-                <div class="preview-expense"><span class="expense-icon ride">↗</span><span class="expense-name"><b>Cab fare</b><small>Travel · paid by a member</small></span><strong>₹1,850</strong></div>
-                <div class="preview-expense"><span class="expense-icon stay">⌂</span><span class="expense-name"><b>Stay</b><small>Accommodation · shared</small></span><strong>₹8,000</strong></div>
-                <div class="preview-balance"><div class="balance-heading"><span>YOUR BALANCE</span><span class="balance-status">● Current</span></div><div class="balance-amount">₹1,075 <small>net balance</small></div><div class="balance-foot"><span>Trip members</span><span>Balances</span></div></div>
-                <div class="phone-tabbar"><span class="tab-active">⌂<small>Trips</small></span><span>◷<small>Notifications</small></span><span>◎<small>Settings</small></span></div>
-              </div>
-            </div>
+        <figure class="app-preview">
+          <div class="preview-glow" aria-hidden="true"></div>
+          <div class="preview-frame">
+            <img src="./assets/join-trip-app.webp" alt="Actual Contri Android trip-invitation screen, showing QR scanning and invitation-code entry options." width="1008" height="1470" fetchpriority="high">
           </div>
-          <div class="float-label label-bottom"><span class="avatar-stack"><i>R</i><i>A</i><i>Y</i></span><span><b>Made for the whole crew</b><small>Google sign-in or guest access</small></span></div>
-          <p class="preview-disclaimer">Illustrative interface preview · not an in-app screenshot</p>
-        </div>
+          <figcaption><span class="caption-live" aria-hidden="true"></span> Actual Contri Android screen <span>·</span> Trip invitations</figcaption>
+        </figure>
       </section>
 
-      <section class="trust-strip" aria-label="Product highlights">
-        <div class="trust-inner">
-          <span><i>01</i> Shared trip expenses</span>
-          <span><i>02</i> Clear balances</span>
-          <span><i>03</i> Settlements &amp; exports</span>
-          <span><i>04</i> In-app notifications</span>
-        </div>
+      <section class="proof-strip" aria-label="Contri capabilities">
+        <div class="proof-strip-inner"><span><i class="dot-blue"></i> Shared trips</span><span><i class="dot-purple"></i> Flexible expense splits</span><span><i class="dot-green"></i> Clear settlement suggestions</span><span><i class="dot-blue"></i> Android + web</span></div>
       </section>
 
       <section class="section-wrap section-block" id="features" aria-labelledby="features-title">
         <div class="section-heading">
-          <p class="eyebrow">The trip, in good company</p>
-          <h2 id="features-title">All the shared stuff.<br><span>None of the mental math.</span></h2>
-          <p>From the first cab to the last chai, keep the details together and the group on the same page.</p>
+          <p class="eyebrow">A shared trip, in one place</p>
+          <h2 id="features-title">The group’s plans<br><span>and numbers, together.</span></h2>
+          <p>Contri gives everyone in a trip a shared view of expenses, contributions, and updates.</p>
         </div>
         <div class="feature-grid">
-          <article class="feature-card feature-card-large">
-            <div class="feature-art art-trip"><span class="art-sun"></span><span class="art-hill hill-one"></span><span class="art-hill hill-two"></span><span class="art-road"></span><span class="art-pin">⌖</span></div>
-            <div class="feature-body"><span class="feature-number">01 / TRIPS</span><h3>Trip management</h3><p>Create and manage trips, invite members with a trip link or code, and see who is in your group.</p></div>
+          <article class="feature-card">
+            <div class="feature-icon icon-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 7.5 8.5 5l7 2.5L21 5v13.5L15.5 21l-7-2.5L3 21V7.5Z"/><path d="M8.5 5v13.5M15.5 7.5V21"/></svg></div>
+            <span class="feature-number">01 / TRIPS</span><h3>Create and manage trips</h3><p>Set up a trip, manage its details, and keep its members and shared activity together.</p>
           </article>
           <article class="feature-card">
-            <div class="feature-art art-expense"><span class="receipt-sheet"><i>EXPENSE</i><b>Cab to Alibaug</b><em>₹1,850</em><small>Split between 3</small></span><span class="receipt-check">✓</span></div>
-            <div class="feature-body"><span class="feature-number">02 / EXPENSES</span><h3>Expense tracking</h3><p>Record shared costs, who paid, and who shares them. Choose equal, exact, percentage, or share-based splits, with paise remainders accounted for.</p></div>
+            <div class="feature-icon icon-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v6h-2zM14 18h2v2h-2z"/></svg></div>
+            <span class="feature-number">02 / INVITES</span><h3>Invite by code or QR</h3><p>Share a trip invitation, scan its QR code, or enter the code. New members review the trip before joining.</p>
           </article>
           <article class="feature-card">
-            <div class="feature-art art-balance"><span class="balance-card"><small>TRIP BALANCE</small><b>₹2,180</b><span>↗ suggested settle-up</span></span><span class="balance-line line-a"></span><span class="balance-line line-b"></span><span class="balance-line line-c"></span></div>
-            <div class="feature-body"><span class="feature-number">03 / BALANCES</span><h3>Balances &amp; settlements</h3><p>See who owes whom, review settlement suggestions, and record payments made by cash, UPI, or online.</p></div>
+            <div class="feature-icon icon-green" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path d="M14 3v5h5M8 13h8M8 17h5"/></svg></div>
+            <span class="feature-number">03 / EXPENSES</span><h3>Track who paid and shares</h3><p>Record an expense and its payer, then split it equally or use the available exact, percentage, or share-based options.</p>
           </article>
           <article class="feature-card">
-            <div class="feature-art art-settle"><div class="settle-avatar">R</div><div class="settle-arrow">→</div><div class="settle-avatar second">Y</div><span class="upi-chip">UPI&nbsp; ↗</span></div>
-            <div class="feature-body"><span class="feature-number">04 / EXPORTS</span><h3>Keep a trip summary</h3><p>Export trip summaries as PDF or expense details as CSV when your group needs a copy.</p></div>
+            <div class="feature-icon icon-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h7"/><circle cx="17" cy="12" r="3"/><path d="m14.8 14.2 4.4-4.4"/></svg></div>
+            <span class="feature-number">04 / SETTLEMENTS</span><h3>Review settlement suggestions</h3><p>See the suggested payments from current trip balances. Admins and members with granted access can manage settlement records.</p>
           </article>
           <article class="feature-card">
-            <div class="feature-art art-members"><div class="member-bubble bubble-one">R</div><div class="member-bubble bubble-two">A</div><div class="member-bubble bubble-three">Y</div><span class="member-plus">+</span><span class="member-caption">your travel crew</span></div>
-            <div class="feature-body"><span class="feature-number">05 / MEMBERS</span><h3>Bring your group in</h3><p>Invite members using a trip invitation or code and view the trip’s member list.</p></div>
-          </article>
-          <article class="feature-card feature-card-accent">
-            <div class="feature-art art-notice"><span class="notice-bell">♧</span><span class="notice-dot"></span><span class="notice-line"></span><span class="notice-line short"></span><span class="notice-tag">New trip expense</span></div>
-            <div class="feature-body"><span class="feature-number">06 / NOTIFICATIONS</span><h3>Stay in the loop</h3><p>Get in-app expense notifications as the person who added it or another trip member. Follow read status, clear all, or clear notifications for a selected trip.</p></div>
+            <div class="feature-icon icon-green" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+            <span class="feature-number">05 / CONTRIBUTIONS</span><h3>Record advance contributions</h3><p>Trip admins can track money contributed in advance separately from recorded expenses.</p>
           </article>
           <article class="feature-card">
-            <div class="feature-art art-notice"><span class="notice-bell">♪</span><span class="notice-dot"></span><span class="notice-line"></span><span class="notice-line short"></span><span class="notice-tag">Sound · optional</span></div>
-            <div class="feature-body"><span class="feature-number">07 / IN-APP SOUND</span><h3>A quiet notification sound</h3><p>Enable or disable the optional sound in Settings. It plays for new notifications while Contri is open, not as a background push alert.</p></div>
+            <div class="feature-icon icon-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></div>
+            <span class="feature-number">06 / UPDATES</span><h3>Activity and notifications</h3><p>Follow trip activity and in-app notifications. Android push alerts can be enabled for supported, configured accounts.</p>
           </article>
           <article class="feature-card">
-            <div class="feature-art art-members"><div class="member-bubble bubble-one">G</div><div class="member-bubble bubble-two">+</div><span class="member-caption">guest account</span></div>
-            <div class="feature-body"><span class="feature-number">08 / GUEST ACCESS</span><h3>Join as a guest</h3><p>Create a Firebase anonymous account with a display name, then join with an existing trip invitation or ID. Link Google to make recovery easier.</p></div>
+            <div class="feature-icon icon-green" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-9Z"/><path d="M8 10h8M8 14h5"/></svg></div>
+            <span class="feature-number">07 / RECEIPTS</span><h3>Attach receipt images</h3><p>Eligible trips can keep private receipt images with an expense. Access follows the trip’s current membership and upload settings.</p>
           </article>
           <article class="feature-card">
-            <div class="feature-art art-balance"><span class="balance-card"><small>APPEARANCE</small><b>Light · Dark</b><span>System theme option</span></span></div>
-            <div class="feature-body"><span class="feature-number">09 / SETTINGS</span><h3>Make it yours</h3><p>Choose Light, Dark, or System appearance, manage your account, and find app information in Settings.</p></div>
+            <div class="feature-icon icon-blue" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0M19 8h3M20.5 6.5v3"/></svg></div>
+            <span class="feature-number">08 / YOUR ACCOUNT</span><h3>Profile, settings, and guest access</h3><p>Manage your profile and appearance preferences, or start with a guest account and link Google later.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon icon-purple" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 4h16v12H4zM8 20h8M12 16v4"/><path d="m8 10 2.5 2.5L16 7"/></svg></div>
+            <span class="feature-number">09 / TRIP RECORDS</span><h3>Keep useful trip summaries</h3><p>Export trip summaries as PDF and expense details as CSV when you need a copy.</p>
           </article>
         </div>
       </section>
 
-      <section class="steps-section" id="how-it-works" aria-labelledby="steps-title">
-        <div class="section-wrap steps-layout">
-          <div class="steps-intro"><p class="eyebrow">Three little steps</p><h2 id="steps-title">Go from “who paid?”<br>to <span>all sorted.</span></h2><p>No spreadsheet handover. Just one shared trip and a clearer way to keep track.</p><a class="text-link" href="#download">Meet your new trip sidekick <span aria-hidden="true">↗</span></a></div>
+      <section class="how-section" id="how-it-works" aria-labelledby="steps-title">
+        <div class="section-wrap how-layout">
+          <div class="how-intro"><p class="eyebrow">Easy to get started</p><h2 id="steps-title">Set up the trip.<br><span>Then get back to it.</span></h2><p>Keep the basics clear from the first shared cost through the last settlement.</p></div>
           <ol class="steps-list">
-            <li><span class="step-index">01</span><div><h3>Create a trip and invite your friends</h3><p>Start a trip, then invite people with its existing invitation or code. A guest account is also available.</p></div><span class="step-mark">⌖</span></li>
-            <li><span class="step-index">02</span><div><h3>Add expenses and track shared spending</h3><p>Record the amount and payer, then select members and a split method.</p></div><span class="step-mark">＋</span></li>
-            <li><span class="step-index">03</span><div><h3>Check balances and settle up</h3><p>Review who owes whom, record settlements, and export a trip summary when needed.</p></div><span class="step-mark">↗</span></li>
+            <li><span class="step-index">01</span><div><h3>Create a trip and invite the group</h3><p>Share its invitation link or code, or let friends scan its QR.</p></div><span class="step-mark" aria-hidden="true">↗</span></li>
+            <li><span class="step-index">02</span><div><h3>Record expenses and contributions</h3><p>Add the amount, payer, and participants who share the expense.</p></div><span class="step-mark" aria-hidden="true">＋</span></li>
+            <li><span class="step-index">03</span><div><h3>Review balances and settle up</h3><p>Use the settlement suggestions and keep a record of payments.</p></div><span class="step-mark" aria-hidden="true">✓</span></li>
           </ol>
         </div>
       </section>
 
       <section class="privacy-section section-wrap" aria-labelledby="privacy-title">
         <div class="privacy-mark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M24 5 8 11v12c0 10 6.8 17.4 16 21 9.2-3.6 16-11 16-21V11L24 5Z"/><path d="m17 24 5 5 10-11"/></svg></div>
-        <div class="privacy-copy"><p class="eyebrow">Privacy &amp; account access</p><h2 id="privacy-title">Keep trip invitations private.</h2><p>Contri uses Firebase Authentication for accounts and Cloud Firestore for trip data. Guest access uses Firebase Anonymous Authentication; recovery can be difficult if you lose access to that guest account, so link Google from your profile if you want to keep the same account.</p><p class="privacy-caveat">This website does not verify which Firestore rules are currently deployed. Share trip invitations only with people you intend to add.</p></div>
-        <a class="text-link privacy-link" href="https://github.com/iamtejas23/Contri-app/blob/main/firestore.rules" target="_blank" rel="noopener noreferrer">Review rules in the repository <span aria-hidden="true">↗</span></a>
+        <div class="privacy-copy"><p class="eyebrow">Privacy &amp; account access</p><h2 id="privacy-title">Trip access follows membership.</h2><p>Contri uses Firebase Authentication and Cloud Firestore for accounts and trip data. Guest access uses Firebase Anonymous Authentication; link Google from your profile if you want an easier way to recover the same account.</p><p class="privacy-caveat">This site does not verify which Firestore rules are currently deployed. Share trip invitations only with people you intend to add.</p></div>
+        <a class="text-link privacy-link" href="https://github.com/iamtejas23/Contri-app/blob/main/firestore.rules" target="_blank" rel="noopener noreferrer">Review repository rules <span aria-hidden="true">↗</span></a>
       </section>
 
       <section class="faq-section" id="faq" aria-labelledby="faq-title">
         <div class="section-wrap faq-layout">
-          <div class="faq-heading"><p class="eyebrow">A few quick answers</p><h2 id="faq-title">Good to know<br><span>before you go.</span></h2><p>Still have a question? The details are in the project docs.</p><a class="text-link" href="https://github.com/iamtejas23/Contri-app" target="_blank" rel="noopener noreferrer">Visit the project on GitHub <span aria-hidden="true">↗</span></a></div>
+          <div class="faq-heading"><p class="eyebrow">A few quick answers</p><h2 id="faq-title">Good to know<br><span>before your trip.</span></h2><p>More details are available in the project documentation.</p><a class="text-link" href="https://github.com/iamtejas23/Contri-app" target="_blank" rel="noopener noreferrer">Visit Contri on GitHub <span aria-hidden="true">↗</span></a></div>
           <div class="faq-list">
-            <details><summary>Is the Android app ready to download?<span aria-hidden="true"></span></summary><p>Not yet. A real APK hasn’t been published here. The download section will activate once a release URL is added to the site configuration.</p></details>
-            <details><summary>How do I join a trip?<span aria-hidden="true"></span></summary><p>Open a Contri invite link or enter the trip ID. You’ll need to authenticate first; a guest account is available if you don’t want to start with Google.</p></details>
-            <details><summary>Can I use Contri as a guest?<span aria-hidden="true"></span></summary><p>Yes. Guest access uses Firebase Anonymous Authentication. The optional email is unverified contact information. Link Google from your profile to keep the same Firebase account easier to recover.</p></details>
-            <details><summary>Can I change the app appearance?<span aria-hidden="true"></span></summary><p>Yes. Settings offers Light, Dark, and System theme preferences, saved on your device.</p></details>
-            <details><summary>How does notification sound work?<span aria-hidden="true"></span></summary><p>The optional sound is off by default and can be switched on in Settings. It is an in-app sound for new notifications while Contri is open, not a background Android push notification.</p></details>
-            <details><summary>Can I clear notifications?<span aria-hidden="true"></span></summary><p>Yes. The notification panel lets you clear all notifications in your account or select a trip and clear notifications associated with that trip.</p></details>
-            <details><summary>Who can see a trip’s expenses?<span aria-hidden="true"></span></summary><p>Trip access depends on authentication, membership, and the Firestore rules configured for the project. This landing page cannot verify the rules currently deployed to Firebase.</p></details>
-            <details><summary>Does Contri send push notifications?<span aria-hidden="true"></span></summary><p>No background Android push notifications are advertised. Expense notifications and optional sound are in-app features while Contri is open.</p></details>
-            <details><summary>Is Contri on Google Play?<span aria-hidden="true"></span></summary><p>No Google Play listing is being advertised. Android download availability will be announced here when the real APK release is ready.</p></details>
+            <details><summary>Is there an Android APK to download?<span aria-hidden="true"></span></summary><p>The page links to the configured official GitHub Release asset and shows its published version, size, release date, and SHA-256 checksum.</p></details>
+            <details><summary>How do I join a trip?<span aria-hidden="true"></span></summary><p>Open an invitation link, scan its QR code, or enter the invitation code. Contri shows a trip preview before you confirm joining.</p></details>
+            <details><summary>Can I use Contri as a guest?<span aria-hidden="true"></span></summary><p>Yes. Guest access uses Firebase Anonymous Authentication. Guests can join trips with an invitation; linking Google can make the same account easier to recover.</p></details>
+            <details><summary>How do settlements work?<span aria-hidden="true"></span></summary><p>Contri shows settlement suggestions from trip balances. Trip admins and members granted settlement-management access can manage settlement records.</p></details>
+            <details><summary>Can I clear notifications?<span aria-hidden="true"></span></summary><p>Yes. The notification center can clear all notifications or clear notifications associated with a selected trip.</p></details>
+            <details><summary>Can I change notification sound?<span aria-hidden="true"></span></summary><p>Notification sound preferences are available in Settings. Android push uses the system notification channel and its sound preference; in-app notification behavior depends on the app’s foreground state.</p></details>
+            <details><summary>Does Contri have push notifications?<span aria-hidden="true"></span></summary><p>In-app notifications are available. Android push notifications are opt-in for supported accounts and depend on the app’s server-side push configuration.</p></details>
+            <details><summary>Is Contri on Google Play?<span aria-hidden="true"></span></summary><p>This page links to the project’s GitHub Releases for Android APKs. It does not advertise a Google Play listing.</p></details>
           </div>
         </div>
       </section>
 
       <section class="download-section section-wrap" id="download" aria-labelledby="download-title">
-        <div class="download-orb orb-left"></div><div class="download-orb orb-right"></div>
-        <div class="download-content"><p class="eyebrow"><span class="eyebrow-dot"></span> Android app · Coming Soon</p><h2 id="download-title">Take Contri<br><span>on your next trip.</span></h2><p>Contri · Android. The APK download will be enabled here when a public release is available.</p><div class="download-action" id="download-action"><button class="button button-disabled" type="button" disabled>Android APK · Coming Soon <span aria-hidden="true">↗</span></button><span class="release-meta" id="release-meta">No public APK release</span></div><p class="store-note">Contri is not listed on Google Play. Install only from the official release link shown here when available.</p></div>
-        <div class="download-graphic" aria-hidden="true"><div class="graphic-ring ring-one"></div><div class="graphic-ring ring-two"></div><div class="graphic-logo"><img src="./contri-icon.png" alt="" aria-hidden="true"></div><span class="graphic-spark spark-one">✳</span><span class="graphic-spark spark-two">✦</span><span class="graphic-pill">TRIP MODE: ON</span></div>
+        <div class="download-copy">
+          <p class="eyebrow"><span class="status-dot" aria-hidden="true"></span> Official Android releases</p>
+          <h2 id="download-title">Take Contri<br><span>on your next trip.</span></h2>
+          <p class="download-description" id="download-description">Checking the official Android release…</p>
+          <div class="download-action" id="download-action">
+            <button class="button button-disabled" id="apk-download" type="button" disabled>Android APK · Coming soon</button>
+            <a class="text-link release-history-link" href="https://github.com/iamtejas23/Contri-app/releases" target="_blank" rel="noopener noreferrer">Release history <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="release-details" id="release-details" aria-live="polite" hidden>
+            <div><span>Version</span><strong id="release-version">—</strong></div>
+            <div><span>APK size</span><strong id="release-size">—</strong></div>
+            <div><span>Released</span><strong id="release-date">—</strong></div>
+          </div>
+          <div class="checksum-row" id="checksum-row" hidden><span>SHA-256</span><code id="release-checksum">—</code><a id="checksum-download" href="#download" target="_blank" rel="noopener noreferrer">Download checksum</a></div>
+          <p class="install-note"><strong>Install:</strong> Download the APK, open it on your Android device, allow installs from your browser or file manager if prompted, then confirm installation. Only install releases linked from this official repository.</p>
+        </div>
+        <div class="release-panel" aria-label="GitHub release information">
+          <div class="release-panel-top"><span class="release-mark" aria-hidden="true">C</span><span class="release-state" id="release-state">Looking for release</span></div>
+          <div class="release-panel-divider"></div>
+          <p class="release-panel-label">ANDROID RELEASE STATUS</p>
+          <p class="release-panel-version" id="release-panel-version">—</p>
+          <p class="release-panel-description" id="release-panel-description">Release metadata is loaded from the configured GitHub Release.</p>
+          <a class="release-panel-link" href="https://github.com/iamtejas23/Contri-app/releases/latest" target="_blank" rel="noopener noreferrer">Open GitHub release <span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+      <section class="release-history section-wrap" aria-labelledby="history-title">
+        <div class="history-heading"><div><p class="eyebrow">Every version, in one place</p><h2 id="history-title">Release history</h2></div><a class="text-link" href="https://github.com/iamtejas23/Contri-app/releases" target="_blank" rel="noopener noreferrer">All GitHub releases <span aria-hidden="true">↗</span></a></div>
+        <div id="release-history-list" class="release-history-list" aria-live="polite"><p class="history-empty">Loading GitHub releases…</p></div>
       </section>
     </main>
 
     <footer class="site-footer">
       <div class="section-wrap footer-main">
-        <div><a class="brand footer-brand" href="#top"><img class="brand-mark brand-mark-image" src="./contri-icon.png" alt="" aria-hidden="true"><span>contri<span class="brand-period">.</span></span></a><p class="footer-tagline">Trip khatam. Hisab bhi khatam.</p></div>
-        <div class="footer-links"><a href="#features">Features</a><a href="#faq">FAQ</a><a href="https://github.com/iamtejas23/Contri-app" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a><a href="#download">Android app</a></div>
+        <div><a class="brand footer-brand" href="#top"><img src="./contri-icon.png" alt="" aria-hidden="true"><span>contri<span class="brand-period">.</span></span></a><p class="footer-tagline">Trip khatam. Hisab bhi khatam.</p></div>
+        <div class="footer-links"><a href="#features">Features</a><a href="#faq">FAQ</a><a href="https://github.com/iamtejas23/Contri-app" target="_blank" rel="noopener noreferrer">GitHub <span aria-hidden="true">↗</span></a><a href="https://contri-app.vercel.app/" target="_blank" rel="noopener noreferrer">Web app <span aria-hidden="true">↗</span></a><a href="#download">Android</a></div>
       </div>
       <div class="section-wrap footer-bottom"><span>© <span id="current-year"></span> Contri. Make the memories, not the spreadsheet.</span><span>Built by <a href="https://tejasmane.netlify.app/" target="_blank" rel="noopener noreferrer">Tejas Mane <span aria-hidden="true">↗</span></a></span></div>
     </footer>

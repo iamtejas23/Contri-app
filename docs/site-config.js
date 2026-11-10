@@ -1,6 +1,6 @@
-// Set these values when a real APK release is ready. Keep APK_URL empty until then.
+// Asset names published on the v1.0.0 GitHub Release.
 window.CONTRI_SITE_CONFIG = {
-  APK_URL: '',
-  VERSION: '',
-  RELEASE_DATE: '',
+  version: 'v1.0.0',
+  apk: 'contri-app-v1.0.0.apk',
+  checksum: 'contri-v1.0.0-sha256.txt',
 }

@@ -1,6 +1,6 @@
 # Contri landing page
 
-This is a dependency-free static marketing site deployed from the `docs/` directory. It is intentionally separate from the root Vite/Capacitor application.
+This is a dependency-free static marketing site deployed from the `docs/` directory. It is intentionally separate from the root Vite/Capacitor application. The invitation preview is a cropped, real Android app screenshot from the local UI test results; the other feature illustrations are category icons, not app UI mockups.
 
 ## Local preview
 
@@ -12,9 +12,9 @@ python3 -m http.server 8000 --directory docs
 
 Then open `http://localhost:8000`. The website has no npm build step.
 
-## Configure a real APK release
+## Android release details
 
-Edit [`site-config.js`](./site-config.js) and set `APK_URL`, `VERSION`, and `RELEASE_DATE` when a real APK is published. Until `APK_URL` is non-empty, the site shows a disabled “Android APK · Coming Soon” button. Use a URL to a real, publicly accessible APK; do not commit signing material or a test/debug APK. The version and release date are optional display metadata.
+The page reads public release metadata from the GitHub Releases API. [`site-config.js`](./site-config.js) currently selects the `v1.0.0` release assets `contri-app-v1.0.0.apk` and `contri-v1.0.0-sha256.txt`; the page displays the published version, APK size, release date, asset filename, and SHA-256 checksum.
 
 ## Enable GitHub Pages
 
