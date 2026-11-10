@@ -1288,8 +1288,8 @@ test('Firestore notification listener ignores history and plays once for a live 
   let stopListening = () => {}
   let playbackTimeout
   const detect = createNotificationArrivalDetector(uid, {
-    play: () => {
-      played.push('sound')
+    onArrival: () => {
+      played.push('new-notification')
       resolvePlayed()
     },
     seenKeys: new Set(),
@@ -1333,12 +1333,12 @@ test('Firestore notification listener ignores history and plays once for a live 
     await Promise.race([
       playedOnce,
       new Promise((_, reject) => {
-        playbackTimeout = setTimeout(() => reject(new Error('Live notification did not trigger sound')), 4000)
+      playbackTimeout = setTimeout(() => reject(new Error('Live notification was not detected')), 4000)
       }),
     ])
     clearTimeout(playbackTimeout)
     await new Promise((resolve) => setTimeout(resolve, 100))
-    assert.deepEqual(played, ['sound'])
+    assert.deepEqual(played, ['new-notification'])
   } finally {
     stopListening()
     clearTimeout(playbackTimeout)

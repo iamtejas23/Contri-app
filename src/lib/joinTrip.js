@@ -26,8 +26,8 @@ export const addMemberToTrip = async ({ database, tripId, member }) => {
     const idListed = existingTrip.memberIds?.includes(member.uid)
     const memberListed = existingTrip.members?.some((tripMember) => tripMember.uid === member.uid)
     // Trip creators already have access. Do not attempt a self-join write.
-    if (existingTrip.createdBy === member.uid) return
-    if (idListed && memberListed) return
+    if (existingTrip.createdBy === member.uid) return false
+    if (idListed && memberListed) return false
     if (idListed || memberListed) {
       throw new Error('This trip has an incomplete member record. Ask a trip admin to review membership before trying again.')
     }
@@ -39,6 +39,7 @@ export const addMemberToTrip = async ({ database, tripId, member }) => {
       memberIds: arrayUnion(member.uid),
       updatedAt: serverTimestamp(),
     })
+    return true
   } catch (writeError) {
     logFirestoreOperationError({
       operation: 'update',
@@ -55,7 +56,7 @@ export const addMemberToTrip = async ({ database, tripId, member }) => {
         && isExistingTripParticipant(latestData, member.uid)
         && latestData.memberIds?.includes(member.uid)
         && latestData.members?.some((tripMember) => tripMember.uid === member.uid)
-      ) return
+      ) return false
     } catch (confirmError) {
       logFirestoreOperationError({
         operation: 'get',

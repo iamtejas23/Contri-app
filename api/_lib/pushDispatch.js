@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { getFirebaseAdminServices } from './firebaseAdmin.js'
+import { buildPushNotificationContent, getPushChannelForPreference } from './pushContent.js'
 
 const EVENT_CONFIG = {
   expense_created: { kind: 'expense', collection: 'expenses', actorField: 'createdBy', destination: 'expenses', activityType: 'expense_created', targetField: 'expenseId' },
@@ -9,6 +10,7 @@ const EVENT_CONFIG = {
   settlement_updated: { kind: 'settlement', collection: 'settlements', actorField: 'updatedBy', destination: 'settlements', activityType: 'settlement_updated', targetField: 'settlementId' },
   advance_recorded: { kind: 'advance', collection: 'advances', actorField: 'recordedBy', destination: 'activity' },
   trip_member_added: { kind: 'trip-invite', collection: 'activity', destination: 'overview' },
+  trip_member_joined: { kind: 'trip-join', collection: 'activity', destination: 'overview', activityType: 'trip_member_joined' },
 }
 
 const sendJson = (res, statusCode, body) => {
@@ -75,7 +77,11 @@ const validatePersistedEvent = async ({ firestore, tripId, eventId, eventType, u
       const targetUid = activity.meta?.targetUid
       const isAdmin = trip.createdBy === uid || (Array.isArray(trip.adminIds) && trip.adminIds.includes(uid))
       if (!isAdmin || !members.includes(targetUid) || targetUid === uid || !timestampsMatch(activity.timestamp, trip.updatedAt)) return null
-      return { destination: config.destination, recordId: eventId, targetUid, dedupeId: `member:${targetUid}` }
+      return { destination: config.destination, recordId: eventId, targetUid, dedupeId: `member:${targetUid}`, activity }
+    }
+    if (eventType === 'trip_member_joined') {
+      if (!members.includes(uid)) return null
+      return { destination: config.destination, recordId: eventId, dedupeId: `member-joined:${uid}`, activity }
     }
     const targetId = activity.meta?.[config.targetField]
     if (!safeId(targetId)) return null
@@ -89,6 +95,8 @@ const validatePersistedEvent = async ({ firestore, tripId, eventId, eventType, u
       destination: config.destination,
       recordId: targetId,
       dedupeId: `${targetId}:${timestampId(sourceTimestamp)}`,
+      record,
+      activity,
     }
   }
 
@@ -100,16 +108,16 @@ const validatePersistedEvent = async ({ firestore, tripId, eventId, eventType, u
   if (config.kind === 'expense') {
     if (record.createdBy !== uid || !members.includes(record.paidBy) || !isFreshEvent(record.createdAt)) return null
     if (!Array.isArray(record.splitAmong) || record.splitAmong.some((member) => !members.includes(member?.uid))) return null
-    return { destination: config.destination, recordId: eventId, dedupeId: eventId }
+    return { destination: config.destination, recordId: eventId, dedupeId: eventId, record }
   }
   if (config.kind === 'settlement') {
     if (record.createdBy !== uid || !members.includes(record.from) || !members.includes(record.to) || !isFreshEvent(record.createdAt)) return null
-    return { destination: config.destination, recordId: eventId, dedupeId: eventId }
+    return { destination: config.destination, recordId: eventId, dedupeId: eventId, record }
   }
   if (record.recordedBy !== uid || record.status !== 'recorded') return null
   if (record.tripId !== tripId || !members.includes(record.memberUid)) return null
   if (!isFreshEvent(record.createdAt)) return null
-  return { destination: config.destination, recordId: eventId, dedupeId: eventId }
+  return { destination: config.destination, recordId: eventId, dedupeId: eventId, record }
 }
 
 const getCurrentMemberIds = (trip) => [...new Set([
@@ -206,7 +214,7 @@ export const createPushDispatchHandler = ({ getServices = getFirebaseAdminServic
         snapshot.docs.forEach((tokenDoc) => {
           const data = tokenDoc.data()
           if (typeof data.token === 'string' && data.token.length >= 20 && data.platform === 'android') {
-            tokenDocs.push({ ref: tokenDoc.ref, token: data.token })
+            tokenDocs.push({ ref: tokenDoc.ref, token: data.token, soundEnabled: data.soundEnabled === true })
           }
         })
       } catch (error) {
@@ -217,46 +225,48 @@ export const createPushDispatchHandler = ({ getServices = getFirebaseAdminServic
 
     let successCount = 0
     let failureCount = 0
-    const message = {
-      notification: {
-        title: 'Contri',
-        body: eventType === 'trip_member_added'
-          ? 'You were added to a Contri trip. Open Contri to view it.'
-          : 'There is a new update in one of your trips. Open Contri to view it.',
-      },
-      data: { eventType, tripId, recordId: persistedEvent.recordId, destination: persistedEvent.destination },
-      android: {
-        priority: 'high',
-        notification: {
-          channelId: 'contri_updates',
-          icon: 'ic_stat_contri',
-          color: '#0F8F83',
-        },
-      },
-    }
+    const content = buildPushNotificationContent({ eventType, trip, record: persistedEvent.record, activity: persistedEvent.activity })
     for (let offset = 0; offset < tokenDocs.length; offset += 500) {
       const chunk = tokenDocs.slice(offset, offset + 500)
-      sendStarted = true
-      const result = await messaging.sendEachForMulticast({ ...message, tokens: chunk.map((item) => item.token) })
-      successCount += result.successCount
-      failureCount += result.failureCount
-      await Promise.all(result.responses.map(async (response, index) => {
-        if (response.success) return
-        const code = response.error?.code || ''
-        if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
-          await chunk[index].ref.delete()
-          return
+      const preferenceGroups = [true, false].map((soundEnabled) => ({
+        soundEnabled,
+        tokens: chunk.filter((item) => item.soundEnabled === soundEnabled),
+      })).filter((group) => group.tokens.length)
+      for (const group of preferenceGroups) {
+        const message = {
+          notification: content,
+          data: { eventType, tripId, recordId: persistedEvent.recordId, destination: persistedEvent.destination },
+          android: {
+            priority: 'high',
+            notification: {
+              channelId: getPushChannelForPreference(group.soundEnabled),
+              icon: 'ic_stat_contri',
+              color: '#0F8F83',
+            },
+          },
         }
-        if (['messaging/server-unavailable', 'messaging/internal-error', 'messaging/unknown-error', 'messaging/message-rate-exceeded', 'messaging/device-message-rate-exceeded'].includes(code)) {
-          try {
-            await messaging.send({ ...message, token: chunk[index].token })
-            successCount += 1
-            failureCount -= 1
-          } catch {
-            // Keep the failed delivery count. Successful tokens are never resent.
+        sendStarted = true
+        const result = await messaging.sendEachForMulticast({ ...message, tokens: group.tokens.map((item) => item.token) })
+        successCount += result.successCount
+        failureCount += result.failureCount
+        await Promise.all(result.responses.map(async (response, index) => {
+          if (response.success) return
+          const code = response.error?.code || ''
+          if (code === 'messaging/registration-token-not-registered' || code === 'messaging/invalid-registration-token') {
+            await group.tokens[index].ref.delete()
+            return
           }
-        }
-      }))
+          if (['messaging/server-unavailable', 'messaging/internal-error', 'messaging/unknown-error', 'messaging/message-rate-exceeded', 'messaging/device-message-rate-exceeded'].includes(code)) {
+            try {
+              await messaging.send({ ...message, token: group.tokens[index].token })
+              successCount += 1
+              failureCount -= 1
+            } catch {
+              // Keep the failed delivery count. Successful tokens are never resent.
+            }
+          }
+        }))
+      }
     }
 
     await deliveryRef.update({

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { db } from '../firebase/config'
 import { getErrorMessage } from '../lib/errors'
-import { createNotificationArrivalDetector, prepareNotificationSound } from '../lib/notificationSound'
+import { createNotificationArrivalDetector } from '../lib/notificationSound'
 
 const initialState = { uid: null, notifications: [], unreadCount: 0, error: '' }
 
@@ -32,20 +32,6 @@ export const useNotifications = (uid) => {
     let unreadCount = 0
     const ref = collection(db, 'users', uid, 'notifications')
     const detectNotificationArrivals = createNotificationArrivalDetector(uid)
-    let audioPreparationPending = false
-
-    const prepareAudioAfterInteraction = () => {
-      if (audioPreparationPending) return
-      audioPreparationPending = true
-      void prepareNotificationSound().finally(() => {
-        audioPreparationPending = false
-      })
-    }
-
-    // A persisted preference survives reloads, but the browser's AudioContext does not.
-    // Prepare it only from a real user gesture so later Firestore callbacks can play safely.
-    window.addEventListener('pointerdown', prepareAudioAfterInteraction, { capture: true, passive: true })
-    window.addEventListener('keydown', prepareAudioAfterInteraction, true)
 
     const publish = (error = '') => {
       setState({
@@ -86,8 +72,6 @@ export const useNotifications = (uid) => {
     )
 
     return () => {
-      window.removeEventListener('pointerdown', prepareAudioAfterInteraction, true)
-      window.removeEventListener('keydown', prepareAudioAfterInteraction, true)
       stopList()
       stopUnread()
     }

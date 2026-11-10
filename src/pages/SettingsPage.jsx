@@ -7,7 +7,6 @@ import {
   LogOut,
   Monitor,
   Moon,
-  Play,
   Sun,
   UserRound,
   Volume2,
@@ -22,11 +21,8 @@ import { useTheme } from '../context/useTheme'
 import { usePushNotifications } from '../context/usePushNotifications'
 import { getDisplayName } from '../lib/utils'
 import { openCreatorLink, openExternalLink, CREATOR_URL, GITHUB_URL } from '../lib/creatorLink'
-import {
-  isNotificationSoundEnabled,
-  previewNotificationSound,
-  setNotificationSoundEnabled,
-} from '../lib/notificationSound'
+import { isNotificationSoundEnabled, persistNotificationSoundPreference } from '../lib/notificationSound'
+import { syncOwnPushSoundPreference } from '../services/pushNotifications'
 import { DeleteGuestAccountDialog } from '../components/settings/DeleteGuestAccountDialog'
 import { Badge } from '../components/ui/Badge'
 import { Button } from '../components/ui/Button'
@@ -55,17 +51,13 @@ export const SettingsPage = () => {
 
   const handleSoundToggle = async () => {
     const nextValue = !soundEnabled
-    const unlocked = await setNotificationSoundEnabled(nextValue)
+    persistNotificationSoundPreference(nextValue)
     setSoundEnabled(nextValue)
-    if (nextValue && !unlocked) {
-      toast('Sound is enabled, but audio was blocked. Toggle it off and on again to retry.')
+    try {
+      await syncOwnPushSoundPreference(user?.uid, nextValue)
+    } catch {
+      toast('Saved on this device. Push sound preference will retry when notifications reconnect.')
     }
-  }
-
-  const handleSoundPreview = async () => {
-    const played = await previewNotificationSound()
-    if (played) toast.success('Coin sound preview played. Check media volume or silent mode if needed.')
-    else toast.error('Audio is unavailable. Check device media volume and try again.')
   }
 
   const handlePushToggle = async () => {
@@ -140,14 +132,10 @@ export const SettingsPage = () => {
               </span>
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-ink">Sound On/Off</span>
-                <span className="mt-0.5 block text-xs leading-5 text-dusk">Play a short coin sound for new notifications while Contri is open.</span>
+                <span className="mt-0.5 block text-xs leading-5 text-dusk">Use Android’s standard notification sound for trip alerts when enabled.</span>
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Button onClick={handleSoundPreview} size="sm" type="button" variant="secondary">
-                <Play aria-hidden="true" className="h-4 w-4" />
-                Preview sound
-              </Button>
               <button
                 aria-checked={soundEnabled}
                 aria-label={soundEnabled ? 'Sound On' : 'Sound Off'}

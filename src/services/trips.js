@@ -145,7 +145,33 @@ export const updateTripMemberRole = async ({ tripId, members, memberId, role }) 
 
 export const joinTripByLink = async ({ tripId, member }) => {
   try {
-    await addMemberToTrip({ database: db, tripId, member })
+    const joined = await addMemberToTrip({ database: db, tripId, member })
+    const actor = auth.currentUser
+    if (!joined || !actor?.uid) return
+
+    const activityRef = doc(db, 'trips', tripId, 'activity', `member_joined_${actor.uid}`)
+    try {
+      const activityCreated = await runTransaction(db, async (transaction) => {
+        const existing = await transaction.get(activityRef)
+        if (existing.exists()) return false
+        transaction.set(activityRef, createActivityPayload({
+          type: 'trip_member_joined',
+          actor: {
+            uid: actor.uid,
+            name: member.name || member.displayName || actor.displayName || '',
+            email: '',
+          },
+          message: '{actor} joined the trip.',
+        }))
+        return true
+      })
+      if (activityCreated && !actor.isAnonymous) {
+        void requestPushDelivery({ tripId, eventId: activityRef.id, eventType: 'trip_member_joined' })
+      }
+    } catch (activityError) {
+      // Joining has already succeeded; activity/push delivery is secondary.
+      console.warn('[trip-join-activity]', { code: activityError?.code || 'unknown' })
+    }
   } catch (error) {
     notifyFirebaseError(error, 'We could not join that trip right now.')
     throw error

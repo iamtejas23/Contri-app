@@ -419,11 +419,12 @@ service cloud.firestore {
         allow get, list: if false;
         allow create, update: if isSelf(uid)
           && request.auth.token.firebase.sign_in_provider != 'anonymous'
-          && request.resource.data.keys().hasOnly(['token', 'platform', 'updatedAt'])
+          && request.resource.data.keys().hasOnly(['token', 'platform', 'soundEnabled', 'updatedAt'])
           && request.resource.data.token is string
           && request.resource.data.token.size() >= 20
           && request.resource.data.token.size() <= 2048
           && request.resource.data.platform == 'android'
+          && (!('soundEnabled' in request.resource.data) || request.resource.data.soundEnabled is bool)
           && request.resource.data.updatedAt == request.time;
         allow delete: if isSelf(uid);
       }
