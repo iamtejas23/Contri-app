@@ -1,104 +1,134 @@
+import {
+  checksumFromDigest,
+  checksumFromSidecar,
+  fetchJson,
+  formatBytes,
+  formatDate,
+  isStableRelease,
+  isTrustedGitHubUrl,
+  LATEST_RELEASE_API_URL,
+  RELEASES_API_URL,
+  RELEASES_PAGE_URL,
+  selectApkAsset,
+  selectChecksumAsset,
+  validateLatestRelease,
+} from './release-data.js'
+
 const menuToggle = document.querySelector('.menu-toggle')
 const navigation = document.querySelector('#primary-navigation')
 const releaseHistory = document.querySelector('#release-history-list')
 const releaseState = document.querySelector('#release-state')
-const apiUrl = 'https://api.github.com/repos/iamtejas23/Contri-app/releases?per_page=10'
-const releasesUrl = 'https://github.com/iamtejas23/Contri-app/releases'
 
 document.querySelector('#current-year').textContent = String(new Date().getFullYear())
 
-const isTrustedGitHubUrl = (value) => {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'https:' && (url.hostname === 'github.com' || url.hostname.endsWith('.githubusercontent.com'))
-  } catch {
-    return false
-  }
+const setUnavailable = (message, state = 'Release status unavailable') => {
+  document.querySelector('#download-description').textContent = message
+  document.querySelector('#release-panel-description').textContent = message
+  document.querySelector('.release-panel-label').textContent = 'ANDROID RELEASE STATUS'
+  releaseState.textContent = state
+  const download = document.querySelector('#apk-download')
+  download.textContent = 'Android APK · Unavailable'
+  download.disabled = true
+  document.querySelector('#release-details').hidden = true
+  document.querySelector('#checksum-row').hidden = true
+  document.querySelector('#release-notes-wrap').hidden = true
 }
 
-const formatBytes = (bytes) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '—'
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-}
-
-const formatDate = (value) => {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-const checksumForApk = async (apk, checksumAsset) => {
-  // GitHub's digest belongs to that specific asset. Prefer the APK asset's
-  // digest; the checksum sidecar's digest would be the hash of the text file.
-  if (typeof apk.digest === 'string' && /^sha256:[a-f\d]{64}$/i.test(apk.digest)) {
-    return apk.digest.slice('sha256:'.length)
-  }
-  if (!checksumAsset || !isTrustedGitHubUrl(checksumAsset.browser_download_url)) return ''
-
-  try {
-    const response = await fetch(checksumAsset.browser_download_url, { headers: { Accept: 'text/plain' } })
-    if (!response.ok) return ''
-    const content = await response.text()
-    return content.match(/\b[a-f\d]{64}\b/i)?.[0]?.toLowerCase() || ''
-  } catch {
-    // A checksum download link remains available even when cross-origin reads are blocked.
-    return ''
-  }
-}
-
-const replaceWithDownloadLink = (apkUrl, version, filename) => {
-  if (!isTrustedGitHubUrl(apkUrl)) return
+const replaceWithDownloadLink = (apk, version) => {
   const oldButton = document.querySelector('#apk-download')
   const link = document.createElement('a')
   link.id = 'apk-download'
   link.className = 'button button-primary'
-  link.href = apkUrl
+  link.href = apk.browser_download_url
   link.textContent = 'Download Android APK'
-  link.setAttribute('aria-label', `Download Contri ${version} Android APK, ${filename}`)
+  link.setAttribute('aria-label', `Download Contri ${version} Android APK, ${apk.name}`)
   link.rel = 'nofollow noopener'
   oldButton.replaceWith(link)
 }
 
-const renderRelease = async (release, configuredAssets = {}) => {
-  const version = release.tag_name || release.name || 'Android release'
-  const expectedName = (configuredAssets.apk || `Contri-${version}.apk`).toLowerCase()
-  const apk = release.assets?.find((asset) => asset.name.toLowerCase() === expectedName)
-  if (!apk || !isTrustedGitHubUrl(apk.browser_download_url)) return false
+const getChecksum = async (apk, checksumAsset) => {
+  const digest = checksumFromDigest(apk.digest)
+  if (digest) return digest
+  if (!checksumAsset) return ''
+  try {
+    const response = await fetch(checksumAsset.browser_download_url, { headers: { Accept: 'text/plain' } })
+    if (!response.ok) return ''
+    return checksumFromSidecar(await response.text(), apk.name)
+  } catch {
+    return ''
+  }
+}
 
-  const checksumName = configuredAssets.checksum?.toLowerCase()
-  const checksum = (checksumName && release.assets?.find((asset) => asset.name.toLowerCase() === checksumName))
-    || release.assets?.find((asset) => asset.name.toLowerCase() === `${apk.name}.sha256`.toLowerCase())
-    || release.assets?.find((asset) => asset.name.toLowerCase().endsWith('.apk.sha256'))
+const renderRelease = async (release) => {
+  const version = release.tag_name
+  const apk = selectApkAsset(release)
+  if (!apk) {
+    setUnavailable(`The latest stable release (${version}) does not contain a valid APK asset yet.`, 'APK not attached')
+    document.querySelector('#release-panel-version').textContent = version
+    document.querySelector('.release-panel-label').textContent = 'LATEST STABLE RELEASE · APK MISSING'
+    document.querySelector('#release-panel-link').href = isTrustedGitHubUrl(release.html_url) ? release.html_url : RELEASES_PAGE_URL
+    document.querySelector('#release-details').hidden = false
+    document.querySelector('#release-version').textContent = version
+    document.querySelector('#release-size').textContent = 'No APK attached'
+    document.querySelector('#release-date').textContent = formatDate(release.published_at)
+    const notes = typeof release.body === 'string' ? release.body.trim() : ''
+    document.querySelector('#release-notes').textContent = notes || 'No release notes were provided.'
+    document.querySelector('#release-notes-wrap').hidden = false
+    return
+  }
+
+  const checksumAsset = selectChecksumAsset(release, apk)
   const date = formatDate(release.published_at)
-
-  replaceWithDownloadLink(apk.browser_download_url, version, apk.name)
+  replaceWithDownloadLink(apk, version)
   document.querySelector('#download-title').setAttribute('aria-label', `Download Contri ${version}`)
-  document.querySelector('#download-description').textContent = `Download ${apk.name} for Android from the official Contri ${version} GitHub Release.`
+  document.querySelector('#download-description').textContent = `Download ${apk.name} for Android from the latest stable Contri release.`
   document.querySelector('#release-details').hidden = false
   document.querySelector('#release-version').textContent = version
   document.querySelector('#release-size').textContent = formatBytes(apk.size)
   document.querySelector('#release-date').textContent = date
   document.querySelector('#release-panel-version').textContent = version
   document.querySelector('#release-panel-description').textContent = `${apk.name} · ${formatBytes(apk.size)} · Published ${date}.`
-  document.querySelector('.release-panel-label').textContent = 'OFFICIAL ANDROID RELEASE'
+  document.querySelector('.release-panel-label').textContent = 'LATEST STABLE ANDROID RELEASE'
+  document.querySelector('#release-panel-link').href = isTrustedGitHubUrl(release.html_url) ? release.html_url : RELEASES_PAGE_URL
   releaseState.textContent = 'APK available'
 
-  if (checksum && isTrustedGitHubUrl(checksum.browser_download_url)) {
-    document.querySelector('#checksum-download').href = checksum.browser_download_url
-    const hash = await checksumForApk(apk, checksum)
-    if (hash) {
-      document.querySelector('#release-checksum').textContent = hash
-      document.querySelector('#checksum-row').hidden = false
-    } else {
-      document.querySelector('#release-checksum').textContent = 'Open attached checksum file'
-      document.querySelector('#checksum-row').hidden = false
-    }
+  const notesWrap = document.querySelector('#release-notes-wrap')
+  const notes = typeof release.body === 'string' ? release.body.trim() : ''
+  document.querySelector('#release-notes').textContent = notes || 'No release notes were provided.'
+  notesWrap.hidden = false
+
+  const checksumRow = document.querySelector('#checksum-row')
+  const hash = await getChecksum(apk, checksumAsset)
+  const checksumCode = document.querySelector('#release-checksum')
+  const copyButton = document.querySelector('#copy-checksum')
+  const checksumLink = document.querySelector('#checksum-download')
+  if (hash) {
+    checksumCode.textContent = hash
+    copyButton.disabled = false
+    copyButton.hidden = false
+    checksumRow.hidden = false
+  } else if (checksumAsset) {
+    checksumCode.textContent = 'Open the checksum file to verify this APK.'
+    copyButton.disabled = true
+    copyButton.hidden = true
+    checksumRow.hidden = false
+  } else {
+    checksumRow.hidden = true
   }
-  return true
+  if (checksumAsset) {
+    checksumLink.href = checksumAsset.browser_download_url
+    checksumLink.hidden = false
+  } else {
+    checksumLink.hidden = true
+  }
 }
 
 const renderHistory = (releases) => {
   releaseHistory.replaceChildren()
-  const stableReleases = releases.filter((release) => !release.draft && !release.prerelease)
+  const stableReleases = releases
+    .filter(isStableRelease)
+    .sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0))
+
   if (!stableReleases.length) {
     const empty = document.createElement('p')
     empty.className = 'history-empty'
@@ -115,17 +145,13 @@ const renderHistory = (releases) => {
     const title = document.createElement('strong')
     title.textContent = release.tag_name || release.name || 'Contri release'
     const date = document.createElement('small')
-    const config = window.CONTRI_SITE_CONFIG || {}
-    const isConfiguredRelease = release.tag_name === config.version
-    const expectedApkName = (isConfiguredRelease ? config.apk : `Contri-${release.tag_name}.apk`).toLowerCase()
-    const apk = release.assets?.find((asset) => asset.name.toLowerCase() === expectedApkName)
-      || release.assets?.find((asset) => asset.name.toLowerCase().endsWith('.apk'))
+    const apk = selectApkAsset(release)
     date.textContent = apk
       ? `${formatDate(release.published_at)} · ${formatBytes(apk.size)} · ${apk.name}`
       : `${formatDate(release.published_at)} · No APK asset attached`
     copy.append(title, date)
     const link = document.createElement('a')
-    link.href = isTrustedGitHubUrl(release.html_url) ? release.html_url : releasesUrl
+    link.href = isTrustedGitHubUrl(release.html_url) ? release.html_url : RELEASES_PAGE_URL
     link.target = '_blank'
     link.rel = 'noopener noreferrer'
     link.textContent = 'Release details ↗'
@@ -135,39 +161,61 @@ const renderHistory = (releases) => {
 }
 
 const loadReleaseData = async () => {
-  try {
-    const response = await fetch(apiUrl, { headers: { Accept: 'application/vnd.github+json' } })
-    if (!response.ok) throw new Error('GitHub release lookup failed')
-    const releases = await response.json()
-    renderHistory(Array.isArray(releases) ? releases : [])
+  const [latestResult, historyResult] = await Promise.allSettled([
+    fetchJson(LATEST_RELEASE_API_URL).then(validateLatestRelease),
+    fetchJson(`${RELEASES_API_URL}?per_page=20`),
+  ])
 
-    const config = window.CONTRI_SITE_CONFIG || {}
-    const configuredRelease = releases.find((release) => release.tag_name === config.version && !release.draft && !release.prerelease)
-    if (configuredRelease && config.apk && await renderRelease(configuredRelease, config)) return
+  if (historyResult.status === 'fulfilled' && Array.isArray(historyResult.value)) {
+    renderHistory(historyResult.value)
+  } else {
+    const error = document.createElement('p')
+    error.className = 'history-empty'
+    error.textContent = 'Release history is temporarily unavailable. Open GitHub Releases to see all versions.'
+    releaseHistory.replaceChildren(error)
+  }
 
-    const latestStable = releases.find((release) => !release.draft && !release.prerelease && release.assets?.some((asset) => asset.name.toLowerCase() === `contri-${release.tag_name}.apk`.toLowerCase()))
-    if (latestStable && await renderRelease(latestStable)) return
-    const newestStable = releases.find((release) => !release.draft && !release.prerelease)
-    const newestApk = newestStable?.assets?.find((asset) => asset.name.toLowerCase().endsWith('.apk'))
-    if (newestStable && newestApk) {
-      document.querySelector('#download-description').textContent = `GitHub release ${newestStable.tag_name} currently contains ${newestApk.name}. Contri only offers the signed, versioned APK asset as a stable download.`
-      document.querySelector('#release-panel-version').textContent = newestStable.tag_name
-      document.querySelector('#release-panel-description').textContent = `Expected stable asset: Contri-${newestStable.tag_name}.apk. The current ${newestApk.name} is not offered as a stable download.`
-      document.querySelector('.release-panel-label').textContent = 'GITHUB RELEASE · NO STABLE APK'
-      releaseState.textContent = 'Stable APK missing'
-      return
-    }
-    document.querySelector('#download-description').textContent = 'The Android download will be available here after the first stable APK is published.'
-    document.querySelector('#release-panel-description').textContent = 'No stable APK release is available yet. This panel will show the version, file size, date, and checksum when one is published.'
-    document.querySelector('.release-panel-label').textContent = 'LATEST STABLE APK'
-    releaseState.textContent = 'Coming soon'
-  } catch {
-    document.querySelector('#download-description').textContent = 'Check the official GitHub Releases page for current Android APK availability.'
-    document.querySelector('#release-panel-description').textContent = 'Release details are temporarily unavailable. Visit GitHub Releases for the current status.'
-    document.querySelector('.release-panel-label').textContent = 'ANDROID RELEASE STATUS'
-    releaseState.textContent = 'Release status unavailable'
+  if (latestResult.status === 'fulfilled') {
+    await renderRelease(latestResult.value)
+    return
+  }
+
+  if (latestResult.reason?.status === 404) {
+    setUnavailable('No stable Android release has been published yet. Check back here after the first APK release.', 'Coming soon')
+  } else {
+    setUnavailable('Release information could not be loaded right now. Visit the official GitHub Releases page for the latest APK.', 'Release status unavailable')
   }
 }
+
+const copyChecksum = async () => {
+  const value = document.querySelector('#release-checksum').textContent.trim()
+  if (!/^[a-f\d]{64}$/i.test(value)) return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+    } else {
+      const input = document.createElement('textarea')
+      input.value = value
+      input.setAttribute('readonly', '')
+      input.style.position = 'fixed'
+      input.style.opacity = '0'
+      document.body.append(input)
+      input.select()
+      const copied = document.execCommand('copy')
+      input.remove()
+      if (!copied) throw new Error('Clipboard unavailable')
+    }
+    const button = document.querySelector('#copy-checksum')
+    const status = document.querySelector('#copy-checksum-status')
+    button.textContent = 'Copied'
+    status.textContent = 'SHA-256 checksum copied.'
+    window.setTimeout(() => { button.textContent = 'Copy' }, 1800)
+  } catch {
+    document.querySelector('#copy-checksum-status').textContent = 'Could not copy the checksum. Select and copy it manually.'
+  }
+}
+
+document.querySelector('#copy-checksum').addEventListener('click', copyChecksum)
 
 const closeMenu = () => {
   menuToggle.setAttribute('aria-expanded', 'false')

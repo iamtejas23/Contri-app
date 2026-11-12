@@ -14,7 +14,7 @@ Then open `http://localhost:8000`. The website has no npm build step.
 
 ## Android release details
 
-The page reads public release metadata from the GitHub Releases API. [`site-config.js`](./site-config.js) currently selects the `v1.0.0` release assets `contri-app-v1.0.0.apk` and `contri-v1.0.0-sha256.txt`; the page displays the published version, APK size, release date, asset filename, and SHA-256 checksum.
+The page reads the latest stable release from the public GitHub Releases API and separately loads recent release history. It selects the APK and SHA-256 sidecar from that release's assets, displays release notes and published size/date, and uses GitHub's APK asset digest when available. No version or APK URL needs a manual website update.
 
 ## Enable GitHub Pages
 

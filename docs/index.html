@@ -18,8 +18,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./styles.css">
-    <script src="./site-config.js"></script>
-    <script src="./main.js" defer></script>
+    <script type="module" src="./main.js"></script>
     <title>Contri — Travel together. Split together.</title>
   </head>
   <body>
@@ -162,7 +161,8 @@
             <div><span>APK size</span><strong id="release-size">—</strong></div>
             <div><span>Released</span><strong id="release-date">—</strong></div>
           </div>
-          <div class="checksum-row" id="checksum-row" hidden><span>SHA-256</span><code id="release-checksum">—</code><a id="checksum-download" href="#download" target="_blank" rel="noopener noreferrer">Download checksum</a></div>
+          <div class="checksum-row" id="checksum-row" hidden><span>SHA-256</span><code id="release-checksum">—</code><div class="checksum-actions"><button class="checksum-copy" id="copy-checksum" type="button" disabled>Copy</button><a id="checksum-download" href="#download" target="_blank" rel="noopener noreferrer">Checksum file</a></div><span class="checksum-copy-status" id="copy-checksum-status" role="status" aria-live="polite"></span></div>
+          <section class="release-notes" id="release-notes-wrap" aria-labelledby="release-notes-heading" hidden><h3 class="release-notes-heading" id="release-notes-heading">Release notes</h3><p id="release-notes"></p></section>
           <p class="install-note"><strong>Install:</strong> Download the APK, open it on your Android device, allow installs from your browser or file manager if prompted, then confirm installation. Only install releases linked from this official repository.</p>
         </div>
         <div class="release-panel" aria-label="GitHub release information">
@@ -171,7 +171,7 @@
           <p class="release-panel-label">ANDROID RELEASE STATUS</p>
           <p class="release-panel-version" id="release-panel-version">—</p>
           <p class="release-panel-description" id="release-panel-description">Release metadata is loaded from the configured GitHub Release.</p>
-          <a class="release-panel-link" href="https://github.com/iamtejas23/Contri-app/releases/latest" target="_blank" rel="noopener noreferrer">Open GitHub release <span aria-hidden="true">↗</span></a>
+          <a class="release-panel-link" id="release-panel-link" href="https://github.com/iamtejas23/Contri-app/releases/latest" target="_blank" rel="noopener noreferrer">Open GitHub release <span aria-hidden="true">↗</span></a>
         </div>
       </section>
       <section class="release-history section-wrap" aria-labelledby="history-title">
