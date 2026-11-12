@@ -228,7 +228,7 @@ html[data-theme='dark'] .settings-builder__terminal { background-color: #080808;
 .trip-route-ripple--inner { animation-delay: 1.2s; }
 .trip-route-line { position: absolute; top: 2.5rem; bottom: 0; left: 1.22rem; width: 2px; background: #e2e8f0; }
 .trip-route-line--done { background: linear-gradient(#10b981, #34d399); }
-.trip-route-action { display: inline-flex; min-width: 2.5rem; min-height: 2.5rem; align-items: center; justify-content: center; border-radius: .65rem; color: #64748b; transition: background-color .16s ease, color .16s ease; }
+.trip-route-action { display: inline-flex; min-width: 2.75rem; min-height: 2.75rem; align-items: center; justify-content: center; border-radius: .65rem; color: #64748b; transition: background-color .16s ease, color .16s ease; }
 .trip-route-action:hover:not(:disabled) { background: rgb(148 163 184 / 14%); color: #0f172a; }
 .trip-route-action:disabled { cursor: not-allowed; opacity: .35; }
 .trip-route-action--danger:hover:not(:disabled) { background: rgb(239 68 68 / 10%); color: #dc2626; }
@@ -312,7 +312,7 @@ html[data-theme='dark'] .route-date-text-action:hover:not(:disabled) { backgroun
 .route-canvas-control { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border: 1px solid #e2e8f0; border-radius: .7rem; color: #475569; transition: background-color .15s ease, border-color .15s ease; }
 .route-canvas-control:hover:not(:disabled) { background: #f1f5f9; border-color: #cbd5e1; }
 .route-canvas-control:disabled { cursor: not-allowed; opacity: .4; }
-.route-directions-toggle { min-height: 2.5rem; border-radius: .7rem; background: #f1f5f9; padding: .5rem .8rem; color: #334155; font-size: .75rem; font-weight: 700; }
+.route-directions-toggle { min-height: 2.75rem; border-radius: .7rem; background: #f1f5f9; padding: .5rem .8rem; color: #334155; font-size: .75rem; font-weight: 700; }
 html[data-theme='dark'] .route-canvas-card { border-color: #252525; background: #101010; }
 html[data-theme='dark'] .route-canvas-backdrop { fill: #080c16; }
 html[data-theme='dark'] .maharashtra-state-shape { fill: #111827; stroke: #475569; }

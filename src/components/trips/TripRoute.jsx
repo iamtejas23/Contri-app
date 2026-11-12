@@ -72,7 +72,11 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
   const [stopForm, setStopForm] = useState(blankStopForm())
   const [formError, setFormError] = useState('')
   const [movedStopId, setMovedStopId] = useState('')
-  const [directionsOpen, setDirectionsOpen] = useState(false)
+  // Admin status can arrive after the route component mounts while auth/trip data
+  // is restoring. Derive the default from the live permission until the user
+  // explicitly toggles the list, so Android does not leave admin controls hidden.
+  const [directionsOpen, setDirectionsOpen] = useState(null)
+  const showDirections = directionsOpen ?? canManage
   const moveFeedbackTimer = useRef(null)
 
   useEffect(() => () => window.clearTimeout(moveFeedbackTimer.current), [])
@@ -254,10 +258,10 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
         <Card className="min-w-0 p-4 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-dusk">In order</p><h3 className="mt-1 font-display text-lg font-semibold text-ink">Directions</h3></div>
-            <button aria-expanded={directionsOpen} className="route-directions-toggle sm:hidden" onClick={() => setDirectionsOpen((current) => !current)} type="button">{directionsOpen ? 'Hide directions' : 'Show directions'}</button>
+            <button aria-controls="trip-route-directions" aria-expanded={showDirections} className="route-directions-toggle sm:hidden" onClick={() => setDirectionsOpen((current) => !(current ?? canManage))} type="button">{showDirections ? (canManage ? 'Hide route controls' : 'Hide directions') : (canManage ? 'Show route controls' : 'Show directions')}</button>
             {canManage ? <span className="hidden text-xs text-dusk sm:block">Only trip admins can edit this route.</span> : null}
           </div>
-          <ol className={`trip-route-timeline${directionsOpen ? '' : ' trip-route-timeline--collapsed sm:!grid'}`}>
+          <ol className={`trip-route-timeline${showDirections ? '' : ' trip-route-timeline--collapsed sm:!grid'}`} id="trip-route-directions">
             {points.map((point, index) => {
               const isNext = point.id === nextUpcomingId
               const isStop = point.type === 'stop'
