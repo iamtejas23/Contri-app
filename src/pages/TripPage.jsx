@@ -2,6 +2,7 @@ import {
   FileSpreadsheet,
   FileText,
   Link2,
+  Map,
   MailPlus,
   MessageCircle,
   PencilLine,
@@ -26,6 +27,7 @@ import { ReceiptViewPermissions } from '../components/trips/ReceiptViewPermissio
 import { TripInviteDialog } from '../components/trips/TripInviteDialog'
 import { TripMembersIndicator } from '../components/trips/TripMembersIndicator'
 import { AdvanceContributions } from '../components/trips/AdvanceContributions'
+import { TripRoute } from '../components/trips/TripRoute'
 import { TripMembersSection } from '../components/trips/TripMembersSection'
 import { MemberAvatar } from '../components/ui/MemberAvatar'
 import { Badge } from '../components/ui/Badge'
@@ -65,6 +67,7 @@ const TripDashboard = lazy(() =>
 const tabs = [
   { value: 'overview', label: 'Hisab', emoji: '💸' },
   { value: 'expenses', label: 'Kharcha', emoji: '🧾' },
+  { value: 'route', label: 'Route', icon: Map },
   { value: 'settlements', label: 'Settle', emoji: '🤝' },
   { value: 'advances', label: 'Advance', emoji: '👛' },
   { value: 'activity', label: 'Activity', emoji: '📋' },
@@ -652,7 +655,7 @@ export const TripPage = () => {
             onClick={() => setActiveTab(tab.value)}
             type="button"
           >
-            <span className="text-sm leading-none">{tab.emoji}</span>
+            {tab.icon ? <tab.icon aria-hidden="true" className="h-4 w-4 shrink-0" /> : <span className="text-sm leading-none">{tab.emoji}</span>}
             {tab.label}
           </button>
         ))}
@@ -692,6 +695,10 @@ export const TripPage = () => {
           }}
           canManage={canManageTrip}
         />
+      ) : null}
+
+      {activeTab === 'route' ? (
+        <TripRoute key={tripId} actorUid={user?.uid} canManage={canManageTrip} members={displayMembers} trip={trip} tripId={tripId} />
       ) : null}
 
       {activeTab === 'settlements' ? (

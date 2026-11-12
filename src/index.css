@@ -210,6 +210,47 @@ html[data-theme='dark'] .settings-builder__terminal { background-color: #080808;
   border: 1px solid #252525;
 }
 
+.trip-route-timeline { display: grid; }
+.trip-route-item { position: relative; display: grid; min-width: 0; grid-template-columns: 2.75rem minmax(0, 1fr); column-gap: .75rem; }
+.trip-route-marker-column { position: relative; z-index: 1; display: flex; justify-content: center; }
+.trip-route-marker { position: relative; display: grid; width: 2.5rem; height: 2.5rem; flex: 0 0 auto; place-items: center; overflow: visible; border: 1px solid #dbe3ee; border-radius: 9999px; background: #f8fafc; color: #64748b; }
+.trip-route-marker--completed { border-color: #6ee7b7; background: #d1fae5; color: #047857; }
+.trip-route-marker--current { border-color: #93c5fd; background: #dbeafe; color: #2563eb; }
+.trip-route-marker--upcoming { border-color: #fecdd3; background: #fff1f2; color: #e11d48; }
+.trip-route-marker--next { border-color: rgb(248 113 113 / 72%); background: rgb(127 29 29 / 15%); color: #ef4444; box-shadow: 0 0 18px rgb(239 68 68 / 22%); }
+.trip-route-marker-dot { z-index: 1; width: .7rem; height: .7rem; border-radius: 9999px; background: #ef4444; box-shadow: 0 0 10px rgb(248 113 113 / 75%); }
+.trip-route-marker-dot--current { background: #3b82f6; box-shadow: 0 0 8px rgb(59 130 246 / 60%); }
+.trip-route-number { position: absolute; z-index: 2; right: -.2rem; bottom: -.2rem; display: grid; min-width: 1.05rem; height: 1.05rem; place-items: center; border: 1px solid #fff; border-radius: 9999px; background: #334155; color: #fff; font-size: 8px; font-weight: 700; line-height: 1; }
+.trip-route-status--upcoming { background: #fff1f2; color: #be123c; }
+.trip-route-status--current { background: #dbeafe; color: #1d4ed8; }
+.trip-route-status--completed { background: #d1fae5; color: #047857; }
+.trip-route-ripple { position: absolute; inset: 50% auto auto 50%; width: 1.1rem; height: 1.1rem; border: 1px solid rgb(248 113 113 / 65%); border-radius: 9999px; opacity: 0; transform: translate(-50%, -50%) scale(.65); animation: trip-route-ripple 2.4s ease-out infinite; pointer-events: none; }
+.trip-route-ripple--inner { animation-delay: 1.2s; }
+.trip-route-line { position: absolute; top: 2.5rem; bottom: 0; left: 1.22rem; width: 2px; background: #e2e8f0; }
+.trip-route-line--done { background: linear-gradient(#10b981, #34d399); }
+.trip-route-action { display: inline-flex; min-width: 2.5rem; min-height: 2.5rem; align-items: center; justify-content: center; border-radius: .65rem; color: #64748b; transition: background-color .16s ease, color .16s ease; }
+.trip-route-action:hover:not(:disabled) { background: rgb(148 163 184 / 14%); color: #0f172a; }
+.trip-route-action:disabled { cursor: not-allowed; opacity: .35; }
+.trip-route-action--danger:hover:not(:disabled) { background: rgb(239 68 68 / 10%); color: #dc2626; }
+html[data-theme='dark'] .trip-route-marker { border-color: #3f3f46; background: #18181b; color: #a1a1aa; }
+html[data-theme='dark'] .trip-route-marker--completed { border-color: rgb(52 211 153 / 38%); background: rgb(16 185 129 / 15%); color: #6ee7b7; }
+html[data-theme='dark'] .trip-route-marker--current { border-color: rgb(96 165 250 / 42%); background: rgb(59 130 246 / 16%); color: #93c5fd; }
+html[data-theme='dark'] .trip-route-marker--upcoming { border-color: rgb(251 113 133 / 30%); background: rgb(159 18 57 / 15%); color: #fda4af; }
+html[data-theme='dark'] .trip-route-number { border-color: #18181b; background: #475569; color: #fff; }
+html[data-theme='dark'] .trip-route-status--upcoming { background: rgb(159 18 57 / 22%); color: #fda4af; }
+html[data-theme='dark'] .trip-route-status--current { background: rgb(30 64 175 / 22%); color: #93c5fd; }
+html[data-theme='dark'] .trip-route-status--completed { background: rgb(6 95 70 / 24%); color: #6ee7b7; }
+html[data-theme='dark'] .trip-route-line { background: #3f3f46; }
+html[data-theme='dark'] .trip-route-line--done { background: linear-gradient(#10b981, #34d399); }
+html[data-theme='dark'] .trip-route-action:hover:not(:disabled) { color: #f4f4f5; }
+@keyframes trip-route-ripple {
+  0% { opacity: .72; transform: translate(-50%, -50%) scale(.65); }
+  80%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.65); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trip-route-ripple { animation: none; }
+}
+
 @layer utilities {
   .scrollbar-none {
     -ms-overflow-style: none;

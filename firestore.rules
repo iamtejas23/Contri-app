@@ -129,6 +129,38 @@ service cloud.firestore {
         || (('createdBy' in trip) && trip.createdBy == uid);
     }
 
+    function validRoutePoint(point) {
+      return point is map
+        && point.keys().hasAll(['name', 'description', 'plannedArrivalDate', 'actualCompletionDate', 'status'])
+        && point.keys().hasOnly(['name', 'description', 'plannedArrivalDate', 'actualCompletionDate', 'status'])
+        && point.name is string
+        && point.name.size() > 0
+        && point.name.size() <= 120
+        && point.description is string
+        && point.description.size() <= 240
+        && point.plannedArrivalDate is string
+        && (point.plannedArrivalDate == '' || point.plannedArrivalDate.matches('^\\d{4}-\\d{2}-\\d{2}$'))
+        && point.actualCompletionDate is string
+        && (point.actualCompletionDate == '' || point.actualCompletionDate.matches('^\\d{4}-\\d{2}-\\d{2}$'))
+        && point.status in ['upcoming', 'in_progress', 'completed']
+        && ((point.status == 'completed' && point.actualCompletionDate != '')
+          || (point.status != 'completed' && point.actualCompletionDate == ''));
+    }
+
+    function validTripRoute(tripId) {
+      return request.resource.data.keys().hasOnly([
+          'tripId', 'version', 'start', 'stops', 'destination', 'updatedBy', 'updatedAt'
+        ])
+        && request.resource.data.tripId == tripId
+        && request.resource.data.version == 1
+        && validRoutePoint(request.resource.data.start)
+        && validRoutePoint(request.resource.data.destination)
+        && request.resource.data.stops is list
+        && request.resource.data.stops.size() <= 48
+        && request.resource.data.updatedBy == request.auth.uid
+        && request.resource.data.updatedAt == request.time;
+    }
+
     function isValidClearLockUpdate(tripId) {
       let trip = get(/databases/$(database)/documents/trips/$(tripId)).data;
       let nextLock = request.resource.data.get('clearOperation', null);
@@ -449,6 +481,19 @@ service cloud.firestore {
         || isValidClearLockUpdate(tripId)
         || isSelfMemberProfileUpdate();
       allow delete: if isTripAdmin(tripId) && !isTripClearing(tripId);
+
+      // Shared trip route. Current trip members can read it; only a trusted
+      // trip admin can create or update it. Route data is isolated from the
+      // trip document and all financial subcollections.
+      match /route/{routeId} {
+        allow get: if routeId == 'current' && isTripMember(tripId);
+        allow list: if false;
+        allow create, update: if routeId == 'current'
+          && isTripAdmin(tripId)
+          && !isTripClearing(tripId)
+          && validTripRoute(tripId);
+        allow delete: if false;
+      }
 
       // This is a deliberately small, invite-link-only projection. It contains
       // no member identities, expenses, settlements, or other trip document
