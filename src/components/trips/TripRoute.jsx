@@ -181,6 +181,18 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
     window.clearTimeout(moveFeedbackTimer.current)
     moveFeedbackTimer.current = window.setTimeout(() => setMovedStopId(''), 850)
   }
+  const selectRoutePoint = (point) => {
+    if (canManage) {
+      if (point.type === 'stop') openStop(point)
+      else openSetup()
+      return
+    }
+    const pointIndex = points.findIndex((item) => item.id === point.id)
+    setDirectionsOpen(true)
+    window.requestAnimationFrame(() => {
+      document.querySelector(`[data-route-direction-index="${pointIndex}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
   const saveCanvasPosition = async (pointId, position) => {
     if (!canManage || saving || !route) return
     const previous = route
@@ -238,7 +250,7 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
           {canManage ? <div className="mt-3 flex justify-center"><Button className="min-h-11" onClick={openSetup} type="button"><Map aria-hidden="true" className="h-4 w-4" /> Set up route</Button></div> : null}
         </Card>
       ) : <>
-        <RouteCanvas canManage={canManage && !saving} onEditPoint={(point) => point.type === 'stop' ? openStop(point) : openSetup()} onPositionChange={saveCanvasPosition} route={route} />
+        <RouteCanvas canManage={canManage && !saving} onEditPoint={selectRoutePoint} onPositionChange={saveCanvasPosition} route={route} />
         <Card className="min-w-0 p-4 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-dusk">In order</p><h3 className="mt-1 font-display text-lg font-semibold text-ink">Directions</h3></div>
@@ -252,7 +264,7 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
               const stopIndex = isStop ? route.stops.findIndex((stop) => stop.id === point.id) : -1
               const isLast = index === points.length - 1
               const TypeIcon = point.type === 'start' ? Play : point.type === 'destination' ? Flag : MapPin
-              return <li className={`trip-route-item${movedStopId === point.id ? ' trip-route-item--moved' : ''}`} key={point.id}>
+              return <li className={`trip-route-item${movedStopId === point.id ? ' trip-route-item--moved' : ''}`} data-route-direction-index={index} key={point.id}>
                 {!isLast ? <span className={`trip-route-line ${point.status === 'completed' ? 'trip-route-line--done' : ''}`} aria-hidden="true" /> : null}
                 <div className="trip-route-marker-column"><PointMarker isNext={isNext} number={index + 1} point={point} /></div>
                 <div className="min-w-0 pb-6">

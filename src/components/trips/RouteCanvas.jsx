@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { LocateFixed, Map, Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
+import { Check, Flag, LocateFixed, Map, MapPin, Maximize2, Play, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   getRouteCanvasCoordinates,
   getRouteStopProgress,
@@ -12,6 +12,11 @@ const statusColor = { completed: '#34d399', in_progress: '#60a5fa', upcoming: '#
 const statusText = { completed: 'Completed', in_progress: 'In progress', upcoming: 'Upcoming' }
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 const shortened = (value) => value.length > 18 ? `${value.slice(0, 17)}…` : value
+const displayDate = (value) => {
+  if (!value) return ''
+  const date = new Date(`${value}T00:00:00`)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+}
 const mapWidth = MAHARASHTRA_VIEWBOX.width
 const mapHeight = MAHARASHTRA_VIEWBOX.height
 
@@ -26,8 +31,13 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
   const [panDrag, setPanDrag] = useState(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  const timelineRef = useRef(null)
+  const activeTimelinePointRef = useRef(null)
   const routePoints = useMemo(() => getTripRouteCanvasPoints(route), [route])
   const stopProgress = useMemo(() => getRouteStopProgress(route), [route])
+  const activePointId = routePoints.find((point) => point.status === 'in_progress')?.id
+    || routePoints.find((point) => point.status === 'upcoming')?.id
+    || routePoints.at(-1)?.id
   const visibleWidth = mapWidth / zoom
   const visibleHeight = mapHeight / zoom
   const viewX = (mapWidth - visibleWidth) / 2 + pan.x
@@ -146,6 +156,17 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
     return () => window.removeEventListener('touchmove', preventTouchScroll)
   }, [drag, panDrag])
 
+  useEffect(() => {
+    const viewport = timelineRef.current
+    const activePointElement = activeTimelinePointRef.current
+    if (!viewport || !activePointElement || !activePointId) return
+    const viewportRect = viewport.getBoundingClientRect()
+    const pointRect = activePointElement.getBoundingClientRect()
+    const nextScrollLeft = viewport.scrollLeft + pointRect.left - viewportRect.left - (viewport.clientWidth - pointRect.width) / 2
+    const behavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    viewport.scrollTo({ left: Math.max(0, nextScrollLeft), behavior })
+  }, [activePointId])
+
   return (
     <section aria-label="Interactive Maharashtra route map" className="route-canvas-card">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
@@ -214,22 +235,42 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
           </g>
         })}
       </svg>
-      <div className="route-stop-progress" aria-label="Route stop completion">
-        <div className="route-stop-progress__meta">
+      <section aria-label="Journey progress timeline" className="route-journey">
+        <div className="route-journey__summary">
           <span>{stopProgress.completed} of {stopProgress.total} stops completed · {stopProgress.remaining} remaining</span>
-          <span className="route-stop-progress__percent">{stopProgress.percent}%</span>
+          <span className="route-journey__percent">{stopProgress.percent}%</span>
         </div>
-        <div
-          aria-label="Route stops completed"
-          aria-valuemax={100}
-          aria-valuemin={0}
-          aria-valuenow={stopProgress.percent}
-          className="route-stop-progress__track"
-          role="progressbar"
-        >
-          <div className="route-stop-progress__fill" style={{ width: `${stopProgress.percent}%` }} />
+        <div aria-label="Journey locations; scroll horizontally to see all locations" className="route-journey__viewport" ref={timelineRef} role="region" tabIndex={0}>
+          <ol className="route-journey__track">
+            {routePoints.map((point, index) => {
+              const isNext = point.status === 'upcoming' && !routePoints.slice(0, index).some((before) => before.status === 'upcoming')
+              const isActive = point.id === activePointId
+              const TypeIcon = point.type === 'start' ? Play : point.type === 'destination' ? Flag : MapPin
+              return <li className="route-journey__item" key={point.id} ref={isActive ? activeTimelinePointRef : null}>
+                {index < routePoints.length - 1 ? <span aria-hidden="true" className={`route-journey__connector${point.status === 'completed' ? ' route-journey__connector--completed' : ''}`} /> : null}
+                <button
+                  aria-label={`${point.type === 'start' ? 'Starting location' : point.type === 'destination' ? 'Final destination' : `Stop ${index}`}: ${point.name}. ${statusText[point.status]}. ${canManage ? 'Edit details' : 'View details'}`}
+                  className={`route-journey__point${isActive ? ' route-journey__point--active' : ''}`}
+                  onClick={() => onEditPoint(point)}
+                  type="button"
+                >
+                  <span className={`route-journey__marker route-journey__marker--${point.status}${isNext ? ' route-journey__marker--next' : ''}`}>
+                    {isNext ? <><span aria-hidden="true" className="route-journey__ripple route-journey__ripple--outer" /><span aria-hidden="true" className="route-journey__ripple route-journey__ripple--inner" /></> : null}
+                    {point.type === 'stop' && point.status === 'completed' ? <Check aria-hidden="true" className="h-4 w-4" strokeWidth={2.5} /> : point.type === 'stop' ? <span>{String(index).padStart(2, '0')}</span> : <TypeIcon aria-hidden="true" className="h-4 w-4" />}
+                    {point.type !== 'stop' && point.status === 'completed' ? <span aria-hidden="true" className="route-journey__completion"><Check className="h-2.5 w-2.5" /></span> : null}
+                  </span>
+                  <span className="route-journey__copy">
+                    <span className="route-journey__kind">{point.type === 'start' ? 'Starting location' : point.type === 'destination' ? 'Final destination' : `Stop ${index}`}</span>
+                    <span className="route-journey__name">{point.name}</span>
+                    <span className={`route-journey__status route-journey__status--${point.status}`}>{statusText[point.status]}{isNext ? ' · Next up' : ''}</span>
+                    {point.plannedArrivalDate ? <span className="route-journey__date">Planned · {displayDate(point.plannedArrivalDate)}</span> : null}
+                  </span>
+                </button>
+              </li>
+            })}
+          </ol>
         </div>
-      </div>
+      </section>
       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-dusk">
         <span>{canManage ? 'Pins stay inside the state boundary. Use the directions list to change stop order.' : 'Shared Maharashtra map · locations shown in trip order.'}</span>
         <a className="opacity-75 underline-offset-2 hover:underline" href="https://www.geoboundaries.org/" rel="noreferrer" target="_blank">Boundary: geoBoundaries · DataMeet India · CC BY 2.5 IN</a>

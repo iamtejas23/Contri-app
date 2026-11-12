@@ -38,7 +38,29 @@ test('a new route has no locations until endpoints are supplied', () => {
 })
 
 test('route points retain start, ordered stops, and destination sequence', () => {
-  assert.deepEqual(getTripRoutePoints(routeWithStops()).map((point) => point.name), ['Pune', 'Nashik', 'Igatpuri', 'Mumbai'])
+  const points = getTripRoutePoints(routeWithStops())
+  assert.deepEqual(points.map((point) => point.name), ['Pune', 'Nashik', 'Igatpuri', 'Mumbai'])
+  assert.deepEqual(points.map((point) => point.type), ['start', 'stop', 'stop', 'destination'])
+  assert.deepEqual(points.map((point) => point.status), ['completed', 'in_progress', 'upcoming', 'upcoming'])
+  assert.equal(points[1].plannedArrivalDate, '2026-11-13')
+})
+
+test('route timeline source retains long place names and every ordered stop', () => {
+  const longName = 'A very long Maharashtra destination name that must wrap instead of being abbreviated'
+  const route = {
+    start: createEmptyRoutePoint('Pune'),
+    stops: Array.from({ length: 48 }, (_, index) => ({
+      ...createEmptyRoutePoint(index === 20 ? longName : `Stop ${index + 1}`),
+      id: `stop-${index + 1}`,
+      plannedArrivalDate: '2026-11-13',
+    })),
+    destination: createEmptyRoutePoint('Mumbai'),
+  }
+  const points = getTripRoutePoints(route)
+  assert.equal(points.length, 50)
+  assert.equal(points[21].name, longName)
+  assert.equal(points[21].plannedArrivalDate, '2026-11-13')
+  assert.equal(points[49].name, 'Mumbai')
 })
 
 test('only the next upcoming route point is selected for animation', () => {
