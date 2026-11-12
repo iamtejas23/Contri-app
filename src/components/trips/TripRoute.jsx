@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Flag, Map, MapPin, PencilLine, Play, Plus, RotateCcw, Route as RouteIcon, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-import { getNextUpcomingRoutePointId, getRouteProgress, getTripRouteCanvasPoints, getTripRoutePoints, createEmptyTripRoute, reorderTripRouteStop, setTripRouteCanvasPointPosition, setTripRoutePointStatus } from '../../lib/tripRoute.js'
+import { getDefaultMaharashtraPosition, getNextUpcomingRoutePointId, getRouteProgress, getTripRoutePoints, createEmptyTripRoute, reorderTripRouteStop, setTripRouteCanvasPointPosition, setTripRoutePointStatus } from '../../lib/tripRoute.js'
 import { subscribeTripRoute, updateTripRoute } from '../../services/tripRoutes.js'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -151,11 +151,8 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
       const index = stops.findIndex((stop) => stop.id === nextStop.id)
       if (index >= 0) stops[index] = { ...stops[index], ...nextStop, ...(stops[index].canvasPosition ? { canvasPosition: stops[index].canvasPosition } : {}) }
       else {
-        const points = getTripRouteCanvasPoints(current)
-        const existingCanvasLayout = points.some((point) => point.canvasPosition && (point.id === 'start' ? current.start.canvasPosition : point.id === 'destination' ? current.destination.canvasPosition : current.stops.find((stop) => stop.id === point.id)?.canvasPosition))
-        const previousX = points.filter((point) => point.type === 'stop').at(-1)?.canvasPosition.x ?? 0
-        const canvasPosition = existingCanvasLayout ? { x: previousX + ((100 - previousX) / 2), y: [32, 68, 24, 76][stops.length % 4] } : undefined
-        stops.push({ ...nextStop, ...(canvasPosition ? { canvasPosition } : {}) })
+        const canvasPosition = getDefaultMaharashtraPosition(stops.length + 1, stops.length + 3)
+        stops.push({ ...nextStop, canvasPosition })
       }
       return { ...current, stops }
     }, editingStop ? 'Stop updated.' : 'Stop added to the route.')

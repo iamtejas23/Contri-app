@@ -1,3 +1,5 @@
+import { MAHARASHTRA_POLYGONS, MAHARASHTRA_VIEWBOX } from '../data/maharashtraBoundary.js'
+
 export const ROUTE_POINT_STATUSES = ['upcoming', 'in_progress', 'completed']
 export const MAX_ROUTE_STOPS = 48
 
@@ -108,45 +110,84 @@ export const reorderTripRouteStop = (route, stopId, offset) => {
   const target = index + offset
   if (index < 0 || target < 0 || target >= stops.length) return route
   ;[stops[index], stops[target]] = [stops[target], stops[index]]
-  const hasCanvasLayout = Boolean(route?.start?.canvasPosition || route?.destination?.canvasPosition || stops.some((stop) => stop.canvasPosition))
-  const positionedStops = hasCanvasLayout
-    ? stops.map((stop, stopIndex) => ({ ...stop, canvasPosition: { ...(stop.canvasPosition || { y: [32, 68, 24, 76][stopIndex % 4] }), x: ((stopIndex + 1) / (stops.length + 1)) * 100 } }))
-    : stops
-  const next = { ...route, stops: positionedStops }
+  const next = { ...route, stops }
   const errors = validateTripRoute(next)
   if (errors.length) throw new Error(errors[0])
   return next
 }
 
+export const isInsideMaharashtra = (position) => {
+  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y)) return false
+  const x = position.x
+  const y = position.y
+  const insideRing = (ring) => {
+    let inside = false
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i]
+      const [xj, yj] = ring[j]
+      const crosses = (yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
+      if (crosses) inside = !inside
+    }
+    return inside
+  }
+  return MAHARASHTRA_POLYGONS.some((polygon) => insideRing(polygon[0]) && !polygon.slice(1).some(insideRing))
+}
+
+export const getNearestMaharashtraPosition = (position) => {
+  const candidate = {
+    x: Math.max(0, Math.min(100, Number(position?.x) || 0)),
+    y: Math.max(0, Math.min(100, Number(position?.y) || 0)),
+  }
+  if (isInsideMaharashtra(candidate)) return candidate
+
+  // Legacy canvas coordinates may sit outside the state shape. Find the nearest
+  // nearby interior point for display without mutating the stored route.
+  for (let radius = 0.5; radius <= 36; radius += 0.5) {
+    const samples = Math.max(16, Math.ceil(radius * 4))
+    for (let sample = 0; sample < samples; sample += 1) {
+      const angle = (sample / samples) * Math.PI * 2
+      const point = {
+        x: Math.max(0, Math.min(100, candidate.x + Math.cos(angle) * radius)),
+        y: Math.max(0, Math.min(100, candidate.y + Math.sin(angle) * radius)),
+      }
+      if (isInsideMaharashtra(point)) return point
+    }
+  }
+
+  // The centroid-like central Maharashtra anchor is inside the main polygon.
+  return { x: 49, y: 43 }
+}
+
+export const getDefaultMaharashtraPosition = (index, totalPoints) => {
+  const progress = totalPoints <= 1 ? 0.5 : Math.max(0, Math.min(1, index / (totalPoints - 1)))
+  const x = 12 + progress * 76
+  const offset = index > 0 && index < totalPoints - 1 ? (index % 2 ? -4 : 4) : 0
+  return getNearestMaharashtraPosition({ x, y: 58 - ((x - 12) * 0.38) + offset })
+}
+
 export const getTripRouteCanvasPoints = (route) => {
-  const stops = Array.isArray(route?.stops) ? route.stops : []
-  const fallback = new Map([
-    ['start', { x: 0, y: 50 }],
-    ['destination', { x: 100, y: 50 }],
-    ...stops.map((stop, index) => [stop.id, {
-      x: ((index + 1) / (stops.length + 1)) * 100,
-      y: [32, 68, 24, 76][index % 4],
-    }]),
-  ])
-  return getTripRoutePoints(route).map((point) => ({
+  const points = getTripRoutePoints(route)
+  return points.map((point, index) => ({
     ...point,
-    canvasPosition: point.canvasPosition || fallback.get(point.id) || { x: 50, y: 50 },
+    canvasPosition: getNearestMaharashtraPosition(point.canvasPosition || getDefaultMaharashtraPosition(index, points.length)),
   }))
 }
 
 export const setTripRouteCanvasPointPosition = (route, pointId, position) => {
   const points = getTripRouteCanvasPoints(route)
   if (!points.some((point) => point.id === pointId)) throw new Error('That route location is no longer available.')
-  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) || position.x < 0 || position.x > 100 || position.y < 0 || position.y > 100) {
-    throw new Error('Choose a position inside the route canvas.')
+  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) || position.x < 0 || position.x > 100 || position.y < 0 || position.y > 100 || !isInsideMaharashtra(position)) {
+    throw new Error('Keep route markers inside Maharashtra.')
   }
 
-  const positioned = points.map((point) => ({ ...point, canvasPosition: point.id === pointId ? { x: Math.round(position.x * 10) / 10, y: Math.round(position.y * 10) / 10 } : point.canvasPosition }))
+  const roundedPosition = { x: Math.round(position.x * 10) / 10, y: Math.round(position.y * 10) / 10 }
+  const savedPosition = isInsideMaharashtra(roundedPosition) ? roundedPosition : getNearestMaharashtraPosition(roundedPosition)
+  const positioned = points.map((point) => ({ ...point, canvasPosition: point.id === pointId ? savedPosition : point.canvasPosition }))
   const byId = new Map(positioned.map((point) => [point.id, point]))
   const next = {
     ...route,
     start: { ...route.start, canvasPosition: byId.get('start').canvasPosition },
-    stops: positioned.filter((point) => point.type === 'stop').sort((a, b) => a.canvasPosition.x - b.canvasPosition.x).map((point) => ({ ...route.stops.find((stop) => stop.id === point.id), canvasPosition: point.canvasPosition })),
+    stops: positioned.filter((point) => point.type === 'stop').map((point) => ({ ...route.stops.find((stop) => stop.id === point.id), canvasPosition: point.canvasPosition })),
     destination: { ...route.destination, canvasPosition: byId.get('destination').canvasPosition },
   }
   const errors = validateTripRoute(next)
@@ -154,13 +195,13 @@ export const setTripRouteCanvasPointPosition = (route, pointId, position) => {
   return next
 }
 
-export const getRouteCanvasCoordinates = (position, viewWidth, viewHeight = 100) => ({
-  x: 8 + (position.x / 100) * (viewWidth - 16),
-  y: 18 + (position.y / 100) * (viewHeight - 36),
+export const getRouteCanvasCoordinates = (position) => ({
+  x: position.x,
+  y: (position.y / 100) * MAHARASHTRA_VIEWBOX.height,
 })
 
-export const buildRouteCanvasPath = (points, viewWidth, viewHeight = 100) => {
-  const coords = points.map((point) => getRouteCanvasCoordinates(point.canvasPosition, viewWidth, viewHeight))
+export const buildRouteCanvasPath = (points) => {
+  const coords = points.map((point) => getRouteCanvasCoordinates(point.canvasPosition))
   if (!coords.length) return ''
   if (coords.length === 1) return `M ${coords[0].x} ${coords[0].y}`
   return coords.slice(1).reduce((path, current, index) => {
