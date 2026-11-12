@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Flag, LocateFixed, Map, MapPin, Maximize2, Play, ZoomIn, ZoomOut } from 'lucide-react'
 import {
+  buildRouteCanvasSegments,
   getRouteCanvasCoordinates,
   getRouteStopProgress,
+  getRouteTimelineSegments,
   getTripRouteCanvasPoints,
   isInsideMaharashtra,
 } from '../../lib/tripRoute.js'
@@ -35,6 +37,7 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
   const activeTimelinePointRef = useRef(null)
   const routePoints = useMemo(() => getTripRouteCanvasPoints(route), [route])
   const stopProgress = useMemo(() => getRouteStopProgress(route), [route])
+  const timelineSegments = useMemo(() => getRouteTimelineSegments(routePoints), [routePoints])
   const activePointId = routePoints.find((point) => point.status === 'in_progress')?.id
     || routePoints.find((point) => point.status === 'upcoming')?.id
     || routePoints.at(-1)?.id
@@ -44,6 +47,7 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
   const viewY = (mapHeight - visibleHeight) / 2 + pan.y
   const viewBox = `${viewX} ${viewY} ${visibleWidth} ${visibleHeight}`
   const displayedPoints = routePoints.map((point) => drag?.id === point.id ? { ...point, canvasPosition: drag.position } : point)
+  const routeSegments = buildRouteCanvasSegments(displayedPoints)
   const polygonPaths = useMemo(() => MAHARASHTRA_POLYGONS.map(polygonPath), [])
 
   const svgPosition = (event) => {
@@ -207,6 +211,12 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
         </g>
         <g clipPath="url(#maharashtraBoundaryClip)">
           <path className="maharashtra-map-grid" d={`M 0 ${mapHeight * .25} H ${mapWidth} M 0 ${mapHeight * .5} H ${mapWidth} M 0 ${mapHeight * .75} H ${mapWidth} M ${mapWidth * .25} 0 V ${mapHeight} M ${mapWidth * .5} 0 V ${mapHeight} M ${mapWidth * .75} 0 V ${mapHeight}`} />
+          {routeSegments.map((segment) => <path
+            className={`route-canvas-connection route-canvas-connection--${segment.status}`}
+            d={segment.d}
+            key={`${segment.fromId}-${segment.toId}`}
+            vectorEffect="non-scaling-stroke"
+          />)}
         </g>
         {displayedPoints.map((point, index) => {
           const { x, y } = getRouteCanvasCoordinates(point.canvasPosition)
@@ -247,7 +257,7 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
               const isActive = point.id === activePointId
               const TypeIcon = point.type === 'start' ? Play : point.type === 'destination' ? Flag : MapPin
               return <li className="route-journey__item" key={point.id} ref={isActive ? activeTimelinePointRef : null}>
-                {index < routePoints.length - 1 ? <span aria-hidden="true" className={`route-journey__connector${point.status === 'completed' ? ' route-journey__connector--completed' : ''}`} /> : null}
+                {index < routePoints.length - 1 ? <span aria-hidden="true" className={`route-journey__connector route-journey__connector--${timelineSegments[index]?.status || 'upcoming'}`} /> : null}
                 <button
                   aria-label={`${point.type === 'start' ? 'Starting location' : point.type === 'destination' ? 'Final destination' : `Stop ${index}`}: ${point.name}. ${statusText[point.status]}. ${canManage ? 'Edit details' : 'View details'}`}
                   className={`route-journey__point${isActive ? ' route-journey__point--active' : ''}`}

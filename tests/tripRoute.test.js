@@ -4,15 +4,18 @@ import test from 'node:test'
 import {
   createEmptyRoutePoint,
   createEmptyTripRoute,
+  buildRouteCanvasSegments,
   buildRouteCanvasPath,
   getRouteCanvasCoordinates,
   getDefaultMaharashtraPosition,
   getNextUpcomingRoutePointId,
   getRouteProgress,
   getRouteStopProgress,
+  getRouteTimelineSegments,
   getTripRouteCanvasPoints,
   getTripRoutePoints,
   isInsideMaharashtra,
+  removeTripRouteStop,
   reorderTripRouteStop,
   setTripRouteCanvasPointPosition,
   setTripRoutePointStatus,
@@ -89,6 +92,29 @@ test('map stop progress handles zero, partial, and fully completed stops', () =>
   assert.deepEqual(getRouteStopProgress(partialRoute), { completed: 3, total: 3, remaining: 0, percent: 100 })
 })
 
+test('timeline connector statuses follow the next ordered location independently', () => {
+  const points = getTripRoutePoints(routeWithStops())
+  assert.deepEqual(getRouteTimelineSegments(points), [
+    { fromId: 'start', toId: 'nashik', status: 'in_progress' },
+    { fromId: 'nashik', toId: 'igatpuri', status: 'upcoming' },
+    { fromId: 'igatpuri', toId: 'destination', status: 'upcoming' },
+  ])
+  const completed = setTripRoutePointStatus(routeWithStops(), 'nashik', 'completed', today)
+  assert.equal(getRouteTimelineSegments(getTripRoutePoints(completed))[0].status, 'completed')
+})
+
+test('deleting an intermediate stop preserves endpoints and remaining journey order', () => {
+  const route = routeWithStops()
+  const next = removeTripRouteStop(route, 'nashik')
+  assert.deepEqual(next.stops.map((stop) => stop.id), ['igatpuri'])
+  assert.equal(next.start.name, 'Pune')
+  assert.equal(next.destination.name, 'Mumbai')
+  assert.deepEqual(route.stops.map((stop) => stop.id), ['nashik', 'igatpuri'])
+  assert.throws(() => removeTripRouteStop(route, 'start'), /Only an intermediate/)
+  assert.throws(() => removeTripRouteStop(route, 'destination'), /Only an intermediate/)
+  assert.throws(() => removeTripRouteStop(route, 'missing'), /no longer available/)
+})
+
 test('marking the in-progress point complete records the actual date', () => {
   const next = setTripRoutePointStatus(routeWithStops(), 'nashik', 'completed', today)
   assert.equal(next.stops[0].actualCompletionDate, today)
@@ -147,6 +173,25 @@ test('canvas coordinates and smooth path geometry are bounded and deterministic'
   assert.throws(() => setTripRouteCanvasPointPosition(routeWithStops(), 'nashik', { x: 50, y: 0 }), /inside Maharashtra/)
   assert.throws(() => setTripRouteCanvasPointPosition(routeWithStops(), 'nashik', { x: 120, y: 40 }), /inside Maharashtra/)
   assert.throws(() => setTripRouteCanvasPointPosition(routeWithStops(), 'missing', { x: 50, y: 40 }), /no longer available/)
+})
+
+test('map connectors follow journey order, use the next point status, and respond to pin movement', () => {
+  const route = routeWithStops()
+  const points = getTripRouteCanvasPoints(route)
+  const segments = buildRouteCanvasSegments(points)
+  assert.equal(segments.length, points.length - 1)
+  assert.deepEqual(segments.map(({ fromId, toId, status }) => ({ fromId, toId, status })), [
+    { fromId: 'start', toId: 'nashik', status: 'in_progress' },
+    { fromId: 'nashik', toId: 'igatpuri', status: 'upcoming' },
+    { fromId: 'igatpuri', toId: 'destination', status: 'upcoming' },
+  ])
+  assert.ok(segments.every(({ d }) => d.startsWith('M ') && d.includes(' C ')))
+
+  const movedPoints = points.map((point) => point.id === 'nashik'
+    ? { ...point, canvasPosition: { x: point.canvasPosition.x + 1, y: point.canvasPosition.y } }
+    : point)
+  assert.notEqual(buildRouteCanvasSegments(movedPoints)[0].d, segments[0].d)
+  assert.deepEqual(route.stops.map((stop) => stop.id), ['nashik', 'igatpuri'])
 })
 
 test('route locations use Maharashtra-shaped normalized coordinates and reordering preserves pin positions', () => {

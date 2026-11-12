@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Flag, Map, MapPin, PencilLine, Play, Plus, RotateCcw, Route as RouteIcon, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-import { getDefaultMaharashtraPosition, getNextUpcomingRoutePointId, getRouteProgress, getTripRoutePoints, createEmptyTripRoute, reorderTripRouteStop, setTripRouteCanvasPointPosition, setTripRoutePointStatus } from '../../lib/tripRoute.js'
+import { createEmptyTripRoute, getDefaultMaharashtraPosition, getNextUpcomingRoutePointId, getRouteProgress, getTripRoutePoints, removeTripRouteStop, reorderTripRouteStop, setTripRouteCanvasPointPosition, setTripRoutePointStatus } from '../../lib/tripRoute.js'
 import { subscribeTripRoute, updateTripRoute } from '../../services/tripRoutes.js'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -170,7 +170,7 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
   const confirmRemoveStop = async () => {
     if (!removeTarget) return
     const target = removeTarget
-    const success = await persist((current) => ({ ...current, stops: current.stops.filter((item) => item.id !== target.id) }), 'Stop removed.')
+    const success = await persist((current) => removeTripRouteStop(current, target.id), 'Stop removed.')
     if (success) setRemoveTarget(null)
   }
 
@@ -340,8 +340,9 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
         </form>
       </Modal>
 
-      <Modal description="This removes only the selected location from the shared route. Trip records and finances are unchanged." footer={<div className="flex justify-end gap-2"><Button disabled={saving} onClick={() => setRemoveTarget(null)} type="button" variant="secondary">Cancel</Button><Button className="bg-red-600 hover:bg-red-700" disabled={saving} onClick={confirmRemoveStop} type="button">{saving ? 'Removing…' : 'Remove stop'}</Button></div>} onClose={() => setRemoveTarget(null)} open={Boolean(removeTarget)} title="Remove route stop" size="compact">
-        <p className="break-words text-sm text-dusk [overflow-wrap:anywhere]">Remove <strong className="text-ink">{removeTarget?.name}</strong> from this journey?</p>
+      <Modal description="This removes only the selected intermediate location. Trip records and finances are unchanged." footer={<div className="flex justify-end gap-2"><Button disabled={saving} onClick={() => setRemoveTarget(null)} type="button" variant="secondary">Cancel</Button><Button className="bg-red-600 hover:bg-red-700" disabled={saving} onClick={confirmRemoveStop} type="button">{saving ? 'Removing…' : 'Delete'}</Button></div>} onClose={() => setRemoveTarget(null)} open={Boolean(removeTarget)} title="Remove route stop" size="compact">
+        <p className="text-sm text-dusk">Remove this stop from the route?</p>
+        <p className="mt-2 break-words text-sm font-semibold text-ink [overflow-wrap:anywhere]">{removeTarget?.name}</p>
       </Modal>
     </section>
   )

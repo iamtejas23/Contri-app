@@ -52,6 +52,24 @@ test('current trip members can read routes, but only trip admins can create or e
   await assertFails(deleteDoc(routeRef))
 })
 
+test('only the trip admin can remove a route stop while members retain read access', async () => {
+  const tripId = 'route-rules-stop-delete'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', tripId), tripData())
+  })
+
+  const adminDb = environment.authenticatedContext('route-admin').firestore()
+  const memberDb = environment.authenticatedContext('route-member').firestore()
+  const routeRef = doc(adminDb, 'trips', tripId, 'route', 'current')
+  const withStop = routeData(tripId, 'route-admin')
+  withStop.stops = [{ id: 'stop-a', name: 'Lonavala', description: '', plannedArrivalDate: '', actualCompletionDate: '', status: 'upcoming', canvasPosition: { x: 50, y: 30 } }]
+  await assertSucceeds(setDoc(routeRef, withStop))
+
+  await assertSucceeds(setDoc(routeRef, routeData(tripId, 'route-admin')))
+  await assertSucceeds(getDoc(doc(memberDb, 'trips', tripId, 'route', 'current')))
+  await assertFails(setDoc(doc(memberDb, 'trips', tripId, 'route', 'current'), withStop))
+})
+
 test('removing a member immediately removes route read access; malformed writes fail', async () => {
   const tripId = 'route-rules-membership-change'
   await environment.withSecurityRulesDisabled(async (context) => {

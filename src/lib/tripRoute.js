@@ -106,6 +106,12 @@ export const getRouteStopProgress = (route) => {
   return { completed, total, remaining: total - completed, percent: total ? Math.round((completed / total) * 100) : 0 }
 }
 
+export const getRouteTimelineSegments = (points) => points.slice(1).map((point, index) => ({
+  fromId: points[index].id,
+  toId: point.id,
+  status: point.status,
+}))
+
 export const getNextUpcomingRoutePointId = (route) => (
   getTripRoutePoints(route).find((point) => point.status === 'upcoming')?.id || ''
 )
@@ -121,6 +127,13 @@ export const reorderTripRouteStop = (route, stopId, offset) => {
   const errors = validateTripRoute(next)
   if (errors.length) throw new Error(errors[0])
   return next
+}
+
+export const removeTripRouteStop = (route, stopId) => {
+  if (!stopId || stopId === 'start' || stopId === 'destination') throw new Error('Only an intermediate route stop can be removed.')
+  const stops = Array.isArray(route?.stops) ? route.stops : []
+  if (!stops.some((stop) => stop.id === stopId)) throw new Error('That route stop is no longer available.')
+  return { ...route, stops: stops.filter((stop) => stop.id !== stopId) }
 }
 
 export const isInsideMaharashtra = (position) => {
@@ -219,6 +232,34 @@ export const buildRouteCanvasPath = (points) => {
     const controlTwo = { x: current.x - (after.x - previous.x) / 6, y: current.y - (after.y - previous.y) / 6 }
     return `${path} C ${controlOne.x} ${controlOne.y}, ${controlTwo.x} ${controlTwo.y}, ${current.x} ${current.y}`
   }, `M ${coords[0].x} ${coords[0].y}`)
+}
+
+export const buildRouteCanvasSegments = (points) => {
+  const coords = points.map((point) => getRouteCanvasCoordinates(point.canvasPosition))
+  return coords.slice(1).map((current, index) => {
+    const previous = coords[index]
+    const before = coords[index - 1] || previous
+    const after = coords[index + 2] || current
+    const dx = current.x - previous.x
+    const dy = current.y - previous.y
+    const distance = Math.hypot(dx, dy) || 1
+    const bend = Math.min(2.4, distance * 0.08) * (index % 2 ? -1 : 1)
+    const normal = { x: (-dy / distance) * bend, y: (dx / distance) * bend }
+    const controlOne = {
+      x: previous.x + (current.x - before.x) / 6 + normal.x,
+      y: previous.y + (current.y - before.y) / 6 + normal.y,
+    }
+    const controlTwo = {
+      x: current.x - (after.x - previous.x) / 6 + normal.x,
+      y: current.y - (after.y - previous.y) / 6 + normal.y,
+    }
+    return {
+      d: `M ${previous.x} ${previous.y} C ${controlOne.x} ${controlOne.y}, ${controlTwo.x} ${controlTwo.y}, ${current.x} ${current.y}`,
+      fromId: points[index].id,
+      toId: points[index + 1].id,
+      status: points[index + 1].status,
+    }
+  })
 }
 
 export const setTripRoutePointStatus = (route, pointId, status, actualDate = '') => {
