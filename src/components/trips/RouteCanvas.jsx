@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { LocateFixed, Map, Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
 import {
-  buildRouteCanvasPath,
   getRouteCanvasCoordinates,
+  getRouteStopProgress,
   getTripRouteCanvasPoints,
   isInsideMaharashtra,
 } from '../../lib/tripRoute.js'
@@ -27,13 +27,13 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const routePoints = useMemo(() => getTripRouteCanvasPoints(route), [route])
+  const stopProgress = useMemo(() => getRouteStopProgress(route), [route])
   const visibleWidth = mapWidth / zoom
   const visibleHeight = mapHeight / zoom
   const viewX = (mapWidth - visibleWidth) / 2 + pan.x
   const viewY = (mapHeight - visibleHeight) / 2 + pan.y
   const viewBox = `${viewX} ${viewY} ${visibleWidth} ${visibleHeight}`
   const displayedPoints = routePoints.map((point) => drag?.id === point.id ? { ...point, canvasPosition: drag.position } : point)
-  const routePath = buildRouteCanvasPath(displayedPoints)
   const polygonPaths = useMemo(() => MAHARASHTRA_POLYGONS.map(polygonPath), [])
 
   const svgPosition = (event) => {
@@ -176,7 +176,6 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
         viewBox={viewBox}
       >
         <defs>
-          <linearGradient id="routeCanvasRoad" x1="0" x2="1"><stop offset="0%" stopColor="#60a5fa" /><stop offset="50%" stopColor="#a78bfa" /><stop offset="100%" stopColor="#34d399" /></linearGradient>
           <linearGradient id="maharashtraFill" x1="0" x2="1" y1="0" y2="1"><stop offset="0%" stopColor="#dbeafe" /><stop offset="100%" stopColor="#ccfbf1" /></linearGradient>
           <clipPath id="maharashtraBoundaryClip">{polygonPaths.map((path, index) => <path d={path} key={index} />)}</clipPath>
         </defs>
@@ -187,9 +186,6 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
         </g>
         <g clipPath="url(#maharashtraBoundaryClip)">
           <path className="maharashtra-map-grid" d={`M 0 ${mapHeight * .25} H ${mapWidth} M 0 ${mapHeight * .5} H ${mapWidth} M 0 ${mapHeight * .75} H ${mapWidth} M ${mapWidth * .25} 0 V ${mapHeight} M ${mapWidth * .5} 0 V ${mapHeight} M ${mapWidth * .75} 0 V ${mapHeight}`} />
-          <path className="route-canvas-road-shadow" d={routePath} />
-          <path className="route-canvas-road" d={routePath} />
-          <path className="route-canvas-road-center" d={routePath} />
         </g>
         {displayedPoints.map((point, index) => {
           const { x, y } = getRouteCanvasCoordinates(point.canvasPosition)
@@ -218,8 +214,24 @@ export const RouteCanvas = ({ route, canManage, onEditPoint, onPositionChange })
           </g>
         })}
       </svg>
+      <div className="route-stop-progress" aria-label="Route stop completion">
+        <div className="route-stop-progress__meta">
+          <span>{stopProgress.completed} of {stopProgress.total} stops completed · {stopProgress.remaining} remaining</span>
+          <span className="route-stop-progress__percent">{stopProgress.percent}%</span>
+        </div>
+        <div
+          aria-label="Route stops completed"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={stopProgress.percent}
+          className="route-stop-progress__track"
+          role="progressbar"
+        >
+          <div className="route-stop-progress__fill" style={{ width: `${stopProgress.percent}%` }} />
+        </div>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-dusk">
-        <span>{canManage ? 'Pins stay inside the state boundary. Use the directions list to change stop order.' : 'Shared Maharashtra map · route lines connect locations in trip order.'}</span>
+        <span>{canManage ? 'Pins stay inside the state boundary. Use the directions list to change stop order.' : 'Shared Maharashtra map · locations shown in trip order.'}</span>
         <a className="opacity-75 underline-offset-2 hover:underline" href="https://www.geoboundaries.org/" rel="noreferrer" target="_blank">Boundary: geoBoundaries · DataMeet India · CC BY 2.5 IN</a>
       </div>
     </section>

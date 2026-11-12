@@ -9,6 +9,7 @@ import {
   getDefaultMaharashtraPosition,
   getNextUpcomingRoutePointId,
   getRouteProgress,
+  getRouteStopProgress,
   getTripRouteCanvasPoints,
   getTripRoutePoints,
   isInsideMaharashtra,
@@ -49,6 +50,21 @@ test('only the next upcoming route point is selected for animation', () => {
 
 test('completion progress is derived only from visible ordered locations', () => {
   assert.deepEqual(getRouteProgress(routeWithStops()), { completed: 1, total: 4, remaining: 3, percent: 25 })
+})
+
+test('map stop progress handles zero, partial, and fully completed stops', () => {
+  assert.deepEqual(getRouteStopProgress(createEmptyTripRoute('trip-1')), { completed: 0, total: 0, remaining: 0, percent: 0 })
+
+  const partialRoute = routeWithStops()
+  partialRoute.stops = [
+    complete('Nashik'),
+    { ...createEmptyRoutePoint('Igatpuri'), id: 'igatpuri', status: 'in_progress' },
+    createEmptyRoutePoint('Lonavala'),
+  ]
+  assert.deepEqual(getRouteStopProgress(partialRoute), { completed: 1, total: 3, remaining: 2, percent: 33 })
+
+  partialRoute.stops = [complete('Nashik'), complete('Igatpuri'), complete('Lonavala')]
+  assert.deepEqual(getRouteStopProgress(partialRoute), { completed: 3, total: 3, remaining: 0, percent: 100 })
 })
 
 test('marking the in-progress point complete records the actual date', () => {

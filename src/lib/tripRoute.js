@@ -99,6 +99,13 @@ export const getRouteProgress = (route) => {
   return { completed, total: points.length, remaining: points.length - completed, percent: points.length ? Math.round((completed / points.length) * 100) : 0 }
 }
 
+export const getRouteStopProgress = (route) => {
+  const stops = Array.isArray(route?.stops) ? route.stops : []
+  const completed = stops.filter((stop) => stop?.status === 'completed').length
+  const total = stops.length
+  return { completed, total, remaining: total - completed, percent: total ? Math.round((completed / total) * 100) : 0 }
+}
+
 export const getNextUpcomingRoutePointId = (route) => (
   getTripRoutePoints(route).find((point) => point.status === 'upcoming')?.id || ''
 )
