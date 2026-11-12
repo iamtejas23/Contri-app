@@ -42,6 +42,13 @@ const validatePoint = (point, label) => {
   if (!isIsoDate(point.plannedArrivalDate)) errors.push(`${label} planned arrival date is invalid.`)
   if (!isIsoDate(point.actualCompletionDate)) errors.push(`${label} actual completion date is invalid.`)
   if (point.actualCompletionDate && point.actualCompletionDate > new Date().toISOString().slice(0, 10)) errors.push(`${label} actual completion date cannot be in the future.`)
+  if (point.canvasPosition !== undefined && (
+    !point.canvasPosition || typeof point.canvasPosition !== 'object' || Array.isArray(point.canvasPosition)
+    || Object.keys(point.canvasPosition).some((key) => !['x', 'y'].includes(key))
+    || !Number.isFinite(point.canvasPosition.x) || !Number.isFinite(point.canvasPosition.y)
+    || point.canvasPosition.x < 0 || point.canvasPosition.x > 100
+    || point.canvasPosition.y < 0 || point.canvasPosition.y > 100
+  )) errors.push(`${label} canvas position is invalid.`)
   if (!ROUTE_POINT_STATUSES.includes(point.status)) errors.push(`${label} status is invalid.`)
   if (point.status === 'completed' && !point.actualCompletionDate) errors.push(`${label} needs an actual completion date.`)
   if (point.status !== 'completed' && point.actualCompletionDate) errors.push(`${label} cannot have an actual completion date until it is completed.`)
@@ -95,15 +102,75 @@ export const getNextUpcomingRoutePointId = (route) => (
 )
 
 export const reorderTripRouteStop = (route, stopId, offset) => {
+  if (!Number.isInteger(offset) || Math.abs(offset) !== 1) throw new Error('Route stops can only move one position at a time.')
   const stops = [...(route?.stops || [])]
   const index = stops.findIndex((stop) => stop.id === stopId)
   const target = index + offset
   if (index < 0 || target < 0 || target >= stops.length) return route
   ;[stops[index], stops[target]] = [stops[target], stops[index]]
-  const next = { ...route, stops }
+  const hasCanvasLayout = Boolean(route?.start?.canvasPosition || route?.destination?.canvasPosition || stops.some((stop) => stop.canvasPosition))
+  const positionedStops = hasCanvasLayout
+    ? stops.map((stop, stopIndex) => ({ ...stop, canvasPosition: { ...(stop.canvasPosition || { y: [32, 68, 24, 76][stopIndex % 4] }), x: ((stopIndex + 1) / (stops.length + 1)) * 100 } }))
+    : stops
+  const next = { ...route, stops: positionedStops }
   const errors = validateTripRoute(next)
   if (errors.length) throw new Error(errors[0])
   return next
+}
+
+export const getTripRouteCanvasPoints = (route) => {
+  const stops = Array.isArray(route?.stops) ? route.stops : []
+  const fallback = new Map([
+    ['start', { x: 0, y: 50 }],
+    ['destination', { x: 100, y: 50 }],
+    ...stops.map((stop, index) => [stop.id, {
+      x: ((index + 1) / (stops.length + 1)) * 100,
+      y: [32, 68, 24, 76][index % 4],
+    }]),
+  ])
+  return getTripRoutePoints(route).map((point) => ({
+    ...point,
+    canvasPosition: point.canvasPosition || fallback.get(point.id) || { x: 50, y: 50 },
+  }))
+}
+
+export const setTripRouteCanvasPointPosition = (route, pointId, position) => {
+  const points = getTripRouteCanvasPoints(route)
+  if (!points.some((point) => point.id === pointId)) throw new Error('That route location is no longer available.')
+  if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.y) || position.x < 0 || position.x > 100 || position.y < 0 || position.y > 100) {
+    throw new Error('Choose a position inside the route canvas.')
+  }
+
+  const positioned = points.map((point) => ({ ...point, canvasPosition: point.id === pointId ? { x: Math.round(position.x * 10) / 10, y: Math.round(position.y * 10) / 10 } : point.canvasPosition }))
+  const byId = new Map(positioned.map((point) => [point.id, point]))
+  const next = {
+    ...route,
+    start: { ...route.start, canvasPosition: byId.get('start').canvasPosition },
+    stops: positioned.filter((point) => point.type === 'stop').sort((a, b) => a.canvasPosition.x - b.canvasPosition.x).map((point) => ({ ...route.stops.find((stop) => stop.id === point.id), canvasPosition: point.canvasPosition })),
+    destination: { ...route.destination, canvasPosition: byId.get('destination').canvasPosition },
+  }
+  const errors = validateTripRoute(next)
+  if (errors.length) throw new Error(errors[0])
+  return next
+}
+
+export const getRouteCanvasCoordinates = (position, viewWidth, viewHeight = 100) => ({
+  x: 8 + (position.x / 100) * (viewWidth - 16),
+  y: 18 + (position.y / 100) * (viewHeight - 36),
+})
+
+export const buildRouteCanvasPath = (points, viewWidth, viewHeight = 100) => {
+  const coords = points.map((point) => getRouteCanvasCoordinates(point.canvasPosition, viewWidth, viewHeight))
+  if (!coords.length) return ''
+  if (coords.length === 1) return `M ${coords[0].x} ${coords[0].y}`
+  return coords.slice(1).reduce((path, current, index) => {
+    const previous = coords[index]
+    const before = coords[index - 1] || previous
+    const after = coords[index + 2] || current
+    const controlOne = { x: previous.x + (current.x - before.x) / 6, y: previous.y + (current.y - before.y) / 6 }
+    const controlTwo = { x: current.x - (after.x - previous.x) / 6, y: current.y - (after.y - previous.y) / 6 }
+    return `${path} C ${controlOne.x} ${controlOne.y}, ${controlTwo.x} ${controlTwo.y}, ${current.x} ${current.y}`
+  }, `M ${coords[0].x} ${coords[0].y}`)
 }
 
 export const setTripRoutePointStatus = (route, pointId, status, actualDate = '') => {

@@ -1,16 +1,18 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Flag, Map, MapPin, PencilLine, Play, Plus, RotateCcw, Route as RouteIcon, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-import { getNextUpcomingRoutePointId, getRouteProgress, getTripRoutePoints, createEmptyTripRoute, reorderTripRouteStop, setTripRoutePointStatus } from '../../lib/tripRoute.js'
+import { getNextUpcomingRoutePointId, getRouteProgress, getTripRouteCanvasPoints, getTripRoutePoints, createEmptyTripRoute, reorderTripRouteStop, setTripRouteCanvasPointPosition, setTripRoutePointStatus } from '../../lib/tripRoute.js'
 import { subscribeTripRoute, updateTripRoute } from '../../services/tripRoutes.js'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { EmptyState } from '../ui/EmptyState'
 import { Input } from '../ui/Input'
+import { DateField } from '../ui/DateField'
 import { MemberAvatar } from '../ui/MemberAvatar'
 import { Modal } from '../ui/Modal'
 import { Textarea } from '../ui/Textarea'
+import { RouteCanvas } from './RouteCanvas'
 
 const localToday = () => {
   const now = new Date()
@@ -34,6 +36,7 @@ const blankLocationForm = (point) => ({
   name: point?.name || '',
   description: point?.description || '',
   plannedArrivalDate: point?.plannedArrivalDate || '',
+  actualCompletionDate: point?.actualCompletionDate || '',
 })
 
 const blankStopForm = (stop) => ({
@@ -68,6 +71,11 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
   const [editingStop, setEditingStop] = useState(null)
   const [stopForm, setStopForm] = useState(blankStopForm())
   const [formError, setFormError] = useState('')
+  const [movedStopId, setMovedStopId] = useState('')
+  const [directionsOpen, setDirectionsOpen] = useState(false)
+  const moveFeedbackTimer = useRef(null)
+
+  useEffect(() => () => window.clearTimeout(moveFeedbackTimer.current), [])
 
   useEffect(() => {
     if (!tripId) return undefined
@@ -111,6 +119,10 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
   const saveSetup = async (event) => {
     event.preventDefault()
     setFormError('')
+    if (!locationForm.start.name.trim() || !locationForm.destination.name.trim()) {
+      setFormError('Enter both a starting location and a final destination.')
+      return
+    }
     const success = await persist((current) => ({
       ...current,
       start: { ...current.start, ...locationForm.start },
@@ -137,8 +149,14 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
     const success = await persist((current) => {
       const stops = [...(current.stops || [])]
       const index = stops.findIndex((stop) => stop.id === nextStop.id)
-      if (index >= 0) stops[index] = nextStop
-      else stops.push(nextStop)
+      if (index >= 0) stops[index] = { ...stops[index], ...nextStop, ...(stops[index].canvasPosition ? { canvasPosition: stops[index].canvasPosition } : {}) }
+      else {
+        const points = getTripRouteCanvasPoints(current)
+        const existingCanvasLayout = points.some((point) => point.canvasPosition && (point.id === 'start' ? current.start.canvasPosition : point.id === 'destination' ? current.destination.canvasPosition : current.stops.find((stop) => stop.id === point.id)?.canvasPosition))
+        const previousX = points.filter((point) => point.type === 'stop').at(-1)?.canvasPosition.x ?? 0
+        const canvasPosition = existingCanvasLayout ? { x: previousX + ((100 - previousX) / 2), y: [32, 68, 24, 76][stops.length % 4] } : undefined
+        stops.push({ ...nextStop, ...(canvasPosition ? { canvasPosition } : {}) })
+      }
       return { ...current, stops }
     }, editingStop ? 'Stop updated.' : 'Stop added to the route.')
     if (success) setStopOpen(false)
@@ -159,7 +177,35 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
     if (success) setRemoveTarget(null)
   }
 
-  const moveStop = (stop, offset) => persist((current) => reorderTripRouteStop(current, stop.id, offset), 'Route order updated.')
+  const moveStop = async (stop, offset) => {
+    const success = await persist((current) => reorderTripRouteStop(current, stop.id, offset), 'Route order updated.')
+    if (!success) return
+    setMovedStopId(stop.id)
+    window.clearTimeout(moveFeedbackTimer.current)
+    moveFeedbackTimer.current = window.setTimeout(() => setMovedStopId(''), 850)
+  }
+  const saveCanvasPosition = async (pointId, position) => {
+    if (!canManage || saving || !route) return
+    const previous = route
+    let optimistic
+    try {
+      optimistic = setTripRouteCanvasPointPosition(previous, pointId, position)
+    } catch (positionError) {
+      toast.error(positionError?.message || 'That marker position is invalid.')
+      return
+    }
+    setRoute(optimistic)
+    setSaving(true)
+    try {
+      await updateTripRoute({ tripId, actorUid, transform: (current) => setTripRouteCanvasPointPosition(current, pointId, position) })
+      toast.success('Route updated.')
+    } catch (saveError) {
+      setRoute(previous)
+      toast.error(saveError?.message || 'The route could not be saved.')
+    } finally {
+      setSaving(false)
+    }
+  }
   const retry = () => {
     setError('')
     setLoading(true)
@@ -180,7 +226,7 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
           </div>
           {canManage ? <div className="flex flex-wrap gap-2">
             <Button className="min-h-11" disabled={saving} onClick={openSetup} type="button" variant="secondary"><PencilLine aria-hidden="true" className="h-4 w-4" /> {isRouteReady ? 'Edit endpoints' : 'Set up route'}</Button>
-            {isRouteReady ? <Button className="min-h-11" disabled={saving} onClick={() => openStop()} type="button"><Plus aria-hidden="true" className="h-4 w-4" /> Add stop</Button> : null}
+            {isRouteReady ? <Button className="min-h-11" disabled={saving} onClick={() => openStop()} type="button"><Plus aria-hidden="true" className="h-4 w-4" /> Add route stop</Button> : null}
           </div> : <span className="w-fit rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-slate-300">Shared with trip members</span>}
         </div>
         {isRouteReady ? <div className="border-t border-white/10 px-4 py-4 sm:px-6">
@@ -195,19 +241,21 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
           {canManage ? <div className="mt-3 flex justify-center"><Button className="min-h-11" onClick={openSetup} type="button"><Map aria-hidden="true" className="h-4 w-4" /> Set up route</Button></div> : null}
         </Card>
       ) : <>
+        <RouteCanvas canManage={canManage && !saving} onEditPoint={(point) => point.type === 'stop' ? openStop(point) : openSetup()} onPositionChange={saveCanvasPosition} route={route} />
         <Card className="min-w-0 p-4 sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
-            <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-dusk">In order</p><h3 className="mt-1 font-display text-lg font-semibold text-ink">Journey timeline</h3></div>
+            <div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-dusk">In order</p><h3 className="mt-1 font-display text-lg font-semibold text-ink">Directions</h3></div>
+            <button aria-expanded={directionsOpen} className="route-directions-toggle sm:hidden" onClick={() => setDirectionsOpen((current) => !current)} type="button">{directionsOpen ? 'Hide directions' : 'Show directions'}</button>
             {canManage ? <span className="hidden text-xs text-dusk sm:block">Only trip admins can edit this route.</span> : null}
           </div>
-          <ol className="trip-route-timeline">
+          <ol className={`trip-route-timeline${directionsOpen ? '' : ' trip-route-timeline--collapsed sm:!grid'}`}>
             {points.map((point, index) => {
               const isNext = point.id === nextUpcomingId
               const isStop = point.type === 'stop'
               const stopIndex = isStop ? route.stops.findIndex((stop) => stop.id === point.id) : -1
               const isLast = index === points.length - 1
               const TypeIcon = point.type === 'start' ? Play : point.type === 'destination' ? Flag : MapPin
-              return <li className="trip-route-item" key={point.id}>
+              return <li className={`trip-route-item${movedStopId === point.id ? ' trip-route-item--moved' : ''}`} key={point.id}>
                 {!isLast ? <span className={`trip-route-line ${point.status === 'completed' ? 'trip-route-line--done' : ''}`} aria-hidden="true" /> : null}
                 <div className="trip-route-marker-column"><PointMarker isNext={isNext} number={index + 1} point={point} /></div>
                 <div className="min-w-0 pb-6">
@@ -266,7 +314,8 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
             <legend className="px-1 text-sm font-semibold text-ink">{key === 'start' ? 'Starting location' : 'Final destination'}</legend>
             <Input autoComplete="off" label="Location name" maxLength={120} onChange={(event) => setLocationForm((current) => ({ ...current, [key]: { ...current[key], name: event.target.value } }))} required value={locationForm[key].name} />
             <Textarea label="Description (optional)" maxLength={240} onChange={(event) => setLocationForm((current) => ({ ...current, [key]: { ...current[key], description: event.target.value } }))} rows={2} value={locationForm[key].description} />
-            <Input label="Planned arrival" onChange={(event) => setLocationForm((current) => ({ ...current, [key]: { ...current[key], plannedArrivalDate: event.target.value } }))} type="date" value={locationForm[key].plannedArrivalDate} />
+            <DateField label="Planned arrival" onChange={(date) => setLocationForm((current) => ({ ...current, [key]: { ...current[key], plannedArrivalDate: date } }))} value={locationForm[key].plannedArrivalDate} />
+            {locationForm[key].actualCompletionDate || (key === 'start' ? route?.start?.status : route?.destination?.status) === 'completed' ? <DateField label="Actual completion date" maxDate={localToday()} onChange={(date) => setLocationForm((current) => ({ ...current, [key]: { ...current[key], actualCompletionDate: date } }))} required value={locationForm[key].actualCompletionDate} /> : null}
           </fieldset>)}
           {formError ? <p className="text-sm text-red-600" role="alert">{formError}</p> : null}
         </form>
@@ -276,8 +325,8 @@ export const TripRoute = ({ trip, tripId, members = [], actorUid, canManage = fa
         <form className="space-y-4" id="trip-route-stop" onSubmit={saveStop}>
           <Input autoComplete="off" label="Stop name" maxLength={120} onChange={(event) => setStopForm((current) => ({ ...current, name: event.target.value }))} required value={stopForm.name} />
           <Textarea label="Description (optional)" maxLength={240} onChange={(event) => setStopForm((current) => ({ ...current, description: event.target.value }))} rows={3} value={stopForm.description} />
-          <Input label="Planned arrival" onChange={(event) => setStopForm((current) => ({ ...current, plannedArrivalDate: event.target.value }))} type="date" value={stopForm.plannedArrivalDate} />
-          {editingStop?.status === 'completed' ? <Input label="Actual completion date" onChange={(event) => setStopForm((current) => ({ ...current, actualCompletionDate: event.target.value }))} required type="date" value={stopForm.actualCompletionDate} /> : null}
+          <DateField label="Planned arrival" onChange={(date) => setStopForm((current) => ({ ...current, plannedArrivalDate: date }))} value={stopForm.plannedArrivalDate} />
+          {editingStop?.status === 'completed' ? <DateField label="Actual completion date" maxDate={localToday()} onChange={(date) => setStopForm((current) => ({ ...current, actualCompletionDate: date }))} required value={stopForm.actualCompletionDate} /> : null}
           {formError ? <p className="text-sm text-red-600" role="alert">{formError}</p> : null}
         </form>
       </Modal>

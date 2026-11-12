@@ -132,7 +132,7 @@ service cloud.firestore {
     function validRoutePoint(point) {
       return point is map
         && point.keys().hasAll(['name', 'description', 'plannedArrivalDate', 'actualCompletionDate', 'status'])
-        && point.keys().hasOnly(['name', 'description', 'plannedArrivalDate', 'actualCompletionDate', 'status'])
+        && point.keys().hasOnly(['name', 'description', 'plannedArrivalDate', 'actualCompletionDate', 'status', 'canvasPosition'])
         && point.name is string
         && point.name.size() > 0
         && point.name.size() <= 120
@@ -143,6 +143,16 @@ service cloud.firestore {
         && point.actualCompletionDate is string
         && (point.actualCompletionDate == '' || point.actualCompletionDate.matches('^\\d{4}-\\d{2}-\\d{2}$'))
         && point.status in ['upcoming', 'in_progress', 'completed']
+        && (!('canvasPosition' in point)
+          || (point.canvasPosition is map
+            && point.canvasPosition.keys().hasAll(['x', 'y'])
+            && point.canvasPosition.keys().hasOnly(['x', 'y'])
+            && point.canvasPosition.x is number
+            && point.canvasPosition.x >= 0
+            && point.canvasPosition.x <= 100
+            && point.canvasPosition.y is number
+            && point.canvasPosition.y >= 0
+            && point.canvasPosition.y <= 100))
         && ((point.status == 'completed' && point.actualCompletionDate != '')
           || (point.status != 'completed' && point.actualCompletionDate == ''));
     }

@@ -75,3 +75,25 @@ test('removing a member immediately removes route read access; malformed writes 
     ...routeData(tripId, 'route-admin'), start: { name: '', description: '', plannedArrivalDate: '', actualCompletionDate: '', status: 'upcoming' },
   }))
 })
+
+test('members can read saved canvas positions while only trip admins can update them', async () => {
+  const tripId = 'route-canvas-permissions'
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'trips', tripId), tripData())
+  })
+  const adminDb = environment.authenticatedContext('route-admin').firestore()
+  const memberDb = environment.authenticatedContext('route-member').firestore()
+  const routeRef = doc(adminDb, 'trips', tripId, 'route', 'current')
+  const canvasRoute = routeData(tripId, 'route-admin')
+  canvasRoute.start.canvasPosition = { x: 0, y: 50 }
+  canvasRoute.destination.canvasPosition = { x: 100, y: 50 }
+  canvasRoute.stops = [{ id: 'stop-a', name: 'Lonavala', description: '', plannedArrivalDate: '', actualCompletionDate: '', status: 'upcoming', canvasPosition: { x: 50, y: 30 } }]
+  await assertSucceeds(setDoc(routeRef, canvasRoute))
+  await assertSucceeds(getDoc(doc(memberDb, 'trips', tripId, 'route', 'current')))
+  await assertFails(updateDoc(doc(memberDb, 'trips', tripId, 'route', 'current'), {
+    updatedBy: 'route-member', updatedAt: serverTimestamp(),
+  }))
+
+  const invalidPosition = { ...canvasRoute, start: { ...canvasRoute.start, canvasPosition: { x: 1000, y: 50 } } }
+  await assertFails(setDoc(routeRef, invalidPosition))
+})
